@@ -119,10 +119,31 @@ class Test(unittest.TestCase):
         self.assertEqual(len(jobs), 1)
         self.assertTrue(os.path.isfile(os.path.join(self.tmpdir, jobs[0], "job.pkl")))
 
+    def testRigidBodyRunsWithoutLauncher(self):
+        """Rigid-body calculations skip the MPI launcher; all-atom ones use it"""
+        engine = ab_hoomdlauncher.HoomdLauncher(
+            PARAMS_DIR, outputDir=self.tmpdir, launcher=["srun", "--ntasks=4"]
+        )
+        commands = []
+
+        def fakeCall(cmd, env=None):
+            commands.append(cmd)
+            return 1  # No result file: the engine raises, which is fine here
+
+        with mock.patch.object(ab_hoomdlauncher.subprocess, "call", fakeCall):
+            for rigidBody in (True, False):
+                with self.assertRaises(RuntimeError):
+                    engine.optimiseGeometry("cell data", rigidBody=rigidBody)
+        self.assertEqual(commands[0][:2], [sys.executable, "-m"])
+        self.assertEqual(commands[1][:3], ["srun", "--ntasks=4", sys.executable])
+
     def testCellUsesLauncherFromEnvironment(self):
         with mock.patch.dict(os.environ, {ab_hoomdlauncher.LAUNCHER_ENV: "mpirun -n 2"}):
             self.cell.setMdEngineCls([2, 9, 3])
-        self.assertIs(self.cell.mdEngineCls, ab_hoomdlauncher.HoomdLauncher)
+        self.assertIs(self.cell.mdEngineCls.func, ab_hoomdlauncher.HoomdLauncher)
+        # The launcher is fixed when the engine is chosen, not when a calculation runs
+        engine = self.cell.mdEngineCls(PARAMS_DIR, outputDir=self.tmpdir)
+        self.assertEqual(engine.launcher, ["mpirun", "-n", "2"])
         # Without HOOMD in this process there is no engine, launcher or not
         self.cell.mdEngineCls = None
         with mock.patch.dict(os.environ, {ab_hoomdlauncher.LAUNCHER_ENV: "mpirun -n 2"}):
@@ -135,7 +156,8 @@ class TestWithHoomd(unittest.TestCase):
     """A worker gives the same answer as running HOOMD in this process.
 
     AMBUILD_TEST_HOOMD_LAUNCHER sets the launcher to test (default "", one separate
-    process), e.g. "mpirun -n 2" with an MPI build of HOOMD.
+    process), e.g. "mpirun -n 2" with an MPI build of HOOMD; AMBUILD_TEST_HOOMD_RANKS is
+    the number of MPI ranks the worker must report (default 1).
     """
 
     def setUp(self):
@@ -167,20 +189,36 @@ class TestWithHoomd(unittest.TestCase):
 
         local, localEngine = self.restored(pkl, "local", None)
         worker, workerEngine = self.restored(pkl, "worker", launcher)
-        self.assertIs(workerEngine, ab_hoomdlauncher.HoomdLauncher)
-        self.assertIsNot(localEngine, ab_hoomdlauncher.HoomdLauncher)
+        self.assertIs(workerEngine.func, ab_hoomdlauncher.HoomdLauncher)
+        self.assertIsNot(getattr(localEngine, "func", localEngine), ab_hoomdlauncher.HoomdLauncher)
         before = allCoords(local)
         np.testing.assert_allclose(allCoords(worker), before)
 
-        kw = dict(rigidBody=True, optCycles=200, quiet=True)
+        # The energy of one configuration is the same however it is decomposed (a single
+        # step at a negligible timestep, so the atoms do not move)
+        ranks = int(os.environ.get("AMBUILD_TEST_HOOMD_RANKS", "1"))
+        static = dict(rigidBody=False, mdCycles=1, dt=1e-9, quiet=True)
+        local.runMD(**static)
+        worker.runMD(**static)
+        self.assertEqual(ab_hoomdlauncher.HoomdLauncher.lastResult["ranks"], ranks)
+        localEnergy = local.analyse.last["potential_energy"]
+        self.assertAlmostEqual(
+            worker.analyse.last["potential_energy"], localEnergy, delta=1e-6 * abs(localEnergy)
+        )
+
+        # All-atom, the mode HOOMD-blue 2 can decompose across MPI ranks
+        kw = dict(rigidBody=False, optCycles=200, quiet=True)
         self.assertEqual(local.optimiseGeometry(**kw), worker.optimiseGeometry(**kw))
-        mdkw = dict(rigidBody=True, mdCycles=100, quiet=True)
+        self.assertLess(worker.analyse.last["potential_energy"], localEnergy)
+        mdkw = dict(rigidBody=False, mdCycles=100, quiet=True)
         local.runMD(**mdkw)
         worker.runMD(**mdkw)
-        # One rank reproduces the in-process run; MPI domain decomposition changes the
-        # order of floating-point sums, so several ranks agree only approximately
-        atol = 1e-4 if launcher == "" else 0.05
-        np.testing.assert_allclose(allCoords(worker), allCoords(local), atol=atol)
+        self.assertEqual(ab_hoomdlauncher.HoomdLauncher.lastResult["ranks"], ranks)
+        if ranks == 1:
+            # One process reproduces the in-process run exactly. Across MPI ranks the order
+            # of floating-point sums changes and the minimiser's trajectory diverges, so only
+            # the static energy above is compared.
+            np.testing.assert_allclose(allCoords(worker), allCoords(local), atol=1e-4)
         # ...and the calculation really moved the atoms
         self.assertGreater(np.abs(allCoords(worker) - before).max(), 1e-3)
         local.close()

@@ -5,6 +5,7 @@ Created on Jan 15, 2013
 """
 import collections
 import copy
+import functools
 import hashlib
 import logging
 import math
@@ -2756,8 +2757,9 @@ class Cell:
 
         launcher = ab_hoomdlauncher.launcherFromEnvironment()
         if launcher is not None and hoomdVersion[0] >= 2:
-            # HOOMD must still be importable here: cellData() builds its rigid-body data
-            self.mdEngineCls = ab_hoomdlauncher.HoomdLauncher
+            # HOOMD must still be importable here: cellData() builds its rigid-body data.
+            # Bind the launcher now: an engine is created for each calculation.
+            self.mdEngineCls = functools.partial(ab_hoomdlauncher.HoomdLauncher, launcher=launcher)
             logger.info(
                 "Running HOOMD-BLUE %s calculations with: %s",
                 ".".join(map(str, hoomdVersion)),

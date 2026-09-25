@@ -9,8 +9,11 @@ ambuild.hoomd_worker, started with the command in AMBUILD_HOOMD_LAUNCHER:
     AMBUILD_HOOMD_LAUNCHER="srun --ntasks=4"   ...in 4 MPI ranks of the Slurm job
     AMBUILD_HOOMD_LAUNCHER="mpirun -n 4"       ...in 4 MPI ranks outside Slurm
 
-The worker's HOOMD build must support MPI for more than one rank. This module does
-not import hoomd.
+The worker's HOOMD build must support MPI for more than one rank. Rigid-body
+calculations (Ambuild's default) run in a single worker process without the launcher:
+HOOMD-blue 2's domain decomposition fails for Ambuild's bonded rigid bodies ("Error
+during communication", "Error in bond calculation"), while all-atom calculations
+(rigidBody=False) run across the ranks. This module does not import hoomd.
 """
 import logging
 import os
@@ -75,6 +78,9 @@ def applyResult(cell, result):
 class HoomdLauncher:
     """MD engine with the interface of hoomd2.Hoomd2 that runs each calculation in a worker"""
 
+    # The most recent result, for diagnostics and tests (e.g. result["ranks"])
+    lastResult = None
+
     def __init__(self, paramsDir, outputDir=None, launcher=None):
         self.paramsDir = paramsDir
         self.outputDir = outputDir
@@ -110,9 +116,22 @@ class HoomdLauncher:
         }
         with open(jobFile, "wb") as f:
             pickle.dump(job, f)
-        cmd = self.launcher + [sys.executable, "-m", "ambuild.hoomd_worker", jobFile, resultFile]
+        launcher = self.launcher
+        if launcher and kw.get("rigidBody"):
+            logger.warning(
+                "Running rigid-body %s in one process: HOOMD-blue 2 domain decomposition "
+                "does not support Ambuild's bonded rigid bodies (launcher %s ignored)",
+                method,
+                " ".join(launcher),
+            )
+            launcher = []
+        cmd = launcher + [sys.executable, "-m", "ambuild.hoomd_worker", jobFile, resultFile]
         logger.info("Running HOOMD-blue %s: %s", method, " ".join(cmd))
-        returncode = subprocess.call(cmd)
+        # Importing an MPI build of hoomd in this process starts an MPI singleton, which sets
+        # OMPI_*/PMIX_* variables at the C level. Children inherit those and each rank then
+        # runs as its own singleton, so launch the worker with os.environ, which Python
+        # captured before they were set.
+        returncode = subprocess.call(cmd, env=dict(os.environ))
         if returncode != 0 or not os.path.isfile(resultFile):
             raise RuntimeError(
                 "HOOMD-blue worker failed with return code {0}; job files are in {1}".format(
@@ -121,6 +140,7 @@ class HoomdLauncher:
             )
         with open(resultFile, "rb") as f:
             self._result = pickle.load(f)
+        HoomdLauncher.lastResult = self._result
         shutil.rmtree(workdir)
         logger.info("HOOMD-blue %s ran on %d MPI rank(s)", method, self._result["ranks"])
         if d is not None:
