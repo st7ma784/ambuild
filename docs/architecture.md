@@ -94,7 +94,8 @@ themselves:
 
 ```mermaid
 flowchart LR
-    submit["submit_build.sh<br/>allocates run id"] --> build["build job<br/>ambuild_build.sbatch"]
+    submit["submit_build.sh<br/>allocates run id"] --> build["build job<br/>ambuild_build.sbatch<br/>one Ambuild process"]
+    build -- "each optimise / MD<br/>srun --ntasks=N" --> worker["HOOMD-blue worker<br/>N MPI ranks"]
     build -- "afterany" --> up1["upload job<br/>ambuild-upload<br/>--finalise"]
     build -- "afterok<br/>(--poreblazer)" --> fanout["fan-out job<br/>counts pickles"]
     fanout --> array["Poreblazer array<br/>one child run per pickle"]
@@ -131,9 +132,16 @@ flowchart LR
 - **Fallback.** The CronJob uploads finished runs that have no
   `.ambuild-uploaded` marker, and runs untouched for a day as `incomplete`, which
   covers upload jobs that never ran.
-- **MPI.** Ambuild drives HOOMD from one process, so a build job uses one task;
-  scale-out is by job arrays. Multi-rank HOOMD needs Ambuild to write output
-  from rank 0 only (TODO §3).
+- **MPI.** Ambuild's building steps make random choices that would differ
+  between MPI ranks, so Ambuild itself runs as one process. A build job with
+  `--ntasks=N` sets `AMBUILD_HOOMD_LAUNCHER="srun --ntasks=N"`, and each
+  optimisation or MD run is handed to `python -m ambuild.hoomd_worker` across
+  the N tasks (`ambuild/ab_hoomdlauncher.py`). The worker's HOOMD-blue 2 must be
+  an MPI build; rank 0 writes the new coordinates back. Only all-atom
+  calculations are decomposed; rigid-body ones (the default) run on one process,
+  as HOOMD-blue 2 cannot decompose Ambuild's bonded rigid bodies. For many
+  queued builds, scaling across runs and checkpoints (TODO §8) matters more.
+  Poreblazer scales out by job arrays.
 - **Local stack.** `deploy/docker-compose.yml` runs PostgreSQL, SeaweedFS and the
   uploader, and the `test` and `slurm-test` profiles test them end to end
   (`deploy/README.md`). A Helm chart can mirror it later.

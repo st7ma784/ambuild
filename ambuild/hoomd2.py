@@ -13,6 +13,7 @@ import numpy as np
 
 # Our imports
 from ambuild.ab_ffield import FfieldParameters
+from ambuild.ab_hoomdlauncher import applyResult
 from ambuild import xyz_core
 
 logger = logging.getLogger(__name__)
@@ -111,19 +112,20 @@ class Hoomd2(object):
             overlap = atomTypes.intersection(rigidCenters)
             if overlap:
                 raise RuntimeError("Clashing atomTypes/rigidCenters".format(overlap))
-            self.particleTypes = list(atomTypes.union(rigidCenters))
+            self.particleTypes = sorted(atomTypes.union(rigidCenters))
             self.exclusions = set(rigidCenters)
         else:
             nparticles = len(data.coords)
-            self.particleTypes = list(set(data.atomTypes))
+            self.particleTypes = sorted(set(data.atomTypes))
 
         assert nparticles > 0, "Simulation needs some particles!"
         # NEED TO THINK ABOUT WHAT TO DO ABOUT MASKED ATOMS - set particleTypes?
         # self.masked = data.masked
-        self.bond_types = list(set(data.bondLabels)) if len(data.bonds) else []
-        self.angle_types = list(set(data.angleLabels)) if len(data.angles) else []
+        # Sorted so that every MPI rank (each with its own hash seed) orders the types alike
+        self.bond_types = sorted(set(data.bondLabels)) if len(data.bonds) else []
+        self.angle_types = sorted(set(data.angleLabels)) if len(data.angles) else []
         self.dihedral_types = (
-            list(set(data.properLabels)) if len(data.propers) and doDihedral else []
+            sorted(set(data.properLabels)) if len(data.propers) and doDihedral else []
         )
         snapshot = hoomd.data.make_snapshot(
             N=nparticles,
@@ -133,92 +135,94 @@ class Hoomd2(object):
             angle_types=self.angle_types,
             dihedral_types=self.dihedral_types,
         )
-        # Add Bonds
-        if len(self.bond_types):
-            snapshot.bonds.resize(len(data.bonds))
-            for i, b in enumerate(data.bonds):
-                if (
-                    self.rigidBody
-                ):  # center particles are at the front of the arrays, so everything gets shifted up
-                    b0 = b[0] + nRigidParticles
-                    b1 = b[1] + nRigidParticles
-                else:
-                    b0, b1 = b
-                snapshot.bonds.group[i] = [b0, b1]
-                snapshot.bonds.typeid[i] = self.bond_types.index(data.bondLabels[i])
-        # Add Angles
-        if len(self.angle_types):
-            snapshot.angles.resize(len(data.angles))
-            for i, a in enumerate(data.angles):
-                if (
-                    self.rigidBody
-                ):  # center particles are at the front of the arrays, so everything gets shifted up
-                    a0 = a[0] + nRigidParticles
-                    a1 = a[1] + nRigidParticles
-                    a2 = a[2] + nRigidParticles
-                else:
-                    a0, a1, a2 = a
-                snapshot.angles.group[i] = [a0, a1, a2]
-                snapshot.angles.typeid[i] = self.angle_types.index(data.angleLabels[i])
-        # Add Dihedrals
-        if doDihedral and len(self.dihedral_types):
-            snapshot.dihedrals.resize(len(data.propers))
-            for i, d in enumerate(data.propers):
-                if (
-                    self.rigidBody
-                ):  # center particles are at the front of the arrays, so everything gets shifted up
-                    d0 = d[0] + nRigidParticles
-                    d1 = d[1] + nRigidParticles
-                    d2 = d[2] + nRigidParticles
-                    d3 = d[3] + nRigidParticles
-                else:
-                    d0, d1, d2, d3 = d
-                snapshot.dihedrals.group[i] = [d0, d1, d2, d3]
-                snapshot.dihedrals.typeid[i] = self.dihedral_types.index(
-                    data.properLabels[i]
-                )
-        # Populate  particle data
-        if self.rigidBody:
-            # Central particles need to be first in the list before any constituent particles.
-            for i, rp in enumerate(data.rigidParticles):
-                snapshot.particles.body[i] = i
-                # Wrap central paticle into the cell. We use the image of this for all the constituent particles
-                position, rp_image = xyz_core.wrapCoord3(
-                    rp.position, dim=data.cell, center=True
-                )
-                snapshot.particles.position[i] = position
-                snapshot.particles.image[i] = rp_image
-                snapshot.particles.mass[i] = rp.mass
-                snapshot.particles.orientation[i] = rp.orientation
-                # print "GOT ORIENT ",rp.type, repr( rp.orientation)
-                snapshot.particles.typeid[i] = snapshot.particles.types.index(rp.type)
-                snapshot.particles.moment_inertia[i] = rp.principalMoments
-            # Then add in the constituent molecule particles
-            idx = i + 1
-            for i, rp in enumerate(data.rigidParticles):
-                for j in range(rp.natoms):
-                    snapshot.particles.body[idx] = i  # to match central particle
-                    if doCharges:
-                        snapshot.particles.charge[idx] = rp.b_charges[j]
-                    snapshot.particles.diameter[idx] = rp.b_diameters[j]
-                    snapshot.particles.image[idx] = rp_image
-                    snapshot.particles.mass[idx] = rp.b_masses[j]
-                    snapshot.particles.position[idx] = rp.b_positions[j]
-                    snapshot.particles.typeid[idx] = snapshot.particles.types.index(
-                        rp.b_atomTypes[j]
+        # Under MPI the snapshot only holds data on rank 0; read_snapshot() distributes it
+        if hoomd.comm.get_rank() == 0:
+            # Add Bonds
+            if len(self.bond_types):
+                snapshot.bonds.resize(len(data.bonds))
+                for i, b in enumerate(data.bonds):
+                    if (
+                        self.rigidBody
+                    ):  # center particles are at the front of the arrays, so everything gets shifted up
+                        b0 = b[0] + nRigidParticles
+                        b1 = b[1] + nRigidParticles
+                    else:
+                        b0, b1 = b
+                    snapshot.bonds.group[i] = [b0, b1]
+                    snapshot.bonds.typeid[i] = self.bond_types.index(data.bondLabels[i])
+            # Add Angles
+            if len(self.angle_types):
+                snapshot.angles.resize(len(data.angles))
+                for i, a in enumerate(data.angles):
+                    if (
+                        self.rigidBody
+                    ):  # center particles are at the front of the arrays, so everything gets shifted up
+                        a0 = a[0] + nRigidParticles
+                        a1 = a[1] + nRigidParticles
+                        a2 = a[2] + nRigidParticles
+                    else:
+                        a0, a1, a2 = a
+                    snapshot.angles.group[i] = [a0, a1, a2]
+                    snapshot.angles.typeid[i] = self.angle_types.index(data.angleLabels[i])
+            # Add Dihedrals
+            if doDihedral and len(self.dihedral_types):
+                snapshot.dihedrals.resize(len(data.propers))
+                for i, d in enumerate(data.propers):
+                    if (
+                        self.rigidBody
+                    ):  # center particles are at the front of the arrays, so everything gets shifted up
+                        d0 = d[0] + nRigidParticles
+                        d1 = d[1] + nRigidParticles
+                        d2 = d[2] + nRigidParticles
+                        d3 = d[3] + nRigidParticles
+                    else:
+                        d0, d1, d2, d3 = d
+                    snapshot.dihedrals.group[i] = [d0, d1, d2, d3]
+                    snapshot.dihedrals.typeid[i] = self.dihedral_types.index(
+                        data.properLabels[i]
                     )
-                    idx += 1
-        else:
-            for i in range(nparticles):
-                if doCharges:
-                    snapshot.particles.charge[i] = data.charges[i]
-                snapshot.particles.diameter[i] = data.diameters[i]
-                snapshot.particles.image[i] = data.images[i]
-                snapshot.particles.mass[i] = data.masses[i]
-                snapshot.particles.position[i] = data.coords[i]
-                snapshot.particles.typeid[i] = self.particleTypes.index(
-                    data.atomTypes[i]
-                )
+            # Populate  particle data
+            if self.rigidBody:
+                # Central particles need to be first in the list before any constituent particles.
+                for i, rp in enumerate(data.rigidParticles):
+                    snapshot.particles.body[i] = i
+                    # Wrap central paticle into the cell. We use the image of this for all the constituent particles
+                    position, rp_image = xyz_core.wrapCoord3(
+                        rp.position, dim=data.cell, center=True
+                    )
+                    snapshot.particles.position[i] = position
+                    snapshot.particles.image[i] = rp_image
+                    snapshot.particles.mass[i] = rp.mass
+                    snapshot.particles.orientation[i] = rp.orientation
+                    # print "GOT ORIENT ",rp.type, repr( rp.orientation)
+                    snapshot.particles.typeid[i] = snapshot.particles.types.index(rp.type)
+                    snapshot.particles.moment_inertia[i] = rp.principalMoments
+                # Then add in the constituent molecule particles
+                idx = i + 1
+                for i, rp in enumerate(data.rigidParticles):
+                    for j in range(rp.natoms):
+                        snapshot.particles.body[idx] = i  # to match central particle
+                        if doCharges:
+                            snapshot.particles.charge[idx] = rp.b_charges[j]
+                        snapshot.particles.diameter[idx] = rp.b_diameters[j]
+                        snapshot.particles.image[idx] = rp_image
+                        snapshot.particles.mass[idx] = rp.b_masses[j]
+                        snapshot.particles.position[idx] = rp.b_positions[j]
+                        snapshot.particles.typeid[idx] = snapshot.particles.types.index(
+                            rp.b_atomTypes[j]
+                        )
+                        idx += 1
+            else:
+                for i in range(nparticles):
+                    if doCharges:
+                        snapshot.particles.charge[i] = data.charges[i]
+                    snapshot.particles.diameter[i] = data.diameters[i]
+                    snapshot.particles.image[i] = data.images[i]
+                    snapshot.particles.mass[i] = data.masses[i]
+                    snapshot.particles.position[i] = data.coords[i]
+                    snapshot.particles.typeid[i] = self.particleTypes.index(
+                        data.atomTypes[i]
+                    )
         return snapshot
 
     def optimiseGeometry(
@@ -670,40 +674,26 @@ class Hoomd2(object):
                 wallstructure.add_plane(origin=originBack, normal=normal, inside=False)
         return
 
+    def snapshotResult(self):
+        """Return the box and particle data that ab_hoomdlauncher.applyResult needs.
+
+        Every MPI rank must call this, as taking a snapshot is collective; the data is
+        only returned on rank 0, and None elsewhere.
+        """
+        snapshot = self.system.take_snapshot()
+        offset = len(hoomd.group.rigid_center()) if self.rigidBody else 0
+        if hoomd.comm.get_rank() != 0:
+            return None
+        return {
+            "box": [self.system.box.Lx, self.system.box.Ly, self.system.box.Lz],
+            "positions": np.array(snapshot.particles.position),
+            "images": np.array(snapshot.particles.image),
+            "offset": offset,
+        }
+
     def updateCell(self, cell):
         """Reset the particle positions from hoomdblue system"""
-        box = np.array([self.system.box.Lx, self.system.box.Ly, self.system.box.Lz])
-        snapshot = self.system.take_snapshot()
-        if self.rigidBody:
-            atomIdx = len(hoomd.group.rigid_center())
-        else:
-            atomIdx = 0
-        for block in cell.blocks.values():
-            for i in range(block.numAtoms()):
-                coord = snapshot.particles.position[atomIdx]
-                coord = xyz_core.unWrapCoord3(
-                    coord, snapshot.particles.image[atomIdx], box, centered=True
-                )
-                block.coord(i, coord)
-                atomIdx += 1
-        if atomIdx != snapshot.particles.N:
-            raise RuntimeError(
-                "Read {0} positions but there were {1} particles!".format(
-                    atomIdx, len(self.system.particles)
-                )
-            )
-
-        # If we are running (e.g.) an NPT simulation, the cell size may have changed. In this case we need to update
-        # our cell parameters. Repopulate cells will then update the halo cells and add the new blocks
-        if not np.allclose(box, cell.dim):
-            logger.info(
-                "Changing cell dimensions after HOOMD-blue simulation from: {0} to: {1}".format(
-                    cell.dim, box
-                )
-            )
-            cell.dim = box
-        # Now have the new coordinates, so we need to put the atoms in their new cells
-        cell.repopulateCells()
+        applyResult(cell, self.snapshotResult())
         return
 
     def _createLog(self, filename):

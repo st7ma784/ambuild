@@ -1,0 +1,6 @@
+# Scripts that run inside Linux containers or on Slurm nodes must keep LF line
+# endings even in Windows checkouts, or their #! lines fail ("no such file").
+*.sh       text eol=lf
+*.sbatch   text eol=lf
+*.conf     text eol=lf
+Dockerfile text eol=lf

@@ -162,12 +162,53 @@ runtime rather than on the current developer machines.
 - [ ] Publish the `ambuild-ingest` image (e.g. GHCR) on version tags; the K3s
   manifests reference `ghcr.io/st7ma784/ambuild-ingest:0.1.0`, which is not
   built yet.
-- [ ] Rank-0-only output in Ambuild so builds can run HOOMD with several MPI
-  ranks under `srun`; today every rank would run the whole script.
+- [x] Run HOOMD with several MPI ranks under `srun`: Ambuild stays one process
+  and launches each HOOMD calculation across the job's tasks
+  (`ab_hoomdlauncher`, `AMBUILD_HOOMD_LAUNCHER`).
+  - [ ] Benchmark on the cluster: Ambuild cells are small, and HOOMD's domain
+    decomposition only pays off for large systems. Each launch also starts a
+    new HOOMD context, so short, frequent optimisations may be faster in-process.
+  - [ ] Check `srun` + MPI HOOMD on the real cluster (PMI type, GPUs per task);
+    tested here with `mpirun` on 1, 2 and 4 ranks in the glotzerlab OpenMPI
+    image (identical static energies) and with `srun` launching plain
+    processes in the Slurm test cluster.
+  - [ ] Rigid bodies under MPI: HOOMD-blue 2 domain decomposition fails for
+    Ambuild's bonded rigid bodies ("Error during communication", "Error in
+    bond calculation"), so rigid-body calculations, Ambuild's default, run on
+    one process. Revisit with the HOOMD 4 engine (§5) rather than patching
+    HOOMD 2.
 - [ ] Try the Slurm scripts on the real cluster: partitions, GPU `--gres`,
   module loads and the shared filesystem path.
 - [ ] Retention for object storage and the `.ambuild-uploaded` markers;
   decide whether Poreblazer grids are ever kept.
+
+## 8. Scaling many runs
+
+Queued builds from a web interface are a throughput problem: most builds are
+small, so scale across runs and checkpoints before scaling one build over MPI.
+In order:
+
+- [ ] Recipes: a declarative build description (e.g. seed 10, then 20 x (grow
+  5, zip, optimise)) that the web API accepts instead of Python scripts, and a
+  runner that executes it step by step with a checkpoint after each step.
+- [ ] Checkpoint/resume: the runner resumes a recipe from its last checkpoint
+  as a child run; on SIGTERM it dumps and exits so Slurm `--requeue` (and
+  preemptible partitions) resume rather than restart.
+- [ ] Stage-chained Slurm submission: split long recipes into jobs of N steps
+  or a time budget, each resuming from the previous stage's checkpoint, so
+  jobs stay short and stages can target CPU or GPU partitions.
+- [ ] Checkpoint cache: key each stage's checkpoint by a hash of the input
+  sha256s, parameters, Ambuild version and recipe prefix; before running,
+  start from the longest matching cached prefix. Builds are stochastic, so a
+  hit is a previous sample, not the same answer: ensembles and sweeps opt out
+  or include the replicate in the key until builds are reproducible (§6).
+- [ ] Sweeps and ensembles: one recipe over many seeds or parameters as an
+  array job, each run tagged with a `sweep_id` in `run.json` and the database.
+- [ ] Dispatcher behind the web API: turns queued recipes into jobs, packing
+  small builds several per node (`srun --multi-prog` or a task-farm worker)
+  and sharing GPUs between small HOOMD runs (MPS).
+- [ ] Use the MPI HOOMD launcher only for large cells, above an atom-count
+  threshold set by benchmarking (§7).
 
 ## GPU clarification
 

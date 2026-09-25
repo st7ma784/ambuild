@@ -14,6 +14,18 @@ Work in progress towards run recording (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- HOOMD-blue across MPI tasks: with `AMBUILD_HOOMD_LAUNCHER` set (e.g.
+  `srun --ntasks=4` or `mpirun -n 4`), each optimisation or MD run executes in
+  `python -m ambuild.hoomd_worker` under that launcher and the result is read
+  back, while Ambuild stays a single process (`ambuild/ab_hoomdlauncher.py`).
+  Unset, HOOMD runs in-process as before; empty, in one separate process.
+  `deploy/slurm/ambuild_build.sbatch` sets the launcher for jobs with more
+  than one task (`AMBUILD_SRUN_MPI` adds `--mpi=`). Checked with HOOMD-blue
+  2.9.3 (OpenMPI 4) on 1, 2 and 4 ranks: the potential energy of a
+  configuration is identical across rank counts. Only all-atom calculations
+  (`rigidBody=False`) are decomposed: HOOMD-blue 2 domain decomposition fails
+  for Ambuild's bonded rigid bodies, so rigid-body calculations run in one
+  worker process and log a warning.
 - `services/ingest`: `ambuild-upload`, a separate package (`psycopg`, `boto3`;
   no NumPy) that loads run directories into PostgreSQL (`runs`, `events`,
   `steps`, `files`, `pore_results`) and S3-compatible object storage.
@@ -71,7 +83,18 @@ Work in progress towards run recording (see
 - `tests/docker/poreblazer.Dockerfile` builds Poreblazer at a pinned commit;
   `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
 
+### Fixed
+- `Hoomd2.createSnapshot()` filled the snapshot on every MPI rank (only rank 0
+  holds its arrays) and ordered particle, bond, angle and dihedral types by
+  set iteration, which differs between processes; types are now sorted.
+
 ### Changed
+- `Hoomd2.updateCell()` is split into `snapshotResult()` (collective under MPI)
+  and `ab_hoomdlauncher.applyResult()`, which needs no HOOMD import.
+- `deploy/slurm/ambuild_build.sbatch` runs the build script directly instead
+  of with `srun`, so a job with several tasks still runs one Ambuild process.
+- `misc/run_ambuild_docker.sh` mounts the package at `/opt/ambuild` with
+  `PYTHONPATH` set; it previously mounted it where Python could not import it.
 - `Cell.poreblazer()` returns the parsed results, the run directory and the
   return code (previously `None`), and logs a one-line summary.
 - `Cell.poreblazer()` no longer changes the process working directory; the

@@ -5,6 +5,7 @@ Created on Jan 15, 2013
 """
 import collections
 import copy
+import functools
 import hashlib
 import logging
 import math
@@ -2750,6 +2751,19 @@ class Cell:
         if hoomdVersion is None:
             logger.critical(
                 "HOOMD-BLUE could not be found! MD functionality will be unavailable."
+            )
+            return
+        from ambuild import ab_hoomdlauncher
+
+        launcher = ab_hoomdlauncher.launcherFromEnvironment()
+        if launcher is not None and hoomdVersion[0] >= 2:
+            # HOOMD must still be importable here: cellData() builds its rigid-body data.
+            # Bind the launcher now: an engine is created for each calculation.
+            self.mdEngineCls = functools.partial(ab_hoomdlauncher.HoomdLauncher, launcher=launcher)
+            logger.info(
+                "Running HOOMD-BLUE %s calculations with: %s",
+                ".".join(map(str, hoomdVersion)),
+                " ".join(launcher) or "a separate process",
             )
             return
         if hoomdVersion[0] < 2:
