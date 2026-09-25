@@ -23,6 +23,6 @@ COPY deploy/slurm /opt/ambuild-slurm
 COPY deploy/slurm/test/slurm.conf deploy/slurm/test/cgroup.conf /etc/slurm/
 RUN mkdir -p /var/spool/slurmctld /var/spool/slurmd /var/log/slurm /run/munge /shared/runs \
  && chown -R munge:munge /run/munge /etc/munge \
- && chmod +x /opt/ambuild-slurm/test/*.sh
+ && chmod +x /opt/ambuild-slurm/*.sh /opt/ambuild-slurm/*.sbatch /opt/ambuild-slurm/test/*.sh
 ENTRYPOINT ["/opt/ambuild-slurm/test/entrypoint.sh"]
 CMD ["/opt/ambuild-slurm/test/run_test.sh"]
