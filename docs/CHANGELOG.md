@@ -14,6 +14,10 @@ Work in progress towards run recording (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- `benchmarks/` and `docs/benchmarks.md`: HOOMD-blue in-process vs worker vs
+  MPI ranks, and Poreblazer compiler flags, with the raw results. In short:
+  keep HOOMD in-process below ~4,000 atoms, and upstream Poreblazer `-O2` is
+  already its fastest build.
 - HOOMD-blue across MPI tasks: with `AMBUILD_HOOMD_LAUNCHER` set (e.g.
   `srun --ntasks=4` or `mpirun -n 4`), each optimisation or MD run executes in
   `python -m ambuild.hoomd_worker` under that launcher and the result is read
@@ -84,6 +88,8 @@ Work in progress towards run recording (see
   `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
 
 ### Fixed
+- Docs said the upstream Poreblazer Makefile compiles without optimisation;
+  it uses `-O2 -unshared` (its `OFLAGS`).
 - `Hoomd2.createSnapshot()` filled the snapshot on every MPI rank (only rank 0
   holds its arrays) and ordered particle, bond, angle and dihedral types by
   set iteration, which differs between processes; types are now sorted.
