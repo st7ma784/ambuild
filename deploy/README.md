@@ -71,7 +71,10 @@ if your cluster's `srun` needs `--mpi=`. For example:
 AMBUILD_SRUN_MPI=pmix deploy/slurm/submit_build.sh my_build.py --ntasks=8 --gpus-per-task=1
 ```
 
-Small cells are often faster on one task; benchmark before scaling up.
+Only all-atom calculations (`rigidBody=False`) are split across tasks; rigid-body
+calculations, Ambuild's default, run on one task because HOOMD-blue 2 cannot
+decompose Ambuild's bonded rigid bodies. Small cells are often faster on one task
+anyway; benchmark before scaling up.
 
 ## K3s fallback
 

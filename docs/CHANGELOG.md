@@ -20,7 +20,12 @@ Work in progress towards run recording (see
   back, while Ambuild stays a single process (`ambuild/ab_hoomdlauncher.py`).
   Unset, HOOMD runs in-process as before; empty, in one separate process.
   `deploy/slurm/ambuild_build.sbatch` sets the launcher for jobs with more
-  than one task (`AMBUILD_SRUN_MPI` adds `--mpi=`).
+  than one task (`AMBUILD_SRUN_MPI` adds `--mpi=`). Checked with HOOMD-blue
+  2.9.3 (OpenMPI 4) on 1, 2 and 4 ranks: the potential energy of a
+  configuration is identical across rank counts. Only all-atom calculations
+  (`rigidBody=False`) are decomposed: HOOMD-blue 2 domain decomposition fails
+  for Ambuild's bonded rigid bodies, so rigid-body calculations run in one
+  worker process and log a warning.
 - `services/ingest`: `ambuild-upload`, a separate package (`psycopg`, `boto3`;
   no NumPy) that loads run directories into PostgreSQL (`runs`, `events`,
   `steps`, `files`, `pore_results`) and S3-compatible object storage.
@@ -77,6 +82,11 @@ Work in progress towards run recording (see
 - `artifact` events include `relpath`, the path relative to `outputDir`.
 - `tests/docker/poreblazer.Dockerfile` builds Poreblazer at a pinned commit;
   `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
+
+### Fixed
+- `Hoomd2.createSnapshot()` filled the snapshot on every MPI rank (only rank 0
+  holds its arrays) and ordered particle, bond, angle and dihedral types by
+  set iteration, which differs between processes; types are now sorted.
 
 ### Changed
 - `Hoomd2.updateCell()` is split into `snapshotResult()` (collective under MPI)

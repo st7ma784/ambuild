@@ -169,8 +169,14 @@ runtime rather than on the current developer machines.
     decomposition only pays off for large systems. Each launch also starts a
     new HOOMD context, so short, frequent optimisations may be faster in-process.
   - [ ] Check `srun` + MPI HOOMD on the real cluster (PMI type, GPUs per task);
-    tested here with `mpirun` in the glotzerlab OpenMPI image and with `srun`
-    launching plain processes in the Slurm test cluster.
+    tested here with `mpirun` on 1, 2 and 4 ranks in the glotzerlab OpenMPI
+    image (identical static energies) and with `srun` launching plain
+    processes in the Slurm test cluster.
+  - [ ] Rigid bodies under MPI: HOOMD-blue 2 domain decomposition fails for
+    Ambuild's bonded rigid bodies ("Error during communication", "Error in
+    bond calculation"), so rigid-body calculations, Ambuild's default, run on
+    one process. Revisit with the HOOMD 4 engine (§5) rather than patching
+    HOOMD 2.
 - [ ] Try the Slurm scripts on the real cluster: partitions, GPU `--gres`,
   module loads and the shared filesystem path.
 - [ ] Retention for object storage and the `.ambuild-uploaded` markers;

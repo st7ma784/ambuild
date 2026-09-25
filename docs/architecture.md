@@ -137,8 +137,11 @@ flowchart LR
   `--ntasks=N` sets `AMBUILD_HOOMD_LAUNCHER="srun --ntasks=N"`, and each
   optimisation or MD run is handed to `python -m ambuild.hoomd_worker` across
   the N tasks (`ambuild/ab_hoomdlauncher.py`). The worker's HOOMD-blue 2 must be
-  an MPI build; rank 0 writes the new coordinates back. Poreblazer scales out
-  by job arrays instead.
+  an MPI build; rank 0 writes the new coordinates back. Only all-atom
+  calculations are decomposed; rigid-body ones (the default) run on one process,
+  as HOOMD-blue 2 cannot decompose Ambuild's bonded rigid bodies. For many
+  queued builds, scaling across runs and checkpoints (TODO §8) matters more.
+  Poreblazer scales out by job arrays.
 - **Local stack.** `deploy/docker-compose.yml` runs PostgreSQL, SeaweedFS and the
   uploader, and the `test` and `slurm-test` profiles test them end to end
   (`deploy/README.md`). A Helm chart can mirror it later.

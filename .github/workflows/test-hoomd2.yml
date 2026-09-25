@@ -19,3 +19,22 @@ jobs:
       run: |
         cd ./tests
         sudo  ./run_tests_docker.sh
+
+  mpi:
+    # The HOOMD-blue launcher (ab_hoomdlauncher) on one process and on two MPI ranks,
+    # in the OpenMPI build of the same HOOMD-blue 2.9.3
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: glotzerlab/software:2020.11.18-skylakex-cuda10-mlx-openmpi4.0.1
+    steps:
+    - uses: actions/checkout@v4
+    - name: Launcher tests on 1 process and 2 MPI ranks
+      run: |
+        for cfg in "|1" "mpirun -n 2 --oversubscribe|2"; do
+          docker run --rm --user "$(id -u)" -v "$PWD:/ambuild" -w /ambuild/tests \
+            -e PYTHONPATH=/ambuild -e PYTHONHASHSEED=0 \
+            -e OMPI_MCA_plm_rsh_agent=/bin/false -e OMPI_MCA_btl=self,vader \
+            -e OMPI_MCA_pml=ob1 -e OMPI_MCA_btl_vader_single_copy_mechanism=none \
+            -e "AMBUILD_TEST_HOOMD_LAUNCHER=${cfg%|*}" -e "AMBUILD_TEST_HOOMD_RANKS=${cfg#*|}" \
+            "$IMAGE" python3 -c "import unittest; unittest.main(module=None, argv=['t', 'testHoomdLauncher'], verbosity=2)"
+        done
