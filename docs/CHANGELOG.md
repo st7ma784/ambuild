@@ -84,6 +84,8 @@ Work in progress towards run recording (see
   random numbers do not depend on the tests that ran before it. Previously
   `testSubunit`, `testGrowPolymerRandom`, `testDeleteBlocksType` and
   `testCell.testCat2Paf2` failed intermittently.
+- Distance and dihedral tests compare floats to 12 decimal places rather than
+  exactly; the last digit differed between CI runners.
 - The test suite needs Ambuild installed (`pip install -e .`); nothing adds
   the checkout to `sys.path` any more. `tests/test.py`, which ran the suite a
   second time, is removed.
