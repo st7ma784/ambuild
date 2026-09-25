@@ -62,8 +62,16 @@ cancelled and timed-out builds are uploaded too (as `failed` or `incomplete`).
 With `--poreblazer`, each pickle the build writes gets its own array task and
 child run, and a second upload follows the array.
 
-Ambuild drives HOOMD from a single process, so build jobs use one task; scale
-out with more jobs or the Poreblazer array rather than MPI ranks.
+Ambuild runs as a single process. Submit with `--ntasks=N` to run each HOOMD-blue
+calculation across N MPI tasks (`srun --ntasks=N python -m ambuild.hoomd_worker`);
+this needs an MPI build of HOOMD-blue 2, and `AMBUILD_SRUN_MPI=pmix` (or similar)
+if your cluster's `srun` needs `--mpi=`. For example:
+
+```sh
+AMBUILD_SRUN_MPI=pmix deploy/slurm/submit_build.sh my_build.py --ntasks=8 --gpus-per-task=1
+```
+
+Small cells are often faster on one task; benchmark before scaling up.
 
 ## K3s fallback
 
