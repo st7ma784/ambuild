@@ -8,6 +8,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      PYTHONHASHSEED: "0"  # with run_tests.py's seed, makes the random tests reproducible
     strategy:
       fail-fast: false
       matrix:

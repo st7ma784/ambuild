@@ -5,10 +5,18 @@ Created on 14 May 2016
 @author: jmht
 """
 import os
+import random
 import sys
 import unittest
 
 # Ambuild must be installed first, e.g. `pip install -e .` from the repository root
+
+# Many tests build random structures: seed so that runs are reproducible. Set
+# PYTHONHASHSEED too, as set iteration order also feeds the random choices.
+SEED = int(os.environ.get("AMBUILD_TEST_SEED", "1"))
+random.seed(SEED)
+sys.stderr.write("AMBUILD_TEST_SEED={0} PYTHONHASHSEED={1}{2}".format(SEED, os.environ.get("PYTHONHASHSEED"), os.linesep))
+
 TEST_DIR = "."
 VERBOSITY = 2
 suite = unittest.TestLoader().discover(TEST_DIR)

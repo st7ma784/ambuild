@@ -25,7 +25,7 @@ docker run \
 --volume $run_dir:$run_dir \
 --volume ${ambuild_dir}/ambuild:/usr/lib/python3/dist-packages/ambuild \
 --workdir $run_dir \
---env PYTHONPATH=/usr/lib/python3/dist-packages \
+--env PYTHONPATH=/usr/lib/python3/dist-packages \n--env PYTHONHASHSEED=0 \
 --user $uid \
-glotzerlab/software \
+glotzerlab/software:2020.11.18-cuda10 \
 $args
