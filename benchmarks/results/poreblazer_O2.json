@@ -1,0 +1,53 @@
+[
+ {
+  "label": "O2",
+  "box": 20,
+  "atoms": 24,
+  "seconds": 1.9872701168060303,
+  "all_seconds": [
+   2.113009214401245,
+   1.9872701168060303,
+   1.971850872039795
+  ],
+  "returncode": 0,
+  "surface_area_m2_g": 23152.06,
+  "pore_limiting_diameter_A": 18.3,
+  "maximum_pore_diameter_A": 22.56,
+  "helium_volume_cm3_g": 30.031,
+  "geometric_volume_cm3_g": 30.15
+ },
+ {
+  "label": "O2",
+  "box": 30,
+  "atoms": 72,
+  "seconds": 19.772088050842285,
+  "all_seconds": [
+   19.772088050842285,
+   22.46321129798889,
+   19.70186185836792
+  ],
+  "returncode": 0,
+  "surface_area_m2_g": 23818.65,
+  "pore_limiting_diameter_A": 20.48,
+  "maximum_pore_diameter_A": 25.98,
+  "helium_volume_cm3_g": 33.91,
+  "geometric_volume_cm3_g": 34.012
+ },
+ {
+  "label": "O2",
+  "box": 40,
+  "atoms": 168,
+  "seconds": 94.5765278339386,
+  "all_seconds": [
+   95.10791611671448,
+   94.5765278339386,
+   93.61239576339722
+  ],
+  "returncode": 0,
+  "surface_area_m2_g": 24829.48,
+  "pore_limiting_diameter_A": 20.91,
+  "maximum_pore_diameter_A": 27.64,
+  "helium_volume_cm3_g": 34.474,
+  "geometric_volume_cm3_g": 34.563
+ }
+]
