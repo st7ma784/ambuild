@@ -10,7 +10,7 @@ ARG POREBLAZER_COMMIT=a753c72bf255da58a48a8898170f3307dac6a325
 RUN apt-get update \
  && apt-get install -y --no-install-recommends gfortran make git ca-certificates \
  && rm -rf /var/lib/apt/lists/*
-# The upstream Makefile sets no optimisation flags for gfortran
+# The upstream Makefile compiles with gfortran -O2 (its OFLAGS)
 RUN git clone https://github.com/richardjgowers/poreblazer.git /opt/poreblazer \
  && cd /opt/poreblazer && git checkout "$POREBLAZER_COMMIT" \
  && cd src && make
