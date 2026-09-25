@@ -29,7 +29,7 @@ class CsvSink:
 
     def __init__(self, logfile):
         self.logfile = logfile
-        self._logHandle = open(self.logfile, "w")
+        self._logHandle = open(self.logfile, "w", newline="")
         self._logWriter = csv.DictWriter(self._logHandle, FIELDNAMES)
         self._logWriter.writeheader()
 

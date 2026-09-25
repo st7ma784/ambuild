@@ -53,7 +53,7 @@ class Test(unittest.TestCase):
             self.assertEqual(e["step"], e["data"]["step"])
 
         expected = os.path.join(self.tmpdir, "expected.csv")
-        with open(expected, "w") as f:
+        with open(expected, "w", newline="") as f:
             writer = csv.DictWriter(f, ab_analyse.FIELDNAMES)
             writer.writeheader()
             for e in steps:
