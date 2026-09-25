@@ -5,6 +5,7 @@ Created on Jan 15, 2013
 """
 import collections
 import copy
+import hashlib
 import logging
 import math
 import os
@@ -2221,6 +2222,7 @@ class Cell:
             results["pore_limiting_diameter_A"],
             results["maximum_pore_diameter_A"],
         )
+        self.analyse.emit(ab_analyse.PORE_RESULT, results)
         return results
 
     def positionInCell(self, block):
@@ -2756,6 +2758,30 @@ class Cell:
         self.analyse = ab_analyse.Analyse(self, logfile=self.logcsv)
         return
 
+    def addEventSink(self, sink):
+        """Send this cell's events (see ab_analyse) to sink, an object with handle(event) and
+        close() methods. Sinks are not pickled; add them again after restoring a cell."""
+        self.analyse.addSink(sink)
+        return
+
+    def _recordArtifact(self, path, kind):
+        """Emit an artifact event for a file this cell has written"""
+        path = os.path.abspath(path)
+        sha256 = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                sha256.update(chunk)
+        self.analyse.emit(
+            ab_analyse.ARTIFACT,
+            {
+                "path": path,
+                "kind": kind,
+                "size": os.path.getsize(path),
+                "sha256": sha256.hexdigest(),
+            },
+        )
+        return
+
     def outputPath(self, filename):
         """Return the path for filename within outputDir; absolute paths are returned unchanged"""
         if self.outputDir is None:
@@ -2893,6 +2919,7 @@ class Cell:
         # Restart logging with append mode
         # self.setupLogging( mode='a' )
         logger.info("Wrote pickle file: {0}".format(fileName))
+        self._recordArtifact(fileName, "pickle")
         return fileName
 
     def writeCar(self, ofile="ambuild.car", data=None, periodic=True, skipDummy=False):
@@ -2934,6 +2961,7 @@ class Cell:
             f.writelines(car)
 
         logger.info("Wrote car file: {0}".format(fpath))
+        self._recordArtifact(fpath, "car")
         return
 
     def writeCml(
@@ -2969,6 +2997,7 @@ class Cell:
         )
 
         logger.info("Wrote cml file: {0}".format(cmlFilename))
+        self._recordArtifact(cmlFilename, "cml")
         return
 
     def writeXyz(self, ofile, data=None, periodic=False, atomTypes=False):
@@ -2992,6 +3021,7 @@ class Cell:
                 fpath = xyz_util.writeXyz(ofile, d.coords, d.symbols)
 
         logger.info("Wrote cell file: {0}".format(fpath))
+        self._recordArtifact(fpath, "xyz")
         return
 
     def zipBlocks(

@@ -96,8 +96,10 @@ runtime rather than on the current developer machines.
   `Cell.poreblazer()` uses `os.chdir`, so two runs cannot share a process.
 - [ ] Route logging per cell (a `logging.LoggerAdapter` or per-run handler)
   instead of reconfiguring the root logger in `Cell.setupLogging()`.
-- [ ] Add the missing `hc-cp-cp` angle parameter (or fix the catalysis
-  fixtures) so `testCatalysis` passes under HOOMD.
+- [ ] Make the catalysis tests pass under HOOMD: `testCatalysis.testCat1Paf2`
+  and `testCat2Paf2` need the missing `hc-cp-cp` angle parameter for some
+  layouts, and `testCell.testCat2Paf2` fails with "Error computing cell list"
+  for others. All three are skipped.
 - [ ] Fix `Cell.writeCar()`, which indexes `CellData` like a dict.
 - [x] Parse Poreblazer output (surface area, pore volume, pore limiting and
   largest cavity diameters, pore size distribution) into a result dict.
@@ -117,14 +119,21 @@ runtime rather than on the current developer machines.
 
 ## 6. Run recording and results database
 
-- [ ] Turn `Analyse.stop()`, which every build step already goes through, into
+- [x] Turn `Analyse.stop()`, which every build step already goes through, into
   an event emitter with pluggable sinks: step completed, artifact written
   (`dump`, `write*`), Poreblazer result, run finished or failed.
-- [ ] Keep the current CSV as the default sink; add a JSON Lines sink that
+- [ ] Keep the current CSV as the default sink (done: `ab_analyse.CsvSink`);
+  add a JSON Lines sink that
   appends `run.json` + `events.jsonl` in the run directory.
 - [ ] Make the engine never talk to the network. The service worker (or a
   Slurm epilogue) uploads the run directory and events after, or alongside,
   the job. Offline HPC nodes then behave the same as Kubernetes workers.
+- [ ] Emit `step` events for `joinBlocks` and `zipBlocks`, which write no CSV
+  row today, and record `fragment_types` as a dict rather than a
+  `defaultdict` repr (in the JSON sink; the CSV format stays as it is).
+- [ ] Make builds reproducible from a seed: `Cell` keeps blocks and end groups
+  in sets ordered by memory address, so the same seeds give different
+  structures. Needed before a recorded seed means anything.
 - [ ] Record provenance in `run.json`: Ambuild version and git SHA, input
   script, parameter-directory hash, input block hashes, HOOMD and Poreblazer
   versions, random seed, requested resources.

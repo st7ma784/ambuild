@@ -26,6 +26,15 @@ Work in progress towards run recording (see
   area; pore limiting and maximum pore diameters; percolated dimensions;
   version; and the differential and cumulative pore size distributions.
   Checked against Poreblazer v3.0.5.
+- Build events: `Analyse` sends each event to a list of sinks, and
+  `Cell.addEventSink(sink)` adds one (any object with `handle(event)` and
+  `close()`). Events are dicts with `type`, `step`, `timestamp` and `data`:
+  - `step`: the row written to the CSV, at the end of every step;
+  - `artifact`: path, kind (`pickle`, `xyz`, `cml`, `car`), size and sha256
+    of each file written by `dump`/`writePickle` and `write*`;
+  - `pore_result`: the results returned by `Cell.poreblazer()`.
+  The CSV is written by `ab_analyse.CsvSink`, always the first sink; its
+  output is unchanged. Sinks are not pickled.
 - `tests/docker/poreblazer.Dockerfile` builds Poreblazer at a pinned commit;
   `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
 
@@ -37,8 +46,9 @@ Work in progress towards run recording (see
 - The CSV step log is flushed after every row.
 - `tests/run_tests_docker.sh` pins `glotzerlab/software:2020.11.18-cuda10`
   (HOOMD 2.9.3, Python 3.6); the untagged image has moved past HOOMD 2.
-- `tests/run_tests.py` seeds `random` (`AMBUILD_TEST_SEED`, default 1) and CI
-  sets `PYTHONHASHSEED=0`, so runs are reproducible. Previously
+- `tests/run_tests.py` reseeds `random` before every test
+  (`AMBUILD_TEST_SEED`, default 1) and CI sets `PYTHONHASHSEED=0`, so a test's
+  random numbers do not depend on the tests that ran before it. Previously
   `testSubunit`, `testGrowPolymerRandom`, `testDeleteBlocksType` and
   `testCell.testCat2Paf2` failed intermittently.
 - The test suite needs Ambuild installed (`pip install -e .`); nothing adds
@@ -53,7 +63,12 @@ Work in progress towards run recording (see
   deterministic on their own.
 - `testCatalysis.testCat1Paf2` and `testCat2Paf2` are skipped: depending on
   the random layout they need the `hc-cp-cp` angle parameter, which
-  `tests/params` lacks.
+  `tests/params` lacks. `testCell.testCat2Paf2` is skipped: HOOMD fails with
+  "Error computing cell list" for some layouts.
+- Builds are not reproducible even with fixed `random` and hash seeds: blocks
+  are held in sets ordered by memory address.
+- `joinBlocks` and `zipBlocks` do not write a CSV row, and `fragment_types`
+  is recorded as a `defaultdict` repr.
 - `Cell.writeCar()` fails when called without `data` (`CellData` is not
   subscriptable). Present before 2.0.1.
 

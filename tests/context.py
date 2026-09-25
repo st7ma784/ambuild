@@ -1,4 +1,5 @@
 import os
+from ambuild import ab_analyse
 from ambuild import ab_block
 from ambuild import ab_bond
 from ambuild import ab_cell

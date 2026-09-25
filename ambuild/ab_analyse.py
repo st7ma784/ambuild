@@ -1,25 +1,57 @@
 import csv
 import time
 
+# Event types sent to sinks. Each event is a dict:
+#   {"type": <event type>, "step": <step number>, "timestamp": <time.time()>, "data": {...}}
+STEP = "step"  # data: the row written to the csv file
+ARTIFACT = "artifact"  # data: path, kind, size, sha256
+PORE_RESULT = "pore_result"  # data: the results of Cell.poreblazer()
+
+FIELDNAMES = [
+    "step",
+    "type",
+    "tot_time",
+    "time",
+    "num_frags",
+    "num_particles",
+    "num_blocks",
+    "density",
+    "num_free_endGroups",
+    "potential_energy",
+    "num_tries",
+    "fragment_types",
+    "file_count",
+]
+
+
+class CsvSink:
+    """Write step events to a csv file, one row per step"""
+
+    def __init__(self, logfile):
+        self.logfile = logfile
+        self._logHandle = open(self.logfile, "w")
+        self._logWriter = csv.DictWriter(self._logHandle, FIELDNAMES)
+        self._logWriter.writeheader()
+
+    def handle(self, event):
+        if event["type"] == STEP:
+            self._logWriter.writerow(event["data"])
+            self._logHandle.flush()
+
+    def close(self):
+        self._logHandle.close()
+
 
 class Analyse:
+    """Record each step of a build and send events describing it to a list of sinks.
+
+    A sink is any object with handle(event) and close() methods. The csv file is
+    written by a CsvSink, which is always the first sink.
+    """
+
     def __init__(self, cell, logfile="ambuild.csv"):
 
-        self.fieldnames = [
-            "step",
-            "type",
-            "tot_time",
-            "time",
-            "num_frags",
-            "num_particles",
-            "num_blocks",
-            "density",
-            "num_free_endGroups",
-            "potential_energy",
-            "num_tries",
-            "fragment_types",
-            "file_count",
-        ]
+        self.fieldnames = FIELDNAMES
         self.cell = cell
 
         self.step = 0
@@ -40,11 +72,20 @@ class Analyse:
         self.last = d
 
         self.logfile = logfile
-        self._logHandle = open(self.logfile, "w")
-        self._logWriter = csv.DictWriter(self._logHandle, self.fieldnames)
+        self.sinks = [CsvSink(self.logfile)]
 
-        self._logWriter.writeheader()
+        return
 
+    def addSink(self, sink):
+        """Send all subsequent events to sink as well"""
+        self.sinks.append(sink)
+        return
+
+    def emit(self, etype, data):
+        """Send an event of type etype with payload data to every sink"""
+        event = {"type": etype, "step": self.step, "timestamp": time.time(), "data": data}
+        for sink in self.sinks:
+            sink.handle(event)
         return
 
     def start(self):
@@ -89,8 +130,7 @@ class Analyse:
             else:
                 new[f] = self.last[f]
 
-        self._logWriter.writerow(new)
-        self._logHandle.flush()
+        self.emit(STEP, new)
 
         self.last = new
         self._stepTime = None
@@ -98,6 +138,7 @@ class Analyse:
         return
 
     def close(self):
-        """Close the csv file"""
-        self._logHandle.close()
+        """Close all the sinks"""
+        for sink in self.sinks:
+            sink.close()
         return
