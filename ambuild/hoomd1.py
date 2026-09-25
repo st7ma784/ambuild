@@ -28,7 +28,8 @@ logger = logging.getLogger(__name__)
 
 
 class Hoomd1(FFIELD):
-    def __init__(self, paramsDir):
+    def __init__(self, paramsDir, outputDir=None):
+        # outputDir is accepted for interface compatibility but ignored: HOOMD 1 support is being removed
         self.ffield = FfieldParameters(paramsDir)
         self.system = None
         self.bonds = None

@@ -13,6 +13,41 @@ Entries move from *Unreleased* into a version section when it is tagged.
 Work in progress towards run recording (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
+### Added
+- `Cell(outputDir=...)`: all files a cell writes (log, CSV, pickles,
+  `writeXyz`/`writeCml`/`writeCar`, HOOMD 2 logs and dumps, Poreblazer runs)
+  go into that directory, which is created if needed. Relative filenames are
+  resolved against it; absolute paths are unchanged. The default is the
+  current working directory, as before. Restoring a pickle keeps its
+  `outputDir`.
+- `Cell.close()` closes the cell's CSV and log files.
+
+### Changed
+- `Cell.poreblazer()` no longer changes the process working directory; the
+  Poreblazer helpers take a `directory` argument.
+- The CSV step log is flushed after every row.
+- `tests/run_tests_docker.sh` pins `glotzerlab/software:2020.11.18-cuda10`
+  (HOOMD 2.9.3, Python 3.6); the untagged image has moved past HOOMD 2.
+- `tests/run_tests.py` seeds `random` (`AMBUILD_TEST_SEED`, default 1) and CI
+  sets `PYTHONHASHSEED=0`, so runs are reproducible. Previously
+  `testSubunit`, `testGrowPolymerRandom`, `testDeleteBlocksType` and
+  `testCell.testCat2Paf2` failed intermittently.
+- The test suite needs Ambuild installed (`pip install -e .`); nothing adds
+  the checkout to `sys.path` any more. `tests/test.py`, which ran the suite a
+  second time, is removed.
+
+### Known issues
+- Logging uses the process-wide root logger, so when two cells exist in one
+  process the most recently created one owns the `.log` file. CSV, pickle,
+  structure and Poreblazer output are kept separate.
+- Tests pass for the default seeds; individual randomised tests are not yet
+  deterministic on their own.
+- `testCatalysis.testCat1Paf2` and `testCat2Paf2` are skipped: depending on
+  the random layout they need the `hc-cp-cp` angle parameter, which
+  `tests/params` lacks.
+- `Cell.writeCar()` fails when called without `data` (`CellData` is not
+  subscriptable). Present before 2.0.1.
+
 ## [2.0.1]
 
 ### Fixed

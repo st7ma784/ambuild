@@ -1,4 +1,5 @@
 import logging
+import os
 from ambuild.ab_util import run_command
 
 
@@ -62,7 +63,7 @@ DEFAULTS_DAT = """UFF.atoms
 logger = logging.getLogger()
 
 
-def write_input_dat(xyzin, A, B, C):
+def write_input_dat(xyzin, A, B, C, directory=None):
     d = {"xyzin": xyzin, "A": A, "B": B, "C": C}
     input_dat = """{xyzin}
 {A:.4}  {B:.4}  {C:.4}
@@ -70,15 +71,21 @@ def write_input_dat(xyzin, A, B, C):
 """.format(
         **d
     )
-    with open("input.dat", "w") as w:
+    with open(os.path.join(directory or os.getcwd(), "input.dat"), "w") as w:
         w.write(input_dat)
     return input_dat
 
 
-def run_poreblazer(poreblazer_exe, input_dat):
+def run_poreblazer(poreblazer_exe, input_dat, directory=None):
     logger.info("Running poreblazer using executable: {}".format(poreblazer_exe))
-    with open("defaults.dat", "w") as w:
+    directory = directory or os.getcwd()
+    with open(os.path.join(directory, "defaults.dat"), "w") as w:
         w.write(DEFAULTS_DAT)
-    with open("UFF.atoms", "w") as w:
+    with open(os.path.join(directory, "UFF.atoms"), "w") as w:
         w.write(UFF_ATOMS)
-    return run_command([poreblazer_exe], stdin=input_dat, logfile="poreblazer.log")
+    return run_command(
+        [poreblazer_exe],
+        stdin=input_dat,
+        logfile=os.path.join(directory, "poreblazer.log"),
+        directory=directory,
+    )

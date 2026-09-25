@@ -49,6 +49,7 @@ class Cell:
         bondAngleMargin=15,
         paramsDir=None,
         debugLog=False,
+        outputDir=None,
     ):
         """Construct an empty cell:
 
@@ -65,7 +66,13 @@ class Cell:
         debugLog - True/False - specifies if a log will be created - not recommended as it generates lots of data
                 and slows the program.
         paramsDir - path to the directory holding the forcefield parameter csv files (default ../params)
+        outputDir - directory for all files written by this cell (logs, csv, pickles, structure files
+                    and poreblazer runs). It is created if needed. Default: the current working directory.
         """
+        self.outputDir = None
+        if outputDir is not None:
+            self.outputDir = os.path.abspath(outputDir)
+            os.makedirs(self.outputDir, exist_ok=True)
         # For time being origin always 0,0,0
         self.origin = np.array([0, 0, 0], dtype=np.float64)
         self.dim = None  # The cell dimensions
@@ -1509,7 +1516,7 @@ class Cell:
     ):
         if not self.mdEngineCls:
             raise RuntimeError("No mdEngine defined - cannot run.")
-        mdEngine = self.mdEngineCls(self.paramsDir)
+        mdEngine = self.mdEngineCls(self.paramsDir, outputDir=self.outputDir)
         data = self.cellData(periodic=True, center=True, rigidBody=rigidBody)
         if "rCut" in kw:
             self.rCut = kw["rCut"]
@@ -2125,7 +2132,7 @@ class Cell:
         logger.info("Running optimisation")
         if not self.mdEngineCls:
             raise RuntimeError("No mdEngine defined - cannot run MD.")
-        mdEngine = self.mdEngineCls(self.paramsDir)
+        mdEngine = self.mdEngineCls(self.paramsDir, outputDir=self.outputDir)
         if doDihedral and doImproper:
             raise RuntimeError("Cannot have impropers and dihedrals at the same time")
         self.setRcut(rigidBody, mdEngine, kw)
@@ -2182,23 +2189,22 @@ class Cell:
     def poreblazer(self, poreblazer_exe):
         from ambuild import ab_poreblazer
 
-        rundir = "{}_{}".format(ab_poreblazer.NAME_STEM, self._fileCount)
+        rundir = os.path.abspath(
+            self.outputPath("{}_{}".format(ab_poreblazer.NAME_STEM, self._fileCount))
+        )
         if os.path.isdir(rundir):
             raise RuntimeError("Poreblazer directory already exists: {}".format(rundir))
-        owd = os.getcwd()
         os.mkdir(rundir)
-        os.chdir(rundir)
         xyzin = "ambuild.xyz"
-        self.writeXyz(xyzin)
+        self.writeXyz(os.path.join(rundir, xyzin))
         input_dat = ab_poreblazer.write_input_dat(
-            xyzin, self.dim[0], self.dim[1], self.dim[2]
+            xyzin, self.dim[0], self.dim[1], self.dim[2], directory=rundir
         )
-        ret = ab_poreblazer.run_poreblazer(poreblazer_exe, input_dat)
+        ret = ab_poreblazer.run_poreblazer(poreblazer_exe, input_dat, directory=rundir)
         if ret != 0:
             logger.critical(
                 "Error running poreblazer - check files in directory: {}".format(rundir)
             )
-        os.chdir(owd)
 
     def positionInCell(self, block):
         """Make sure the given block is positioned within the cell"""
@@ -2394,7 +2400,7 @@ class Cell:
         logger.info("Running MD")
         if not self.mdEngineCls:
             raise RuntimeError("No MDENGINE defined - cannot run MD.")
-        mdEngine = self.mdEngineCls(self.paramsDir)
+        mdEngine = self.mdEngineCls(self.paramsDir, outputDir=self.outputDir)
         if doDihedral and doImproper:
             raise RuntimeError("Cannot have impropers and dihedrals at the same time")
         self.setRcut(rigidBody, mdEngine, kw)
@@ -2433,7 +2439,7 @@ class Cell:
         """
         if not self.mdEngineCls:
             raise RuntimeError("No MDENGINE defined - cannot run MD.")
-        mdEngine = self.mdEngineCls(self.paramsDir)
+        mdEngine = self.mdEngineCls(self.paramsDir, outputDir=self.outputDir)
         assert rigidBody, "FIX runMD FOR ALL ATOM!!"
         if doDihedral and doImproper:
             raise RuntimeError("Cannot have impropers and dihedrals at the same time")
@@ -2729,7 +2735,23 @@ class Cell:
         return
 
     def _setupAnalyse(self, logfile="ambuild.csv"):
-        self.analyse = ab_analyse.Analyse(self, logfile=logfile)
+        self.logcsv = self.outputPath(logfile)
+        self.analyse = ab_analyse.Analyse(self, logfile=self.logcsv)
+        return
+
+    def outputPath(self, filename):
+        """Return the path for filename within outputDir; absolute paths are returned unchanged"""
+        if self.outputDir is None:
+            return filename
+        return os.path.join(self.outputDir, filename)
+
+    def close(self):
+        """Close the csv and log files written by this cell"""
+        self.analyse.close()
+        if self._logFileHandler is not None:
+            logging.getLogger().removeHandler(self._logFileHandler)
+            self._logFileHandler.close()
+            self._logFileHandler = None
         return
 
     def setupLogging(self, logfile="ambuild.log", mode="w", debugLog=False):
@@ -2748,8 +2770,9 @@ class Cell:
         # Not entirely sure why this needed - set overall level of the logger to debug
         logger.setLevel(logging.DEBUG)
         # create file handler and set level to debug
-        self.logfile = logfile
+        self.logfile = self.outputPath(logfile)
         fl = logging.FileHandler(self.logfile, mode=mode)
+        self._logFileHandler = fl
         if debugLog:
             fl.setLevel(logging.DEBUG)
         else:
@@ -2848,7 +2871,7 @@ class Cell:
             suffix = ab_util.GZIP_PKL_SUFFIX
         else:
             suffix = ab_util.PKL_SUFFIX
-        fileName = os.path.abspath(fileStem + suffix)
+        fileName = os.path.abspath(self.outputPath(fileStem + suffix))
         fileName = ab_util.pickleObj(self, fileName, compress=compress)
         # Restart logging with append mode
         # self.setupLogging( mode='a' )
@@ -2889,7 +2912,7 @@ class Cell:
 
         car += "end\nend\n\n"
 
-        with open(ofile, "w") as f:
+        with open(self.outputPath(ofile), "w") as f:
             fpath = os.path.abspath(f.name)
             f.writelines(car)
 
@@ -2918,7 +2941,7 @@ class Cell:
         if periodic:
             cell = self.dim
         cmlFilename = xyz_util.writeCml(
-            cmlFilename,
+            self.outputPath(cmlFilename),
             d.coords,
             d.symbols,
             bonds=d.bonds,
@@ -2935,6 +2958,7 @@ class Cell:
         """Write out the cell atoms to an xyz file
         If label is true we write out the atom label and block, otherwise the symbol
         """
+        ofile = self.outputPath(ofile)
         if data is None:
             d = self.cellData(periodic=periodic, fragmentType=None)
         else:
@@ -3131,6 +3155,7 @@ class Cell:
         d = dict(self.__dict__)
         d["logcsv"] = d["analyse"].logfile
         del d["analyse"]
+        d.pop("_logFileHandler", None)
         if "mdEngineCls" in d:
             del d[
                 "mdEngineCls"
@@ -3139,7 +3164,10 @@ class Cell:
 
     def __setstate__(self, d):
         """Called when we are unpickled """
+        self.outputDir = None  # Not present in pickles from before 2.0.1
         self.__dict__.update(d)
+        if self.outputDir is not None:
+            os.makedirs(self.outputDir, exist_ok=True)
         if "logfile" in d:  # Hack for older versions with no logfile attribute
             logfile = ab_util.newFilename(d["logfile"])
         else:

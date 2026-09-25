@@ -88,7 +88,7 @@ and the existing scripts working. Later increments depend only on earlier ones.
 
 | # | Increment | Done when | TODO |
 | --- | --- | --- | --- |
-| 1 | **Run context.** `Cell` takes an optional output directory; `Analyse` closes its CSV; `Cell.poreblazer()` uses `run_command(directory=...)` instead of `os.chdir`. Default behaviour unchanged. | Two cells in one process write to separate directories; no `os.chdir` in the package. | §5 |
+| 1 | **Run context.** `Cell` takes an optional output directory; `Analyse` closes its CSV; `Cell.poreblazer()` uses `run_command(directory=...)` instead of `os.chdir`. Default behaviour unchanged. | ✅ Two cells in one process write to separate directories; no `os.chdir` in the package. Logging is still process-wide. | §5 |
 | 2 | **Poreblazer results.** Parse Poreblazer output into a dict and return it from `Cell.poreblazer()`. | Parser tested against a stored sample output. | §5 |
 | 3 | **Event emitter.** `Analyse` sends events to a list of sinks; the CSV writer becomes the default sink. | CSV output byte-identical to before. | §6 |
 | 4 | **JSONL sink + provenance.** `run.json` and `events.jsonl` in the run directory. | A run can be reconstructed from its directory alone. | §6 |

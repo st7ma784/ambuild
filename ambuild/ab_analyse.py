@@ -40,7 +40,8 @@ class Analyse:
         self.last = d
 
         self.logfile = logfile
-        self._logWriter = csv.DictWriter(open(self.logfile, "w"), self.fieldnames)
+        self._logHandle = open(self.logfile, "w")
+        self._logWriter = csv.DictWriter(self._logHandle, self.fieldnames)
 
         self._logWriter.writeheader()
 
@@ -89,8 +90,14 @@ class Analyse:
                 new[f] = self.last[f]
 
         self._logWriter.writerow(new)
+        self._logHandle.flush()
 
         self.last = new
         self._stepTime = None
         self.start()
+        return
+
+    def close(self):
+        """Close the csv file"""
+        self._logHandle.close()
         return

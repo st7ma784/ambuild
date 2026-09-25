@@ -32,6 +32,8 @@ runtime rather than on the current developer machines.
     `expectedFailure` (stale reference CML; unimplemented `catalyst=` API).
 - [ ] Add a root `Dockerfile` only when the image is the supported reproducible
   runtime; pin its Python, HOOMD/CUDA, and system dependencies.
+- [ ] Make randomised tests deterministic individually (seed per test or
+  inject an RNG) rather than relying on the suite-wide seed in `run_tests.py`.
 - [ ] Move HOOMD integration tests into a separate, explicitly optional job.
   Validate whether a self-hosted GPU runner is required before making this a
   required check.
@@ -83,14 +85,19 @@ runtime rather than on the current developer machines.
 
 ## 5. Engine streamlining
 
-- [ ] Give each run an explicit output context (run directory, run id) instead
+- [x] Give each run an explicit output context (run directory, run id) instead
   of writing `ambuild.csv`, `step_N.pkl` and `poreblazer_N/` into the cwd.
   The CSV handle in `ab_analyse.Analyse` is never closed, and
   `Cell.poreblazer()` uses `os.chdir`, so two runs cannot share a process.
+- [ ] Route logging per cell (a `logging.LoggerAdapter` or per-run handler)
+  instead of reconfiguring the root logger in `Cell.setupLogging()`.
+- [ ] Add the missing `hc-cp-cp` angle parameter (or fix the catalysis
+  fixtures) so `testCatalysis` passes under HOOMD.
+- [ ] Fix `Cell.writeCar()`, which indexes `CellData` like a dict.
 - [ ] Parse Poreblazer output (surface area, pore volume, pore limiting and
   largest cavity diameters, pore size distribution) into a result dict.
   Today Ambuild runs it and leaves the files unread.
-- [ ] Pass `directory=` to `ab_util.run_command` rather than calling
+- [x] Pass `directory=` to `ab_util.run_command` rather than calling
   `os.chdir` in `Cell.poreblazer()`.
 - [ ] Define an MD engine interface (`optimiseGeometry`, `runMD`,
   `fragMaxEnergy`, `updateCell`) and drop `hoomd1.py`. That makes a HOOMD 4

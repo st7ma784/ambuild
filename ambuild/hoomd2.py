@@ -3,6 +3,7 @@
 
 import itertools
 import logging
+import os
 import sys
 
 # 3rd-party imports
@@ -32,8 +33,9 @@ class Hoomd2(object):
 
     """
 
-    def __init__(self, paramsDir):
+    def __init__(self, paramsDir, outputDir=None):
         self.ffield = FfieldParameters(paramsDir)
+        self.outputDir = outputDir
         self.debug = False
         self.rCut = 5.0
         self.system = None
@@ -240,7 +242,7 @@ class Hoomd2(object):
         self.setupContext(quiet=quiet)
         snapshot = self.createSnapshot(data, doCharges=doCharges, doDihedral=doDihedral)
         self.setupSimulation(snapshot, data, walls=walls, wallAtomType=wallAtomType)
-        hlog = self._createLog("geomopt.tsv")
+        hlog = self._createLog(self.outputPath("geomopt.tsv"))
         if "stepwise" in kw and kw["stepwise"]:
             optimised = self._optimiseGeometryStepwise(**kw)
         else:
@@ -291,7 +293,7 @@ class Hoomd2(object):
                 integrate_nve = hoomd.md.integrate.nve(group=self.groupActive)
                 if dump:
                     dgsd = hoomd.dump.gsd(
-                        filename="opt.gsd",
+                        filename=self.outputPath("opt.gsd"),
                         period=dumpPeriod,
                         group=self.groupAll,
                         overwrite=True,
@@ -367,7 +369,7 @@ class Hoomd2(object):
         integrate_nve = hoomd.md.integrate.nve(group=self.groupActive)
         if dump:
             dgsd = hoomd.dump.gsd(
-                filename="opt.gsd",
+                filename=self.outputPath("opt.gsd"),
                 period=dumpPeriod,
                 group=self.groupAll,
                 overwrite=True,
@@ -426,7 +428,7 @@ class Hoomd2(object):
         self.setupContext(quiet=quiet)
         snapshot = self.createSnapshot(data, doCharges=doCharges, doDihedral=doDihedral)
         self.setupSimulation(snapshot, data, walls=walls, wallAtomType=wallAtomType)
-        hlog = self._createLog("runmd.log")
+        hlog = self._createLog(self.outputPath("runmd.log"))
         self._runMD(**kw)
         # Extract the energy
         if "d" in kw and kw["d"] is not None:
@@ -461,7 +463,7 @@ class Hoomd2(object):
 
         if dump:
             dgsd = hoomd.dump.gsd(
-                filename="runmd.gsd",
+                filename=self.outputPath("runmd.gsd"),
                 period=dumpPeriod,
                 group=self.groupAll,
                 overwrite=True,
@@ -547,6 +549,11 @@ class Hoomd2(object):
             exclusions=["bond", "1-3", "1-4", "angle", "dihedral", "body"]
         )
         return
+
+    def outputPath(self, filename):
+        if self.outputDir is None:
+            return filename
+        return os.path.join(self.outputDir, filename)
 
     def setupContext(self, quiet=False):
         hoomd.context.initialize()

@@ -5,6 +5,7 @@ Created on 4 Mar 2018
 """
 import os
 import shutil
+import tempfile
 import unittest
 
 from context import ab_cell
@@ -37,6 +38,23 @@ class Test(unittest.TestCase):
         os.unlink("ambuild.csv")
         os.unlink("ambuild.log")
         shutil.rmtree(pdir)
+        return
+
+    @unittest.skipUnless(os.path.isfile("/bin/cat"), "Needs /bin/cat as a dummy executable")
+    def testOutputDir(self):
+        """Poreblazer runs inside the cell's outputDir without changing the working directory"""
+        owd = os.getcwd()
+        rundir = tempfile.mkdtemp()
+        mycell = ab_cell.Cell([20.0, 20.0, 20.0], paramsDir=PARAMS_DIR, outputDir=rundir)
+        mycell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "ch4.car"), fragmentType="A")
+        mycell.seed(3)
+        mycell.poreblazer("/bin/cat")
+        mycell.close()
+        pdir = os.path.join(rundir, "{}_{}".format(ab_poreblazer.NAME_STEM, 0))
+        self.assertEqual(os.getcwd(), owd)
+        for name in ["ambuild.xyz", "defaults.dat", "input.dat", "UFF.atoms", "poreblazer.log"]:
+            self.assertTrue(os.path.isfile(os.path.join(pdir, name)), name)
+        shutil.rmtree(rundir)
         return
 
 
