@@ -137,23 +137,37 @@ runtime rather than on the current developer machines.
 - [ ] Emit `step` events for `joinBlocks` and `zipBlocks`, which write no CSV
   row today, and record `fragment_types` as a dict rather than a
   `defaultdict` repr (in the JSON sink; the CSV format stays as it is).
-- [ ] Resume recording when a cell is restored from a pickle, as a new run
-  that links to its parent run id.
+- [x] Resume recording when a cell is restored from a pickle, as a new run
+  that links to its parent run id (`Cell.startRecording()`).
 - [ ] Decide what `run.json` exposes through the API: it records the host name
   and absolute input paths.
-- [ ] Make the engine never talk to the network. The service worker (or a
+- [x] Make the engine never talk to the network. The service worker (or a
   Slurm epilogue) uploads the run directory and events after, or alongside,
   the job. Offline HPC nodes then behave the same as Kubernetes workers.
-- [ ] Schema (PostgreSQL): `runs` (uuid, owner, status, provenance, timings),
-  `steps` (run_id, step, type, density, energy, counts, JSONB extras),
-  `artifacts` (run_id, step, kind, object-store URI, sha256, size),
-  `pore_results` (run_id, step, scalar metrics, PSD as JSONB).
-- [ ] Store structure files and pickles in object storage (S3/MinIO), not in
+- [x] Schema (PostgreSQL): `runs`, `events`, `steps`, `files` (object URI,
+  sha256, kind, step), `pore_results` (`services/ingest/.../schema.sql`).
+  - Still to add: an owner column once the API has authentication, and
+    schema migrations (the schema is created with `IF NOT EXISTS` only).
+- [x] Store structure files and pickles in object storage (S3/MinIO), not in
   the database; the database holds URIs and checksums.
-- [ ] Make ingestion idempotent: client-generated run UUID, unique
+- [x] Make ingestion idempotent: client-generated run UUID, unique
   `(run_id, step)`, so retried uploads cannot duplicate rows.
 - [ ] Never unpickle user-uploaded files in the API; accept inputs as scripts,
   `.car` files and parameters only.
+
+## 7. Deployment follow-ups
+
+- [ ] Helm chart mirroring `deploy/docker-compose.yml` (PostgreSQL, SeaweedFS
+  or an existing S3, uploader CronJob), replacing `deploy/k8s/`.
+- [ ] Publish the `ambuild-ingest` image (e.g. GHCR) on version tags; the K3s
+  manifests reference `ghcr.io/st7ma784/ambuild-ingest:0.1.0`, which is not
+  built yet.
+- [ ] Rank-0-only output in Ambuild so builds can run HOOMD with several MPI
+  ranks under `srun`; today every rank would run the whole script.
+- [ ] Try the Slurm scripts on the real cluster: partitions, GPU `--gres`,
+  module loads and the shared filesystem path.
+- [ ] Retention for object storage and the `.ambuild-uploaded` markers;
+  decide whether Poreblazer grids are ever kept.
 
 ## GPU clarification
 

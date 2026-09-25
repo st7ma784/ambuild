@@ -1,0 +1,36 @@
+name: Test run ingestion
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    # Uploader unit and integration tests against PostgreSQL and SeaweedFS
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run ingest tests
+      run: docker compose -f deploy/docker-compose.yml --profile test run --rm --build ingest-test
+    - name: Service logs
+      if: failure()
+      run: docker compose -f deploy/docker-compose.yml logs
+    - name: Stop services
+      if: always()
+      run: docker compose -f deploy/docker-compose.yml down -v
+
+  slurm:
+    # deploy/slurm end to end on a single-node Slurm cluster: build, upload,
+    # Poreblazer fan-out, and failed and cancelled builds
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run Slurm end-to-end test
+      run: docker compose -f deploy/docker-compose.yml --profile slurm-test run --rm --build slurm-test
+    - name: Service logs
+      if: failure()
+      run: docker compose -f deploy/docker-compose.yml logs
+    - name: Stop services
+      if: always()
+      run: docker compose -f deploy/docker-compose.yml down -v

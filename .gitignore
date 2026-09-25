@@ -14,3 +14,7 @@ tests/poreblazer_*/
 build/
 dist/
 *.egg-info/
+
+# Local deployment secrets and data
+deploy/.env
+deploy/runs/

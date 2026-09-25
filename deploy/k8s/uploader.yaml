@@ -1,0 +1,58 @@
+# Fallback uploader for K3s: uploads runs the Slurm upload jobs missed.
+# The primary path is the afterany upload job submitted by deploy/slurm/submit_build.sh.
+#
+# Build and push the image from the repository root, then set it below:
+#   docker build -f services/ingest/Dockerfile -t <registry>/ambuild-ingest:0.1.0 .
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ambuild-upload-init
+  labels: {app.kubernetes.io/part-of: ambuild, app.kubernetes.io/component: uploader}
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext: {runAsNonRoot: true, runAsUser: 1000}
+      containers:
+        - name: init
+          image: ghcr.io/st7ma784/ambuild-ingest:0.1.0
+          args: ["--init"]
+          envFrom: [{secretRef: {name: ambuild-upload}}]
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ambuild-upload-scan
+  labels: {app.kubernetes.io/part-of: ambuild, app.kubernetes.io/component: uploader}
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000}
+          containers:
+            - name: upload
+              image: ghcr.io/st7ma784/ambuild-ingest:0.1.0
+              # Finished runs not yet uploaded, plus runs untouched for a day
+              # (their job died without its upload job) as incomplete
+              args: ["--scan", "/runs", "--stale-after", "86400"]
+              envFrom: [{secretRef: {name: ambuild-upload}}]
+              volumeMounts: [{name: runs, mountPath: /runs}]
+              resources:
+                requests: {cpu: 100m, memory: 128Mi}
+                limits: {cpu: "1", memory: 512Mi}
+          volumes:
+            - name: runs
+              persistentVolumeClaim: {claimName: ambuild-runs}

@@ -14,6 +14,23 @@ Work in progress towards run recording (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- `services/ingest`: `ambuild-upload`, a separate package (`psycopg`, `boto3`;
+  no NumPy) that loads run directories into PostgreSQL (`runs`, `events`,
+  `steps`, `files`, `pore_results`) and S3-compatible object storage.
+  Uploads are idempotent; `--finalise` records runs whose process died as
+  `incomplete`; `--recursive` includes child runs; `--scan DIR
+  [--stale-after SECONDS]` finds runs not yet uploaded; `--init` creates the
+  tables and bucket. Poreblazer's `*.grd` grids are not uploaded by default.
+- `deploy/`: docker-compose stack (PostgreSQL 16, SeaweedFS, uploader);
+  Slurm scripts that submit a build with an `afterany` upload job and an
+  optional Poreblazer array fan-out of child runs; a single-node Slurm test
+  image; K3s manifests for a fallback uploader CronJob. CI workflow
+  `test-ingest.yml` runs the ingest and Slurm end-to-end tests.
+- `Cell.startRecording(runId=None, parentRunId=None)` records a cell, e.g. one
+  restored from a pickle, as a new run; `parent_run_id` defaults to the run
+  the pickle came from.
+- `run.json` records `parent_run_id` and, under Slurm, the job's `SLURM_*`
+  variables (`scheduler`).
 - `Cell(outputDir=...)`: all files a cell writes (log, CSV, pickles,
   `writeXyz`/`writeCml`/`writeCar`, HOOMD 2 logs and dumps, Poreblazer runs)
   go into that directory, which is created if needed. Relative filenames are
@@ -80,7 +97,8 @@ Work in progress towards run recording (see
 ### Known issues
 - A recorded run whose script dies without `Cell.close()` (or a `with`
   block) stays `running` in `run.json`.
-- Recording is not resumed when a cell is restored from a pickle.
+- Recording is not resumed automatically when a cell is restored from a
+  pickle; call `Cell.startRecording()`.
 - `run.json` records the host name and absolute input paths.
 - Logging uses the process-wide root logger, so when two cells exist in one
   process the most recently created one owns the `.log` file. CSV, pickle,
