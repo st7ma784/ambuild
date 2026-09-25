@@ -66,8 +66,8 @@ runtime rather than on the current developer machines.
 - [ ] Record the exact Poreblazer version, source revision, compiler flags, and
   input/output contract used by Ambuild.
   - Tested: v3.0.5, commit `a753c72` (2018-02-28), gfortran 14.2 with the
-    upstream Makefile, which sets no optimisation flags (`-O0`). Output
-    contract: `ab_poreblazer.parse_output()`.
+    upstream Makefile, which compiles with `-O2 -unshared` (its `OFLAGS`).
+    Output contract: `ab_poreblazer.parse_output()`.
   - Each run writes a ~13 MB `nitrogen_network.grd` (20 Å cell); decide
     whether run storage keeps, compresses or drops it.
 - [ ] Profile representative workloads before changing Fortran code. Measure
@@ -81,6 +81,10 @@ runtime rather than on the current developer machines.
 - [ ] Try low-risk improvements first: compiler optimization flags, I/O
   reduction, better batching, OpenMP where independence is proven, and a
   modern Fortran compiler/runtime.
+  - Compiler flags ruled out (`docs/benchmarks.md`): upstream `-O2` is the
+    fastest build; `-O3 -march=native` is 3–14% slower and `-O0` ~1.8x
+    slower, with identical results. Runtime grows ~5–10x per 10 Å of cell
+    edge, so OpenMP over the grid or splitting the work is the lever.
 - [ ] Compare a CPU-optimized build against any GPU prototype; retain a GPU
   path only if it improves the target workloads after data-transfer overhead.
 - [ ] Wrap Poreblazer configuration and executable discovery so it is not tied
@@ -101,6 +105,9 @@ runtime rather than on the current developer machines.
   layouts, and `testCell.testCat2Paf2` fails with "Error computing cell list"
   for others. All three are skipped.
 - [ ] Fix `Cell.writeCar()`, which indexes `CellData` like a dict.
+- [ ] In-process HOOMD-blue 2 parses the build script's command line in
+  `hoomd.context.initialize()`, so scripts that take their own arguments fail
+  ("no such option"). Pass HOOMD an explicit, empty argument string.
 - [x] Parse Poreblazer output (surface area, pore volume, pore limiting and
   largest cavity diameters, pore size distribution) into a result dict.
   Today Ambuild runs it and leaves the files unread.
@@ -165,9 +172,10 @@ runtime rather than on the current developer machines.
 - [x] Run HOOMD with several MPI ranks under `srun`: Ambuild stays one process
   and launches each HOOMD calculation across the job's tasks
   (`ab_hoomdlauncher`, `AMBUILD_HOOMD_LAUNCHER`).
-  - [ ] Benchmark on the cluster: Ambuild cells are small, and HOOMD's domain
-    decomposition only pays off for large systems. Each launch also starts a
-    new HOOMD context, so short, frequent optimisations may be faster in-process.
+  - [x] Benchmark (`docs/benchmarks.md`): a worker costs 0.8–1.6 s per
+    calculation; MPI divides MD well (5x on 8 ranks at 4,600 atoms) but only
+    wins overall above ~4,000 atoms for 2000-step runs. Keep in-process as the
+    default.
   - [ ] Check `srun` + MPI HOOMD on the real cluster (PMI type, GPUs per task);
     tested here with `mpirun` on 1, 2 and 4 ranks in the glotzerlab OpenMPI
     image (identical static energies) and with `srun` launching plain
@@ -207,8 +215,9 @@ In order:
 - [ ] Dispatcher behind the web API: turns queued recipes into jobs, packing
   small builds several per node (`srun --multi-prog` or a task-farm worker)
   and sharing GPUs between small HOOMD runs (MPS).
-- [ ] Use the MPI HOOMD launcher only for large cells, above an atom-count
-  threshold set by benchmarking (§7).
+- [ ] Use the MPI HOOMD launcher only for large cells: all-atom MD on ~5,000
+  atoms or more, or long runs on ~2,000 or more (`docs/benchmarks.md`). The
+  dispatcher could set `AMBUILD_HOOMD_LAUNCHER` per job from the recipe.
 
 ## GPU clarification
 
