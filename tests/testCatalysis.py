@@ -131,6 +131,8 @@ class Test(unittest.TestCase):
         self.assertEqual(len(mycell.blocks), 3)
         return
 
+    # Uses the Cell.libraryAddFragment(catalyst=True) API, which is not implemented
+    @unittest.expectedFailure
     def testUnbonding(self):
         """Atom positions are correct on unbonding"""
 

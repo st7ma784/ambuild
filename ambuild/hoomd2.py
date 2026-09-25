@@ -1,4 +1,4 @@
-#!/Users/jmht/miniconda2/envs/hoomd2/bin/python
+#!/usr/bin/env python3
 # source activate hoomd2
 
 import itertools

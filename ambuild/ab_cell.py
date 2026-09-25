@@ -859,7 +859,7 @@ class Cell:
         if wallClashes:
             logger.debug("_checkMove got clash with wall")
             return 1
-        if len(close) is 0:
+        if len(close) == 0:
             logger.debug("_checkMove no close contacts")
             return 0
         addBlock = self.blocks[idxAddBlock]
@@ -1111,7 +1111,7 @@ class Cell:
         block1 = _random.choice(list(endGroupTypes2Block[eg1Type]))
         endGroup1 = block1.selectEndGroup(endGroupTypes=[eg1Type])
         # Pick a random endGroup type that can bond to this
-        eg2Type = _random.sample(cell2cell[eg1Type], 1)[0]
+        eg2Type = _random.choice(list(cell2cell[eg1Type]))
         # Select a random block/endGroup of that type
         # (REM: need to remove the first block from the list of possibles hence the difference thing
         # XXX Also need to convert to list as sets don't support random.choice
@@ -2037,8 +2037,7 @@ class Cell:
             cellEgT = _random.choice(list(cell2Library.keys()))
 
             # First get a block that contains this type of endGroup
-            # Need to use sample as sets don't support random.choice
-            cellBlock = _random.sample(endGroupTypes2Block[cellEgT], 1)[0]
+            cellBlock = _random.choice(list(endGroupTypes2Block[cellEgT]))
 
             # Now select a random endGroup of that type from it
             cellEndGroup = cellBlock.selectEndGroup(
@@ -2047,7 +2046,7 @@ class Cell:
 
             # Now get a corresponding library endGroup
             # We need to pick a random one of the types that we can bond to that is also in libraryTypes
-            libEgT = _random.sample(cell2Library[cellEgT], 1)[0]
+            libEgT = _random.choice(list(cell2Library[cellEgT]))
 
             # Now determine the fragmentType and create the block and fragment
             fragmentType = self._endGroup2LibraryFragment[libEgT]

@@ -417,9 +417,20 @@ def writeCml(
             bondNode.attrib["atomRefs2"] = "a{0} a{1}".format(b[0], b[1])
             bondNode.attrib["order"] = "1"
 
+    # Python >= 3.8 serialises attributes in insertion order; sort them to keep output stable
+    for element in root.iter():
+        element.attrib = dict(sorted(element.attrib.items()))
+
     cmlFilename = os.path.abspath(cmlFilename)
     if prettyPrint:
         estring = xml.dom.minidom.parseString(ET.tostring(root))
+        # minidom moves namespace declarations first when parsing, so sort again
+        for node in estring.getElementsByTagName("*"):
+            attrs = sorted(node.attributes.items())
+            for name, _ in attrs:
+                node.removeAttribute(name)
+            for name, value in attrs:
+                node.setAttribute(name, value)
         with open(cmlFilename, "w") as w:
             w.write(estring.toprettyxml())
     else:

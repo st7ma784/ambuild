@@ -13,6 +13,7 @@ from context import PARAMS_DIR, BLOCKS_DIR
 
 
 class Test(unittest.TestCase):
+    @unittest.skipUnless(os.path.isfile("/bin/cat"), "Needs /bin/cat as a dummy executable")
     def testDummy(self):
         """Run with a dummy executable just to make sure the code runs"""
         boxWidth = 20.0
