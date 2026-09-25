@@ -222,7 +222,7 @@ With Ambuild installed, the CPU test suite runs without HOOMD-Blue:
 cd tests
 PYTHONHASHSEED=0 python run_tests.py
 ```
-Many tests build random structures. `run_tests.py` seeds Python's random number generator (set `AMBUILD_TEST_SEED` to change the seed) and `PYTHONHASHSEED=0` fixes set ordering, so a run is reproducible.
+Many tests build random structures. `run_tests.py` reseeds Python's random number generator before every test (set `AMBUILD_TEST_SEED` to change the seed) and `PYTHONHASHSEED=0` fixes set ordering, so a run is reproducible.
 
 Tests that need HOOMD-Blue are skipped unless it is installed; `tests/run_tests_docker.sh` runs the full suite in the glotzerlab container.
 

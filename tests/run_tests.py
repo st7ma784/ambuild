@@ -11,10 +11,18 @@ import unittest
 
 # Ambuild must be installed first, e.g. `pip install -e .` from the repository root
 
-# Many tests build random structures: seed so that runs are reproducible. Set
-# PYTHONHASHSEED too, as set iteration order also feeds the random choices.
+# Many tests build random structures. Reseed before every test so that each test's
+# random numbers do not depend on which tests ran before it. Set PYTHONHASHSEED too,
+# as set iteration order also feeds the random choices.
 SEED = int(os.environ.get("AMBUILD_TEST_SEED", "1"))
-random.seed(SEED)
+
+
+class SeededTestResult(unittest.TextTestResult):
+    def startTest(self, test):
+        random.seed(SEED)
+        super(SeededTestResult, self).startTest(test)
+
+
 sys.stderr.write("AMBUILD_TEST_SEED={0} PYTHONHASHSEED={1}{2}".format(SEED, os.environ.get("PYTHONHASHSEED"), os.linesep))
 
 TEST_DIR = "."
@@ -29,7 +37,9 @@ if int(suite.countTestCases()) <= 0:
     sys.exit(1)
 
 
-result = unittest.TextTestRunner(verbosity=VERBOSITY, buffer=False).run(suite)
+result = unittest.TextTestRunner(
+    verbosity=VERBOSITY, buffer=False, resultclass=SeededTestResult
+).run(suite)
 if result.wasSuccessful():
     sys.exit(0)
 else:
