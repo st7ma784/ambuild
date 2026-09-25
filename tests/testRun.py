@@ -8,6 +8,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 import uuid
 
 from context import ab_analyse
@@ -129,6 +130,40 @@ class Test(unittest.TestCase):
         self.recordBuild()
         with self.assertRaises(RuntimeError):
             ab_cell.Cell([20, 20, 20], paramsDir=PARAMS_DIR, outputDir=self.rundir, recordRun=True)
+
+    def testChildRunFromPickle(self):
+        """A cell restored from a pickle can be recorded as a child of the original run"""
+        parent = self.recordBuild()
+        pkl = os.path.join(self.rundir, "step_1.pkl.gz")
+        childDir = os.path.join(self.tmpdir, "child")
+        cell = ab_util.cellFromPickle(pkl, paramsDir=PARAMS_DIR, outputDir=childDir)
+        self.assertEqual(cell.runId, parent.runId)  # Restored from the pickle
+        childId = cell.startRecording()
+        with self.assertRaises(RuntimeError):
+            cell.startRecording()
+        cell.growBlocks(1)
+        cell.close()
+
+        run = readRun(childDir)
+        self.assertEqual(run["run_id"], childId)
+        self.assertNotEqual(childId, parent.runId)
+        self.assertEqual(run["parent_run_id"], parent.runId)
+        self.assertEqual(run["status"], "finished")
+        self.assertIsNone(readRun(self.rundir)["parent_run_id"])
+
+    def testSlurmVariables(self):
+        slurm = {"SLURM_JOB_ID": "1234", "SLURM_ARRAY_TASK_ID": "7", "SLURM_CLUSTER_NAME": "hpc"}
+        with mock.patch.dict(os.environ, slurm):
+            self.recordBuild()
+        scheduler = readRun(self.rundir)["scheduler"]
+        self.assertEqual(scheduler["type"], "slurm")
+        self.assertEqual(scheduler["variables"], slurm)
+
+    def testNoScheduler(self):
+        with mock.patch.dict(os.environ):
+            os.environ.pop("SLURM_JOB_ID", None)
+            self.recordBuild()
+        self.assertIsNone(readRun(self.rundir)["scheduler"])
 
     def testReconstructFromRunDirectory(self):
         """Everything needed to restore the build is in the run directory"""

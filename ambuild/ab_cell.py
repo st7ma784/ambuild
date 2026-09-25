@@ -158,13 +158,26 @@ class Cell:
         self._runRecorder = None
         self.runId = None
         if recordRun:
-            from ambuild import ab_run
-
-            self._runRecorder = ab_run.RunRecorder(self, runId=runId)
-            self.runId = self._runRecorder.runId
+            self.startRecording(runId=runId)
             if filePath:
                 self._runRecorder.addInput(filePath, "static")
         return
+
+    def startRecording(self, runId=None, parentRunId=None):
+        """Start recording this cell's outputDir as a run (see ab_run and the recordRun argument).
+
+        For a cell restored from a pickle, parentRunId defaults to the run the pickle came from,
+        so the new run records where it started.
+        """
+        from ambuild import ab_run
+
+        if self._runRecorder is not None:
+            raise RuntimeError("Run {0} is already being recorded".format(self.runId))
+        if parentRunId is None:
+            parentRunId = self.runId
+        self._runRecorder = ab_run.RunRecorder(self, runId=runId, parentRunId=parentRunId)
+        self.runId = self._runRecorder.runId
+        return self.runId
 
     def __enter__(self):
         return self

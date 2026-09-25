@@ -77,6 +77,29 @@ def gitInfo():
     return {"commit": commit.decode().strip(), "dirty": bool(status.strip())}
 
 
+# Slurm variables recorded in run.json, so a run can be matched to its job
+SLURM_VARIABLES = [
+    "SLURM_CLUSTER_NAME",
+    "SLURM_JOB_ID",
+    "SLURM_ARRAY_JOB_ID",
+    "SLURM_ARRAY_TASK_ID",
+    "SLURM_JOB_PARTITION",
+    "SLURM_JOB_NUM_NODES",
+    "SLURM_NTASKS",
+    "SLURM_CPUS_PER_TASK",
+]
+
+
+def schedulerInfo():
+    """Return the Slurm job this process is part of, or None when not run under Slurm"""
+    if "SLURM_JOB_ID" not in os.environ:
+        return None
+    return {
+        "type": "slurm",
+        "variables": {v: os.environ[v] for v in SLURM_VARIABLES if v in os.environ},
+    }
+
+
 class JsonlSink:
     """Append every event to a JSON Lines file"""
 
@@ -103,7 +126,7 @@ def checkRunDirectory(outputDir):
 class RunRecorder:
     """Keep run.json, events.jsonl and inputs/ for a cell with an outputDir"""
 
-    def __init__(self, cell, runId=None):
+    def __init__(self, cell, runId=None, parentRunId=None):
         checkRunDirectory(cell.outputDir)
         self.cell = cell
         self.directory = cell.outputDir
@@ -112,6 +135,7 @@ class RunRecorder:
         self.run = {
             "schema_version": SCHEMA_VERSION,
             "run_id": self.runId,
+            "parent_run_id": parentRunId,
             "status": "running",
             "started": _now(),
             "finished": None,
@@ -131,6 +155,7 @@ class RunRecorder:
                 else None,
             },
             "command": list(sys.argv),
+            "scheduler": schedulerInfo(),
             "cell": {
                 "box_dim": [float(x) for x in cell.dim],
                 "atom_margin": cell.atomMargin,
