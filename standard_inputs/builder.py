@@ -2,8 +2,6 @@
 import os
 import sys
 
-ambuild_home = "/opt/ambuild.git"
-sys.path.insert(0, ambuild_home)
 
 # This imports the builder cell module - this is the only module that should be required
 from ambuild import ab_cell
@@ -15,7 +13,7 @@ boxDim=[20,20,20] # Create a variable to hold the cell dimensions - this is the 
 
 # Create a cell object called mycell and specify the parameters that will dictate how close the atoms are permitted
 # and what bonds are acceptable
-mycell = ab_cell.Cell(boxDim, atomMargin=0.5, bondMargin=0.5, bondAngleMargin=15, paramsDir='/opt/paramsDir')
+mycell = ab_cell.Cell(boxDim, atomMargin=0.5, bondMargin=0.5, bondAngleMargin=15, paramsDir=os.environ.get("AMBUILD_PARAMS_DIR", "/opt/paramsDir"))
 
 #
 # Create two variables that hold the path to the .car files with the coordinates. A corresponding .csv file with

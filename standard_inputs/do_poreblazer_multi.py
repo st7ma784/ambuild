@@ -3,7 +3,6 @@ import glob
 import multiprocessing
 import os
 import sys
-sys.path.append("/opt/ambuild.git")
 from ambuild import ab_util
 
 # This script should be run in a directory containing ambuild pkl files (step_X.pkl.gz)
@@ -11,8 +10,8 @@ from ambuild import ab_util
 
 # Edit these to suit your case
 num_processors = 6
-params_dir = '/home/patrick/Dropbox/Ambuild_Files/Parameters'
-poreblazer_exe = '/opt/poreblazer/src/poreblazer.exe'
+params_dir = os.environ.get("AMBUILD_PARAMS_DIR", "/opt/paramsDir")
+poreblazer_exe = os.environ.get("POREBLAZER_EXE", "/opt/poreblazer/src/poreblazer.exe")
 #
 # Don't change anything below here
 #
