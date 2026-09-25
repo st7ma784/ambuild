@@ -51,6 +51,8 @@ class Cell:
         paramsDir=None,
         debugLog=False,
         outputDir=None,
+        recordRun=False,
+        runId=None,
     ):
         """Construct an empty cell:
 
@@ -69,10 +71,19 @@ class Cell:
         paramsDir - path to the directory holding the forcefield parameter csv files (default ../params)
         outputDir - directory for all files written by this cell (logs, csv, pickles, structure files
                     and poreblazer runs). It is created if needed. Default: the current working directory.
+        recordRun - True/False - make outputDir a self-contained record of the run: run.json (status and
+                    provenance), events.jsonl (every event) and inputs/ (copies of the script, parameter
+                    files and building blocks). Needs outputDir. See ab_run.
+        runId - the id to record the run under (default: a new UUID)
         """
         self.outputDir = None
         if outputDir is not None:
             self.outputDir = os.path.abspath(outputDir)
+        if recordRun:
+            from ambuild import ab_run
+
+            ab_run.checkRunDirectory(self.outputDir)  # Before any files are opened
+        if self.outputDir is not None:
             os.makedirs(self.outputDir, exist_ok=True)
         # For time being origin always 0,0,0
         self.origin = np.array([0, 0, 0], dtype=np.float64)
@@ -144,7 +155,27 @@ class Cell:
         if boxDim:
             self.setBoxSize(boxDim)
         assert self.dim[0] > 0 and self.dim[1] > 0 and self.dim[2] > 0
+        self._runRecorder = None
+        self.runId = None
+        if recordRun:
+            from ambuild import ab_run
+
+            self._runRecorder = ab_run.RunRecorder(self, runId=runId)
+            self.runId = self._runRecorder.runId
+            if filePath:
+                self._runRecorder.addInput(filePath, "static")
         return
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Close the cell; a recorded run is marked failed if an exception was raised"""
+        error = None
+        if exc_type is not None:
+            error = "{0}: {1}".format(exc_type.__name__, exc_value)
+        self.close(error=error)
+        return False
 
     def addBlock(self, block, idxBlock=None):
         """
@@ -1963,6 +1994,11 @@ class Cell:
                 ft not in self._endGroup2LibraryFragment
             ), "Adding existing endGroup type to library: {0}".format(ft)
             self._endGroup2LibraryFragment[ft] = fragmentType
+        if self._runRecorder is not None:
+            self._runRecorder.addInput(filename, "blocks", fragmentType=fragmentType)
+            egfile = os.path.splitext(filename)[0] + ".csv"
+            if os.path.isfile(egfile):
+                self._runRecorder.addInput(egfile, "blocks", fragmentType=fragmentType)
         return
 
     def _getCell2Library(
@@ -2775,6 +2811,7 @@ class Cell:
             ab_analyse.ARTIFACT,
             {
                 "path": path,
+                "relpath": self._relativeOutputPath(path),
                 "kind": kind,
                 "size": os.path.getsize(path),
                 "sha256": sha256.hexdigest(),
@@ -2782,14 +2819,26 @@ class Cell:
         )
         return
 
+    def _relativeOutputPath(self, path):
+        """Return path relative to outputDir with / separators, or None if it is outside it"""
+        if self.outputDir is None or not path.startswith(self.outputDir + os.sep):
+            return None
+        return os.path.relpath(path, self.outputDir).replace(os.sep, "/")
+
     def outputPath(self, filename):
         """Return the path for filename within outputDir; absolute paths are returned unchanged"""
         if self.outputDir is None:
             return filename
         return os.path.join(self.outputDir, filename)
 
-    def close(self):
-        """Close the csv and log files written by this cell"""
+    def close(self, error=None):
+        """Close the csv and log files written by this cell.
+
+        If the run is being recorded, mark it finished, or failed with the message error.
+        """
+        if self._runRecorder is not None:
+            self._runRecorder.finish(error=error)
+            self._runRecorder = None
         self.analyse.close()
         if self._logFileHandler is not None:
             logging.getLogger().removeHandler(self._logFileHandler)
@@ -3203,26 +3252,39 @@ class Cell:
         d["logcsv"] = d["analyse"].logfile
         del d["analyse"]
         d.pop("_logFileHandler", None)
+        d["_runRecorder"] = None  # Recording is not resumed after unpickling
         if "mdEngineCls" in d:
             del d[
                 "mdEngineCls"
             ]  # Contains a reference to the hoomd-blue module and logger
         return d
 
+    # Directory that __setstate__ moves output to; only set while ab_util.cellFromPickle runs
+    _restoreOutputDir = None
+
     def __setstate__(self, d):
         """Called when we are unpickled """
         self.outputDir = None  # Not present in pickles from before 2.0.1
+        self._runRecorder = None
+        self.runId = None
         self.__dict__.update(d)
+        relocate = Cell._restoreOutputDir is not None
+        if relocate:  # Set by ab_util.cellFromPickle(outputDir=...)
+            self.outputDir = Cell._restoreOutputDir
         if self.outputDir is not None:
             os.makedirs(self.outputDir, exist_ok=True)
         if "logfile" in d:  # Hack for older versions with no logfile attribute
             logfile = ab_util.newFilename(d["logfile"])
         else:
             logfile = "ambuild_1.log"
+        if relocate:
+            logfile = os.path.basename(logfile)
         self.setupLogging(logfile=logfile)
         if "logcsv" in d:
-            self.logcsv = ab_util.newFilename(d["logcsv"])
+            logcsv = ab_util.newFilename(d["logcsv"])
         else:
-            self.logcsv = "ambuild_1.csv"
-        self._setupAnalyse(logfile=self.logcsv)
+            logcsv = "ambuild_1.csv"
+        if relocate:
+            logcsv = os.path.basename(logcsv)
+        self._setupAnalyse(logfile=logcsv)
         return

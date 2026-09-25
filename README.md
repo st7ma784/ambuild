@@ -216,6 +216,14 @@ The example scripts in `standard_inputs` read the following environment variable
 | `AMBUILD_BLOCKS_DIR` | `/opt/ambuild/blocks` | Building-block `.car` files (`paf_catalyst_script.py`) |
 | `POREBLAZER_EXE` | `/opt/poreblazer/src/poreblazer.exe` | Poreblazer executable |
 
+## Recording a run
+Give a cell its own output directory and `recordRun=True` to keep a self-contained record of the build:
+```python
+with ab_cell.Cell([30, 30, 30], paramsDir=params, outputDir="runs/my-build", recordRun=True) as cell:
+    ...
+```
+The directory then holds `run.json` (run id, status, versions and inputs), `events.jsonl` (one JSON object per build step, file written and Poreblazer result) and `inputs/` (copies of the script, parameter files and building blocks), next to the usual log, CSV and pickle files. Leaving the `with` block marks the run `finished`, or `failed` if an exception escaped. See [docs/architecture.md](docs/architecture.md).
+
 ## Running the tests
 With Ambuild installed, the CPU test suite runs without HOOMD-Blue:
 ```

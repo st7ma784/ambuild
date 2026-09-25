@@ -122,21 +122,28 @@ runtime rather than on the current developer machines.
 - [x] Turn `Analyse.stop()`, which every build step already goes through, into
   an event emitter with pluggable sinks: step completed, artifact written
   (`dump`, `write*`), Poreblazer result, run finished or failed.
-- [ ] Keep the current CSV as the default sink (done: `ab_analyse.CsvSink`);
-  add a JSON Lines sink that
-  appends `run.json` + `events.jsonl` in the run directory.
-- [ ] Make the engine never talk to the network. The service worker (or a
-  Slurm epilogue) uploads the run directory and events after, or alongside,
-  the job. Offline HPC nodes then behave the same as Kubernetes workers.
-- [ ] Emit `step` events for `joinBlocks` and `zipBlocks`, which write no CSV
-  row today, and record `fragment_types` as a dict rather than a
-  `defaultdict` repr (in the JSON sink; the CSV format stays as it is).
+- [x] Keep the current CSV as the default sink (`ab_analyse.CsvSink`); add a
+  JSON Lines sink that appends `events.jsonl` in the run directory
+  (`ab_run.JsonlSink`).
+- [x] Record provenance in `run.json`: Ambuild version and git SHA, input
+  script, parameter files, building blocks with hashes, Python/NumPy/HOOMD
+  versions (`Cell(recordRun=True)`, `ambuild/ab_run.py`). Poreblazer's version
+  is in each `pore_result` event.
+  - Not yet recorded: a random seed (meaningless until builds are
+    reproducible, below) and requested resources (for the service to add).
 - [ ] Make builds reproducible from a seed: `Cell` keeps blocks and end groups
   in sets ordered by memory address, so the same seeds give different
   structures. Needed before a recorded seed means anything.
-- [ ] Record provenance in `run.json`: Ambuild version and git SHA, input
-  script, parameter-directory hash, input block hashes, HOOMD and Poreblazer
-  versions, random seed, requested resources.
+- [ ] Emit `step` events for `joinBlocks` and `zipBlocks`, which write no CSV
+  row today, and record `fragment_types` as a dict rather than a
+  `defaultdict` repr (in the JSON sink; the CSV format stays as it is).
+- [ ] Resume recording when a cell is restored from a pickle, as a new run
+  that links to its parent run id.
+- [ ] Decide what `run.json` exposes through the API: it records the host name
+  and absolute input paths.
+- [ ] Make the engine never talk to the network. The service worker (or a
+  Slurm epilogue) uploads the run directory and events after, or alongside,
+  the job. Offline HPC nodes then behave the same as Kubernetes workers.
 - [ ] Schema (PostgreSQL): `runs` (uuid, owner, status, provenance, timings),
   `steps` (run_id, step, type, density, energy, counts, JSONB extras),
   `artifacts` (run_id, step, kind, object-store URI, sha256, size),

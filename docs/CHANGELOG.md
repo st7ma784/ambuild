@@ -35,6 +35,22 @@ Work in progress towards run recording (see
   - `pore_result`: the results returned by `Cell.poreblazer()`.
   The CSV is written by `ab_analyse.CsvSink`, always the first sink; its
   output is unchanged. Sinks are not pickled.
+- Run recording: `Cell(outputDir=..., recordRun=True, runId=None)` makes the
+  output directory a self-contained record of the build (`ab_run`):
+  - `run.json`: run id (a new UUID unless `runId` is given), status
+    (`running`, `finished`, `failed`), start and finish times, error,
+    Ambuild version and git commit, Python/platform/host/NumPy/HOOMD
+    versions, command line and cell parameters, and the list of inputs;
+  - `events.jsonl`: every event, one JSON object per line, including new
+    `run_started`, `input` and `run_finished` events;
+  - `inputs/`: copies of the script, parameter files and building blocks
+    (with their end-group CSVs), each with its sha256.
+- `Cell` is a context manager: leaving a `with` block closes it and marks a
+  recorded run `failed` if an exception escaped. `Cell.close(error=...)` does
+  the same explicitly.
+- `ab_util.cellFromPickle(..., outputDir=...)` restores a cell with its
+  output in a new directory, so a run directory can be moved and restarted.
+- `artifact` events include `relpath`, the path relative to `outputDir`.
 - `tests/docker/poreblazer.Dockerfile` builds Poreblazer at a pinned commit;
   `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
 
@@ -55,7 +71,17 @@ Work in progress towards run recording (see
   the checkout to `sys.path` any more. `tests/test.py`, which ran the suite a
   second time, is removed.
 
+### Fixed
+- The CSV step log had doubled line endings (`
+`) on Windows; it is
+  now opened with `newline=""` as the `csv` module requires. Output on Linux
+  is unchanged.
+
 ### Known issues
+- A recorded run whose script dies without `Cell.close()` (or a `with`
+  block) stays `running` in `run.json`.
+- Recording is not resumed when a cell is restored from a pickle.
+- `run.json` records the host name and absolute input paths.
 - Logging uses the process-wide root logger, so when two cells exist in one
   process the most recently created one owns the `.log` file. CSV, pickle,
   structure and Poreblazer output are kept separate.
