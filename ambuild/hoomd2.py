@@ -13,6 +13,7 @@ import numpy as np
 
 # Our imports
 from ambuild.ab_ffield import FfieldParameters
+from ambuild.ab_hoomdlauncher import applyResult
 from ambuild import xyz_core
 
 logger = logging.getLogger(__name__)
@@ -670,40 +671,26 @@ class Hoomd2(object):
                 wallstructure.add_plane(origin=originBack, normal=normal, inside=False)
         return
 
+    def snapshotResult(self):
+        """Return the box and particle data that ab_hoomdlauncher.applyResult needs.
+
+        Every MPI rank must call this, as taking a snapshot is collective; the data is
+        only returned on rank 0, and None elsewhere.
+        """
+        snapshot = self.system.take_snapshot()
+        offset = len(hoomd.group.rigid_center()) if self.rigidBody else 0
+        if hoomd.comm.get_rank() != 0:
+            return None
+        return {
+            "box": [self.system.box.Lx, self.system.box.Ly, self.system.box.Lz],
+            "positions": np.array(snapshot.particles.position),
+            "images": np.array(snapshot.particles.image),
+            "offset": offset,
+        }
+
     def updateCell(self, cell):
         """Reset the particle positions from hoomdblue system"""
-        box = np.array([self.system.box.Lx, self.system.box.Ly, self.system.box.Lz])
-        snapshot = self.system.take_snapshot()
-        if self.rigidBody:
-            atomIdx = len(hoomd.group.rigid_center())
-        else:
-            atomIdx = 0
-        for block in cell.blocks.values():
-            for i in range(block.numAtoms()):
-                coord = snapshot.particles.position[atomIdx]
-                coord = xyz_core.unWrapCoord3(
-                    coord, snapshot.particles.image[atomIdx], box, centered=True
-                )
-                block.coord(i, coord)
-                atomIdx += 1
-        if atomIdx != snapshot.particles.N:
-            raise RuntimeError(
-                "Read {0} positions but there were {1} particles!".format(
-                    atomIdx, len(self.system.particles)
-                )
-            )
-
-        # If we are running (e.g.) an NPT simulation, the cell size may have changed. In this case we need to update
-        # our cell parameters. Repopulate cells will then update the halo cells and add the new blocks
-        if not np.allclose(box, cell.dim):
-            logger.info(
-                "Changing cell dimensions after HOOMD-blue simulation from: {0} to: {1}".format(
-                    cell.dim, box
-                )
-            )
-            cell.dim = box
-        # Now have the new coordinates, so we need to put the atoms in their new cells
-        cell.repopulateCells()
+        applyResult(cell, self.snapshotResult())
         return
 
     def _createLog(self, filename):

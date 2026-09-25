@@ -2752,6 +2752,18 @@ class Cell:
                 "HOOMD-BLUE could not be found! MD functionality will be unavailable."
             )
             return
+        from ambuild import ab_hoomdlauncher
+
+        launcher = ab_hoomdlauncher.launcherFromEnvironment()
+        if launcher is not None and hoomdVersion[0] >= 2:
+            # HOOMD must still be importable here: cellData() builds its rigid-body data
+            self.mdEngineCls = ab_hoomdlauncher.HoomdLauncher
+            logger.info(
+                "Running HOOMD-BLUE %s calculations with: %s",
+                ".".join(map(str, hoomdVersion)),
+                " ".join(launcher) or "a separate process",
+            )
+            return
         if hoomdVersion[0] < 2:
             from ambuild.hoomd1 import Hoomd1
 
