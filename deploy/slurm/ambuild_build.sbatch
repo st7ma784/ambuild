@@ -6,12 +6,20 @@
 #   AMBUILD_RUN_DIR  the run directory, on a filesystem shared with the upload job
 #   AMBUILD_RUN_ID   the run id, also the name of the run directory
 #
-# Ambuild runs HOOMD from a single process: keep --ntasks=1. GPUs, if the
-# HOOMD build supports them, are requested with --gres=gpu:1.
+# Ambuild runs as a single process. With more than one task (--ntasks=N), each HOOMD-blue
+# optimisation or MD run is launched across all N tasks with srun, which needs an MPI build
+# of HOOMD-blue 2. Set AMBUILD_SRUN_MPI to add --mpi=<type> (e.g. pmix) if your cluster
+# needs it, or set AMBUILD_HOOMD_LAUNCHER yourself to override the launcher entirely.
+# GPUs, if the HOOMD build supports them, are requested with e.g. --gpus-per-task=1.
 #SBATCH --job-name=ambuild-build
 #SBATCH --ntasks=1
 #SBATCH --output=%x-%j.out
 set -euo pipefail
 : "${AMBUILD_SCRIPT:?}" "${AMBUILD_RUN_DIR:?}" "${AMBUILD_RUN_ID:?}"
 
-srun python "$AMBUILD_SCRIPT"
+if [ "${SLURM_NTASKS:-1}" -gt 1 ] && [ -z "${AMBUILD_HOOMD_LAUNCHER+set}" ]; then
+    export AMBUILD_HOOMD_LAUNCHER="srun --ntasks=$SLURM_NTASKS${AMBUILD_SRUN_MPI:+ --mpi=$AMBUILD_SRUN_MPI}"
+fi
+echo "HOOMD-blue launcher: ${AMBUILD_HOOMD_LAUNCHER-in-process}"
+
+python "$AMBUILD_SCRIPT"

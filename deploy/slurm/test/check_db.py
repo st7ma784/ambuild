@@ -1,10 +1,13 @@
-"""Check the uploaded runs for run_test.sh: check_db.py OK_RUN FAILED_RUN CANCELLED_RUN"""
+"""Check the uploaded runs for run_test.sh:
+
+    check_db.py OK_RUN FAILED_RUN CANCELLED_RUN MULTITASK_RUN
+"""
 import os
 import sys
 
 import psycopg
 
-ok, failed, cancelled = sys.argv[1:4]
+ok, failed, cancelled, multitask = sys.argv[1:5]
 with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
     def one(sql, *args):
         return conn.execute(sql, args).fetchone()
@@ -33,4 +36,10 @@ with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
     status = one("SELECT status FROM runs WHERE run_id = %s", cancelled)[0]
     assert status == "incomplete", status
     print("cancelled run {0}: {1}".format(cancelled, status))
+
+    status, ntasks = one(
+        "SELECT status, run_json->'scheduler'->'variables'->>'SLURM_NTASKS' FROM runs "
+        "WHERE run_id = %s", multitask)
+    assert (status, ntasks) == ("finished", "2"), (status, ntasks)
+    print("two-task run {0}: {1}, HOOMD launcher started 2 ranks".format(multitask, status))
 print("Slurm end-to-end test passed")

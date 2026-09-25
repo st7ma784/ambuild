@@ -18,6 +18,8 @@ failed=$("$slurm/submit_build.sh" "$slurm/test/failing_build.py")
 echo "$failed"
 cancelled=$("$slurm/submit_build.sh" "$slurm/test/hanging_build.py")
 echo "$cancelled"
+multitask=$("$slurm/submit_build.sh" "$slurm/test/launcher_build.py" --ntasks=2)
+echo "$multitask"
 cancelled_dir=$(tail -n 1 <<< "$cancelled")
 for _ in $(seq 120); do [ -f "$cancelled_dir/run.json" ] && break; sleep 1; done
 scancel "$(grep -o 'build job [0-9]*' <<< "$cancelled" | awk '{print $3}')"
@@ -33,4 +35,5 @@ for _ in $(seq 600); do
 done
 squeue
 echo "--- job outputs"; tail -n 3 /tmp/*.out
-python3 "$slurm/test/check_db.py" "$(run_id_of "$ok")" "$(run_id_of "$failed")" "$(run_id_of "$cancelled")"
+python3 "$slurm/test/check_db.py" "$(run_id_of "$ok")" "$(run_id_of "$failed")" "$(run_id_of "$cancelled")" \
+    "$(run_id_of "$multitask")"
