@@ -3,3 +3,14 @@
 __pycache__
 .project
 .pydevproject
+
+# Test run outputs
+tests/*.csv
+tests/*.log
+tests/*.cml
+tests/poreblazer_*/
+
+# Build outputs
+build/
+dist/
+*.egg-info/
