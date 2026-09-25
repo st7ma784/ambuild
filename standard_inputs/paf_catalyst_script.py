@@ -27,21 +27,22 @@ Do we do a multi-step operation - e.g. bond the catalysts together and then remo
 
 """
 
-import sys
-sys.path.append("/opt/ambuild/builder")
+import os
 from ambuild import ab_cell
+
+BLOCKS_DIR = os.environ.get("AMBUILD_BLOCKS_DIR", "/opt/ambuild/blocks")
 
 #cell dimensions:
 boxDim=[40,40,40]
 
 #Create Cell and seed it with the blocks
-mycell = ab_cell.Cell(boxDim, atomMargin=0.1, bondMargin=0.5, bondAngleMargin=5, paramsDir='/opt/paramsDir')
+mycell = ab_cell.Cell(boxDim, atomMargin=0.1, bondMargin=0.5, bondAngleMargin=5, paramsDir=os.environ.get("AMBUILD_PARAMS_DIR", "/opt/paramsDir"))
 
 #import the two fragment files if you have 2 different building blocks
-#mycell.libraryAddFragment( filename='/opt/ambuild/blocks/PAF.car', fragmentType='PAF' )
-mycell.libraryAddFragment( filename='/opt/ambuild/blocks/ch4.car', fragmentType='PAF' )
+#mycell.libraryAddFragment( filename=os.path.join(BLOCKS_DIR, 'PAF.car'), fragmentType='PAF' )
+mycell.libraryAddFragment( filename=os.path.join(BLOCKS_DIR, 'ch4.car'), fragmentType='PAF' )
 #mycell.libraryAddFragment( filename='pafh2.car', fragmentType='cat' )
-mycell.libraryAddFragment( filename='/opt/ambuild/blocks/ch4.car', fragmentType='cat' )
+mycell.libraryAddFragment( filename=os.path.join(BLOCKS_DIR, 'ch4.car'), fragmentType='cat' )
 
 mycell.addBondType( 'PAF:a-cat:a' )
 mycell.addBondType( 'cat:a*-cat:a*' )

@@ -5,12 +5,25 @@ Created on 14 May 2016
 @author: jmht
 """
 import os
+import random
 import sys
 import unittest
 
+# Ambuild must be installed first, e.g. `pip install -e .` from the repository root
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, ROOT_DIR)
+# Many tests build random structures. Reseed before every test so that each test's
+# random numbers do not depend on which tests ran before it. Set PYTHONHASHSEED too,
+# as set iteration order also feeds the random choices.
+SEED = int(os.environ.get("AMBUILD_TEST_SEED", "1"))
+
+
+class SeededTestResult(unittest.TextTestResult):
+    def startTest(self, test):
+        random.seed(SEED)
+        super(SeededTestResult, self).startTest(test)
+
+
+sys.stderr.write("AMBUILD_TEST_SEED={0} PYTHONHASHSEED={1}{2}".format(SEED, os.environ.get("PYTHONHASHSEED"), os.linesep))
 
 TEST_DIR = "."
 VERBOSITY = 2
@@ -24,7 +37,9 @@ if int(suite.countTestCases()) <= 0:
     sys.exit(1)
 
 
-result = unittest.TextTestRunner(verbosity=VERBOSITY, buffer=False).run(suite)
+result = unittest.TextTestRunner(
+    verbosity=VERBOSITY, buffer=False, resultclass=SeededTestResult
+).run(suite)
 if result.wasSuccessful():
     sys.exit(0)
 else:

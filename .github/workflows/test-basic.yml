@@ -1,24 +1,30 @@
 name: Test Ambuild Basic
 
 on:
+  push:
+  pull_request:
   workflow_dispatch:
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
+    env:
+      PYTHONHASHSEED: "0"  # with run_tests.py's seed, makes the random tests reproducible
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v2
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
-    - name: Install dependencies
+        python-version: ${{ matrix.python-version }}
+    - name: Install Ambuild
       run: |
         python -m pip install --upgrade pip
-        pip install numpy
-    - name: Run Basic test
-      run: |
-        cd ./tests
-        ./run_tests.py 
+        pip install .
+    - name: Run CPU tests
+      working-directory: ./tests
+      run: python run_tests.py

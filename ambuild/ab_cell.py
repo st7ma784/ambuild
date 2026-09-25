@@ -5,6 +5,7 @@ Created on Jan 15, 2013
 """
 import collections
 import copy
+import hashlib
 import logging
 import math
 import os
@@ -49,6 +50,9 @@ class Cell:
         bondAngleMargin=15,
         paramsDir=None,
         debugLog=False,
+        outputDir=None,
+        recordRun=False,
+        runId=None,
     ):
         """Construct an empty cell:
 
@@ -65,7 +69,22 @@ class Cell:
         debugLog - True/False - specifies if a log will be created - not recommended as it generates lots of data
                 and slows the program.
         paramsDir - path to the directory holding the forcefield parameter csv files (default ../params)
+        outputDir - directory for all files written by this cell (logs, csv, pickles, structure files
+                    and poreblazer runs). It is created if needed. Default: the current working directory.
+        recordRun - True/False - make outputDir a self-contained record of the run: run.json (status and
+                    provenance), events.jsonl (every event) and inputs/ (copies of the script, parameter
+                    files and building blocks). Needs outputDir. See ab_run.
+        runId - the id to record the run under (default: a new UUID)
         """
+        self.outputDir = None
+        if outputDir is not None:
+            self.outputDir = os.path.abspath(outputDir)
+        if recordRun:
+            from ambuild import ab_run
+
+            ab_run.checkRunDirectory(self.outputDir)  # Before any files are opened
+        if self.outputDir is not None:
+            os.makedirs(self.outputDir, exist_ok=True)
         # For time being origin always 0,0,0
         self.origin = np.array([0, 0, 0], dtype=np.float64)
         self.dim = None  # The cell dimensions
@@ -136,7 +155,40 @@ class Cell:
         if boxDim:
             self.setBoxSize(boxDim)
         assert self.dim[0] > 0 and self.dim[1] > 0 and self.dim[2] > 0
+        self._runRecorder = None
+        self.runId = None
+        if recordRun:
+            self.startRecording(runId=runId)
+            if filePath:
+                self._runRecorder.addInput(filePath, "static")
         return
+
+    def startRecording(self, runId=None, parentRunId=None):
+        """Start recording this cell's outputDir as a run (see ab_run and the recordRun argument).
+
+        For a cell restored from a pickle, parentRunId defaults to the run the pickle came from,
+        so the new run records where it started.
+        """
+        from ambuild import ab_run
+
+        if self._runRecorder is not None:
+            raise RuntimeError("Run {0} is already being recorded".format(self.runId))
+        if parentRunId is None:
+            parentRunId = self.runId
+        self._runRecorder = ab_run.RunRecorder(self, runId=runId, parentRunId=parentRunId)
+        self.runId = self._runRecorder.runId
+        return self.runId
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Close the cell; a recorded run is marked failed if an exception was raised"""
+        error = None
+        if exc_type is not None:
+            error = "{0}: {1}".format(exc_type.__name__, exc_value)
+        self.close(error=error)
+        return False
 
     def addBlock(self, block, idxBlock=None):
         """
@@ -859,7 +911,7 @@ class Cell:
         if wallClashes:
             logger.debug("_checkMove got clash with wall")
             return 1
-        if len(close) is 0:
+        if len(close) == 0:
             logger.debug("_checkMove no close contacts")
             return 0
         addBlock = self.blocks[idxAddBlock]
@@ -1111,7 +1163,7 @@ class Cell:
         block1 = _random.choice(list(endGroupTypes2Block[eg1Type]))
         endGroup1 = block1.selectEndGroup(endGroupTypes=[eg1Type])
         # Pick a random endGroup type that can bond to this
-        eg2Type = _random.sample(cell2cell[eg1Type], 1)[0]
+        eg2Type = _random.choice(list(cell2cell[eg1Type]))
         # Select a random block/endGroup of that type
         # (REM: need to remove the first block from the list of possibles hence the difference thing
         # XXX Also need to convert to list as sets don't support random.choice
@@ -1509,7 +1561,7 @@ class Cell:
     ):
         if not self.mdEngineCls:
             raise RuntimeError("No mdEngine defined - cannot run.")
-        mdEngine = self.mdEngineCls(self.paramsDir)
+        mdEngine = self.mdEngineCls(self.paramsDir, outputDir=self.outputDir)
         data = self.cellData(periodic=True, center=True, rigidBody=rigidBody)
         if "rCut" in kw:
             self.rCut = kw["rCut"]
@@ -1955,6 +2007,11 @@ class Cell:
                 ft not in self._endGroup2LibraryFragment
             ), "Adding existing endGroup type to library: {0}".format(ft)
             self._endGroup2LibraryFragment[ft] = fragmentType
+        if self._runRecorder is not None:
+            self._runRecorder.addInput(filename, "blocks", fragmentType=fragmentType)
+            egfile = os.path.splitext(filename)[0] + ".csv"
+            if os.path.isfile(egfile):
+                self._runRecorder.addInput(egfile, "blocks", fragmentType=fragmentType)
         return
 
     def _getCell2Library(
@@ -2037,8 +2094,7 @@ class Cell:
             cellEgT = _random.choice(list(cell2Library.keys()))
 
             # First get a block that contains this type of endGroup
-            # Need to use sample as sets don't support random.choice
-            cellBlock = _random.sample(endGroupTypes2Block[cellEgT], 1)[0]
+            cellBlock = _random.choice(list(endGroupTypes2Block[cellEgT]))
 
             # Now select a random endGroup of that type from it
             cellEndGroup = cellBlock.selectEndGroup(
@@ -2047,7 +2103,7 @@ class Cell:
 
             # Now get a corresponding library endGroup
             # We need to pick a random one of the types that we can bond to that is also in libraryTypes
-            libEgT = _random.sample(cell2Library[cellEgT], 1)[0]
+            libEgT = _random.choice(list(cell2Library[cellEgT]))
 
             # Now determine the fragmentType and create the block and fragment
             fragmentType = self._endGroup2LibraryFragment[libEgT]
@@ -2126,7 +2182,7 @@ class Cell:
         logger.info("Running optimisation")
         if not self.mdEngineCls:
             raise RuntimeError("No mdEngine defined - cannot run MD.")
-        mdEngine = self.mdEngineCls(self.paramsDir)
+        mdEngine = self.mdEngineCls(self.paramsDir, outputDir=self.outputDir)
         if doDihedral and doImproper:
             raise RuntimeError("Cannot have impropers and dihedrals at the same time")
         self.setRcut(rigidBody, mdEngine, kw)
@@ -2181,25 +2237,42 @@ class Cell:
         return False
 
     def poreblazer(self, poreblazer_exe):
+        """Run Poreblazer on the current cell and return its results.
+
+        Poreblazer runs in a new poreblazer_<fileCount> directory in outputDir. The return
+        value is the dict from ab_poreblazer.parse_output, plus the run directory and the
+        executable's return code; values Poreblazer did not produce are None.
+        """
         from ambuild import ab_poreblazer
 
-        rundir = "{}_{}".format(ab_poreblazer.NAME_STEM, self._fileCount)
+        rundir = os.path.abspath(
+            self.outputPath("{}_{}".format(ab_poreblazer.NAME_STEM, self._fileCount))
+        )
         if os.path.isdir(rundir):
             raise RuntimeError("Poreblazer directory already exists: {}".format(rundir))
-        owd = os.getcwd()
         os.mkdir(rundir)
-        os.chdir(rundir)
         xyzin = "ambuild.xyz"
-        self.writeXyz(xyzin)
+        self.writeXyz(os.path.join(rundir, xyzin))
         input_dat = ab_poreblazer.write_input_dat(
-            xyzin, self.dim[0], self.dim[1], self.dim[2]
+            xyzin, self.dim[0], self.dim[1], self.dim[2], directory=rundir
         )
-        ret = ab_poreblazer.run_poreblazer(poreblazer_exe, input_dat)
+        ret = ab_poreblazer.run_poreblazer(poreblazer_exe, input_dat, directory=rundir)
         if ret != 0:
             logger.critical(
                 "Error running poreblazer - check files in directory: {}".format(rundir)
             )
-        os.chdir(owd)
+        results = ab_poreblazer.parse_output(rundir)
+        results["directory"] = rundir
+        results["returncode"] = ret
+        logger.info(
+            "Poreblazer: surface area %s m^2/g, pore limiting diameter %s A, "
+            "maximum pore diameter %s A",
+            results["surface_area_m2_g"],
+            results["pore_limiting_diameter_A"],
+            results["maximum_pore_diameter_A"],
+        )
+        self.analyse.emit(ab_analyse.PORE_RESULT, results)
+        return results
 
     def positionInCell(self, block):
         """Make sure the given block is positioned within the cell"""
@@ -2395,7 +2468,7 @@ class Cell:
         logger.info("Running MD")
         if not self.mdEngineCls:
             raise RuntimeError("No MDENGINE defined - cannot run MD.")
-        mdEngine = self.mdEngineCls(self.paramsDir)
+        mdEngine = self.mdEngineCls(self.paramsDir, outputDir=self.outputDir)
         if doDihedral and doImproper:
             raise RuntimeError("Cannot have impropers and dihedrals at the same time")
         self.setRcut(rigidBody, mdEngine, kw)
@@ -2434,7 +2507,7 @@ class Cell:
         """
         if not self.mdEngineCls:
             raise RuntimeError("No MDENGINE defined - cannot run MD.")
-        mdEngine = self.mdEngineCls(self.paramsDir)
+        mdEngine = self.mdEngineCls(self.paramsDir, outputDir=self.outputDir)
         assert rigidBody, "FIX runMD FOR ALL ATOM!!"
         if doDihedral and doImproper:
             raise RuntimeError("Cannot have impropers and dihedrals at the same time")
@@ -2730,7 +2803,60 @@ class Cell:
         return
 
     def _setupAnalyse(self, logfile="ambuild.csv"):
-        self.analyse = ab_analyse.Analyse(self, logfile=logfile)
+        self.logcsv = self.outputPath(logfile)
+        self.analyse = ab_analyse.Analyse(self, logfile=self.logcsv)
+        return
+
+    def addEventSink(self, sink):
+        """Send this cell's events (see ab_analyse) to sink, an object with handle(event) and
+        close() methods. Sinks are not pickled; add them again after restoring a cell."""
+        self.analyse.addSink(sink)
+        return
+
+    def _recordArtifact(self, path, kind):
+        """Emit an artifact event for a file this cell has written"""
+        path = os.path.abspath(path)
+        sha256 = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                sha256.update(chunk)
+        self.analyse.emit(
+            ab_analyse.ARTIFACT,
+            {
+                "path": path,
+                "relpath": self._relativeOutputPath(path),
+                "kind": kind,
+                "size": os.path.getsize(path),
+                "sha256": sha256.hexdigest(),
+            },
+        )
+        return
+
+    def _relativeOutputPath(self, path):
+        """Return path relative to outputDir with / separators, or None if it is outside it"""
+        if self.outputDir is None or not path.startswith(self.outputDir + os.sep):
+            return None
+        return os.path.relpath(path, self.outputDir).replace(os.sep, "/")
+
+    def outputPath(self, filename):
+        """Return the path for filename within outputDir; absolute paths are returned unchanged"""
+        if self.outputDir is None:
+            return filename
+        return os.path.join(self.outputDir, filename)
+
+    def close(self, error=None):
+        """Close the csv and log files written by this cell.
+
+        If the run is being recorded, mark it finished, or failed with the message error.
+        """
+        if self._runRecorder is not None:
+            self._runRecorder.finish(error=error)
+            self._runRecorder = None
+        self.analyse.close()
+        if self._logFileHandler is not None:
+            logging.getLogger().removeHandler(self._logFileHandler)
+            self._logFileHandler.close()
+            self._logFileHandler = None
         return
 
     def setupLogging(self, logfile="ambuild.log", mode="w", debugLog=False):
@@ -2749,8 +2875,9 @@ class Cell:
         # Not entirely sure why this needed - set overall level of the logger to debug
         logger.setLevel(logging.DEBUG)
         # create file handler and set level to debug
-        self.logfile = logfile
+        self.logfile = self.outputPath(logfile)
         fl = logging.FileHandler(self.logfile, mode=mode)
+        self._logFileHandler = fl
         if debugLog:
             fl.setLevel(logging.DEBUG)
         else:
@@ -2849,11 +2976,12 @@ class Cell:
             suffix = ab_util.GZIP_PKL_SUFFIX
         else:
             suffix = ab_util.PKL_SUFFIX
-        fileName = os.path.abspath(fileStem + suffix)
+        fileName = os.path.abspath(self.outputPath(fileStem + suffix))
         fileName = ab_util.pickleObj(self, fileName, compress=compress)
         # Restart logging with append mode
         # self.setupLogging( mode='a' )
         logger.info("Wrote pickle file: {0}".format(fileName))
+        self._recordArtifact(fileName, "pickle")
         return fileName
 
     def writeCar(self, ofile="ambuild.car", data=None, periodic=True, skipDummy=False):
@@ -2890,11 +3018,12 @@ class Cell:
 
         car += "end\nend\n\n"
 
-        with open(ofile, "w") as f:
+        with open(self.outputPath(ofile), "w") as f:
             fpath = os.path.abspath(f.name)
             f.writelines(car)
 
         logger.info("Wrote car file: {0}".format(fpath))
+        self._recordArtifact(fpath, "car")
         return
 
     def writeCml(
@@ -2919,7 +3048,7 @@ class Cell:
         if periodic:
             cell = self.dim
         cmlFilename = xyz_util.writeCml(
-            cmlFilename,
+            self.outputPath(cmlFilename),
             d.coords,
             d.symbols,
             bonds=d.bonds,
@@ -2930,12 +3059,14 @@ class Cell:
         )
 
         logger.info("Wrote cml file: {0}".format(cmlFilename))
+        self._recordArtifact(cmlFilename, "cml")
         return
 
     def writeXyz(self, ofile, data=None, periodic=False, atomTypes=False):
         """Write out the cell atoms to an xyz file
         If label is true we write out the atom label and block, otherwise the symbol
         """
+        ofile = self.outputPath(ofile)
         if data is None:
             d = self.cellData(periodic=periodic, fragmentType=None)
         else:
@@ -2952,6 +3083,7 @@ class Cell:
                 fpath = xyz_util.writeXyz(ofile, d.coords, d.symbols)
 
         logger.info("Wrote cell file: {0}".format(fpath))
+        self._recordArtifact(fpath, "xyz")
         return
 
     def zipBlocks(
@@ -3132,23 +3264,40 @@ class Cell:
         d = dict(self.__dict__)
         d["logcsv"] = d["analyse"].logfile
         del d["analyse"]
+        d.pop("_logFileHandler", None)
+        d["_runRecorder"] = None  # Recording is not resumed after unpickling
         if "mdEngineCls" in d:
             del d[
                 "mdEngineCls"
             ]  # Contains a reference to the hoomd-blue module and logger
         return d
 
+    # Directory that __setstate__ moves output to; only set while ab_util.cellFromPickle runs
+    _restoreOutputDir = None
+
     def __setstate__(self, d):
         """Called when we are unpickled """
+        self.outputDir = None  # Not present in pickles from before 2.0.1
+        self._runRecorder = None
+        self.runId = None
         self.__dict__.update(d)
+        relocate = Cell._restoreOutputDir is not None
+        if relocate:  # Set by ab_util.cellFromPickle(outputDir=...)
+            self.outputDir = Cell._restoreOutputDir
+        if self.outputDir is not None:
+            os.makedirs(self.outputDir, exist_ok=True)
         if "logfile" in d:  # Hack for older versions with no logfile attribute
             logfile = ab_util.newFilename(d["logfile"])
         else:
             logfile = "ambuild_1.log"
+        if relocate:
+            logfile = os.path.basename(logfile)
         self.setupLogging(logfile=logfile)
         if "logcsv" in d:
-            self.logcsv = ab_util.newFilename(d["logcsv"])
+            logcsv = ab_util.newFilename(d["logcsv"])
         else:
-            self.logcsv = "ambuild_1.csv"
-        self._setupAnalyse(logfile=self.logcsv)
+            logcsv = "ambuild_1.csv"
+        if relocate:
+            logcsv = os.path.basename(logcsv)
+        self._setupAnalyse(logfile=logcsv)
         return

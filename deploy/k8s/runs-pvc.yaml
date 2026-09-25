@@ -1,0 +1,13 @@
+# The run directories, shared with the Slurm cluster (e.g. an NFS export of
+# $AMBUILD_RUNS_ROOT). Replace storageClassName, or bind a pre-provisioned PV.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ambuild-runs
+  labels: {app.kubernetes.io/part-of: ambuild}
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: nfs
+  resources:
+    requests:
+      storage: 500Gi

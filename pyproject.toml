@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ambuild"
+dynamic = ["version"]
+description = "A program for creating polymeric molecular structures."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Jens Thomas", email = "linucks42@gmail.com" }]
+requires-python = ">=3.9"
+dependencies = ["numpy"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+
+[project.optional-dependencies]
+# HOOMD-Blue is best installed from conda-forge or the glotzerlab containers;
+# it is only needed for MD/geometry optimisation and the HOOMD test job.
+hoomd = ["hoomd"]
+
+[project.urls]
+Homepage = "https://github.com/linucks/ambuild"
+
+[tool.setuptools.packages.find]
+include = ["ambuild"]
+
+[tool.setuptools.dynamic]
+version = { attr = "ambuild.version.__version__" }

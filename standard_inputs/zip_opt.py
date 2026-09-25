@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 import os, sys
-ambuild_home = "/opt/ambuild.git"
-sys.path.insert(0, ambuild_home)
 from ambuild import ab_util
 
 mycell = ab_util.cellFromPickle("step_628.pkl")

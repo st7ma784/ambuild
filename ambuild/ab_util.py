@@ -45,8 +45,11 @@ GZIP_PKL_SUFFIX = ".pkl.gz"
 logger = logging.getLogger()
 
 
-def cellFromPickle(pickleFile, paramsDir=None):
-    """Recreate a cell from a pickled file and apply any hacks so that we can work with older versions"""
+def cellFromPickle(pickleFile, paramsDir=None, outputDir=None):
+    """Recreate a cell from a pickled file and apply any hacks so that we can work with older versions
+
+    outputDir - write the restored cell's output here instead of its saved outputDir
+    """
 
     def fixFragment(fragment):
         for e in fragment._endGroups:
@@ -124,12 +127,17 @@ def cellFromPickle(pickleFile, paramsDir=None):
     if compressed or PYTHONFLAVOUR == 3:
         mode += "b"
     # Renamed cell class so need to alias here for old files
-    with popen(pickleFile, mode) as f:
-        try:
-            myCell = pickle.load(f)
-        except UnicodeDecodeError:
-            # This probably indicates we are trying to open a filed pickled with Python2 with Python3
-            myCell = pickle.load(f, encoding="latin1")
+    if outputDir is not None:
+        ab_cell.Cell._restoreOutputDir = os.path.abspath(outputDir)
+    try:
+        with popen(pickleFile, mode) as f:
+            try:
+                myCell = pickle.load(f)
+            except UnicodeDecodeError:
+                # This probably indicates we are trying to open a filed pickled with Python2 with Python3
+                myCell = pickle.load(f, encoding="latin1")
+    finally:
+        ab_cell.Cell._restoreOutputDir = None
     del ab_block.Bond
     del sys.modules["buildingBlock"]
     del sys.modules["cell"]

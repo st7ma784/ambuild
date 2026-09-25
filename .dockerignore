@@ -1,0 +1,10 @@
+.git
+**/__pycache__
+**/*.egg-info
+build
+dist
+tests/*.csv
+tests/*.log
+tests/*.cml
+tests/poreblazer_*
+deploy/runs

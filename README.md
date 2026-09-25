@@ -202,6 +202,38 @@ tar -xzf 2.0.0.tar.gz
 ```
 Which will give a folder named ambuild-2.0.0 containing the Ambuild code.
 
+3. Install the Ambuild Python package so that scripts can `import ambuild` from anywhere:
+```
+pip install ./ambuild-2.0.0
+```
+Use `pip install -e .` from the repository root instead if you are developing Ambuild.
+
+The example scripts in `standard_inputs` read the following environment variables, falling back to the `/opt` locations shown if they are unset:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `AMBUILD_PARAMS_DIR` | `/opt/paramsDir` | Force-field parameter directory |
+| `AMBUILD_BLOCKS_DIR` | `/opt/ambuild/blocks` | Building-block `.car` files (`paf_catalyst_script.py`) |
+| `POREBLAZER_EXE` | `/opt/poreblazer/src/poreblazer.exe` | Poreblazer executable |
+
+## Recording a run
+Give a cell its own output directory and `recordRun=True` to keep a self-contained record of the build:
+```python
+with ab_cell.Cell([30, 30, 30], paramsDir=params, outputDir="runs/my-build", recordRun=True) as cell:
+    ...
+```
+The directory then holds `run.json` (run id, status, versions and inputs), `events.jsonl` (one JSON object per build step, file written and Poreblazer result) and `inputs/` (copies of the script, parameter files and building blocks), next to the usual log, CSV and pickle files. Leaving the `with` block marks the run `finished`, or `failed` if an exception escaped. See [docs/architecture.md](docs/architecture.md).
+
+## Running the tests
+With Ambuild installed, the CPU test suite runs without HOOMD-Blue:
+```
+cd tests
+PYTHONHASHSEED=0 python run_tests.py
+```
+Many tests build random structures. `run_tests.py` reseeds Python's random number generator before every test (set `AMBUILD_TEST_SEED` to change the seed) and `PYTHONHASHSEED=0` fixes set ordering, so a run is reproducible.
+
+Tests that need HOOMD-Blue are skipped unless it is installed; `tests/run_tests_docker.sh` runs the full suite in the glotzerlab container.
+
 ## Installation of optional dependencies
 ### Poreblazer
 To install [poreblazer](https://github.com/richardjgowers/poreblazer) for use by Ambuild, the following steps are required.

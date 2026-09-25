@@ -1,0 +1,99 @@
+# Local stack for recorded runs: PostgreSQL, S3-compatible storage (SeaweedFS) and the uploader.
+# Development defaults only; set real credentials in deploy/.env (see .env.example).
+#
+#   docker compose -f deploy/docker-compose.yml up -d            # postgres, seaweedfs, init
+#   docker compose -f deploy/docker-compose.yml run --rm uploader --scan /runs
+#   docker compose -f deploy/docker-compose.yml --profile test run --rm ingest-test
+name: ambuild
+
+x-ingest-env: &ingest-env
+  DATABASE_URL: postgresql://ambuild:${POSTGRES_PASSWORD:-ambuild-dev}@postgres:5432/ambuild
+  AMBUILD_S3_BUCKET: ${AMBUILD_S3_BUCKET:-ambuild-runs}
+  S3_ENDPOINT_URL: http://seaweedfs:8333
+  AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-ambuild}
+  AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-ambuild-dev-secret}
+  AWS_DEFAULT_REGION: us-east-1
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ambuild
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ambuild-dev}
+      POSTGRES_DB: ambuild
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ambuild -d ambuild"]
+      interval: 2s
+      retries: 30
+
+  seaweedfs:
+    # S3-compatible object storage (MinIO no longer publishes container images).
+    # Production can use any S3 API: SeaweedFS, MinIO, Ceph RGW or AWS S3.
+    image: chrislusf/seaweedfs:3.97
+    command: server -ip.bind=0.0.0.0 -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    configs:
+      - source: s3-identities
+        target: /etc/seaweedfs/s3.json
+    ports: ["127.0.0.1:8333:8333"]
+    volumes: [s3data:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8333"]
+      interval: 2s
+      retries: 60
+
+  init:
+    # Creates the database tables and the bucket; safe to run repeatedly
+    build: {context: .., dockerfile: services/ingest/Dockerfile, target: uploader}
+    image: ambuild-ingest
+    environment: *ingest-env
+    command: ["--init"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      seaweedfs: {condition: service_healthy}
+
+  uploader:
+    build: {context: .., dockerfile: services/ingest/Dockerfile, target: uploader}
+    image: ambuild-ingest
+    environment: *ingest-env
+    volumes: ["${AMBUILD_RUNS_DIR:-./runs}:/runs"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      init: {condition: service_completed_successfully}
+    command: ["--scan", "/runs", "--stale-after", "86400"]
+    profiles: ["tools"]
+
+  ingest-test:
+    build: {context: .., dockerfile: services/ingest/Dockerfile, target: test}
+    image: ambuild-ingest-test
+    environment: *ingest-env
+    depends_on:
+      postgres: {condition: service_healthy}
+      init: {condition: service_completed_successfully}
+    profiles: ["test"]
+
+  slurm-test:
+    # Single-node Slurm cluster that runs deploy/slurm end to end against this stack
+    build: {context: .., dockerfile: deploy/slurm/test/Dockerfile}
+    image: ambuild-slurm-test
+    hostname: slurmnode
+    # slurmd clones new namespaces when it starts some jobs, which Docker's
+    # default seccomp profile and capabilities forbid. Test container only.
+    security_opt: ["seccomp=unconfined"]
+    cap_add: [SYS_ADMIN]
+    environment: *ingest-env
+    depends_on:
+      init: {condition: service_completed_successfully}
+    profiles: ["slurm-test"]
+
+volumes:
+  pgdata:
+  s3data:
+
+configs:
+  s3-identities:
+    content: |
+      {"identities": [{"name": "ambuild",
+        "credentials": [{"accessKey": "${S3_ACCESS_KEY:-ambuild}", "secretKey": "${S3_SECRET_KEY:-ambuild-dev-secret}"}],
+        "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}

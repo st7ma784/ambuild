@@ -4,13 +4,12 @@ import os
 import glob
 import re
 import sys
-sys.path.append("/opt/ambuild.git")
 from ambuild import ab_util
 
 def pkl_step_num(pkl_filename):
-    return re.match('step_([0-9]+)\.pkl.*',pkl_filename).group(1)
+    return re.match(r'step_([0-9]+)\.pkl.*',pkl_filename).group(1)
 
-paramsDir = '/home/pierre/Dropbox/Ambuild_Files/Parameters'
+paramsDir = os.environ.get("AMBUILD_PARAMS_DIR", "/opt/paramsDir")
 ignore = ['DMF', 'TEA', 'cat']
 
 prev_block_data = {}

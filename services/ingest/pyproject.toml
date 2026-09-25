@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ambuild-ingest"
+version = "0.1.0"
+description = "Upload recorded Ambuild runs to PostgreSQL and S3-compatible object storage."
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.9"
+# Deliberately independent of the ambuild package: it only reads run directories
+dependencies = ["psycopg[binary]>=3.1", "boto3>=1.28"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+ambuild-upload = "ambuild_ingest.cli:main"
+
+[tool.setuptools]
+packages = ["ambuild_ingest"]
+
+[tool.setuptools.package-data]
+ambuild_ingest = ["schema.sql"]

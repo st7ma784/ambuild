@@ -1,10 +1,9 @@
 #!/usr/bin/env python
-import sys
-sys.path.append("/opt/ambuild.git")
+import os
 from ambuild import ab_util
 
-paramsDir = '/home/pierre/Dropbox/Ambuild_Files/Parameters'
+paramsDir = os.environ.get("AMBUILD_PARAMS_DIR", "/opt/paramsDir")
 mycell = ab_util.cellFromPickle('step_1.pkl.gz', paramsDir=paramsDir)
 
-poreblazerExe = '/opt/poreblazer/src/poreblazer.exe'
+poreblazerExe = os.environ.get("POREBLAZER_EXE", "/opt/poreblazer/src/poreblazer.exe")
 mycell.poreblazer(poreblazerExe)
