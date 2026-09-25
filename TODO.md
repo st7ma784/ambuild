@@ -65,6 +65,11 @@ runtime rather than on the current developer machines.
 
 - [ ] Record the exact Poreblazer version, source revision, compiler flags, and
   input/output contract used by Ambuild.
+  - Tested: v3.0.5, commit `a753c72` (2018-02-28), gfortran 14.2 with the
+    upstream Makefile, which sets no optimisation flags (`-O0`). Output
+    contract: `ab_poreblazer.parse_output()`.
+  - Each run writes a ~13 MB `nitrogen_network.grd` (20 Å cell); decide
+    whether run storage keeps, compresses or drops it.
 - [ ] Profile representative workloads before changing Fortran code. Measure
   wall time, CPU time, memory, trial counts, and scaling with atom count and
   number of pores.
@@ -94,7 +99,7 @@ runtime rather than on the current developer machines.
 - [ ] Add the missing `hc-cp-cp` angle parameter (or fix the catalysis
   fixtures) so `testCatalysis` passes under HOOMD.
 - [ ] Fix `Cell.writeCar()`, which indexes `CellData` like a dict.
-- [ ] Parse Poreblazer output (surface area, pore volume, pore limiting and
+- [x] Parse Poreblazer output (surface area, pore volume, pore limiting and
   largest cavity diameters, pore size distribution) into a result dict.
   Today Ambuild runs it and leaves the files unread.
 - [x] Pass `directory=` to `ab_util.run_command` rather than calling

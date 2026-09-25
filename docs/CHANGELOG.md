@@ -21,8 +21,17 @@ Work in progress towards run recording (see
   current working directory, as before. Restoring a pickle keeps its
   `outputDir`.
 - `Cell.close()` closes the cell's CSV and log files.
+- `ab_poreblazer.parse_output()` reads Poreblazer's results: system volume,
+  mass and density; helium and geometric pore volumes; accessible surface
+  area; pore limiting and maximum pore diameters; percolated dimensions;
+  version; and the differential and cumulative pore size distributions.
+  Checked against Poreblazer v3.0.5.
+- `tests/docker/poreblazer.Dockerfile` builds Poreblazer at a pinned commit;
+  `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
 
 ### Changed
+- `Cell.poreblazer()` returns the parsed results, the run directory and the
+  return code (previously `None`), and logs a one-line summary.
 - `Cell.poreblazer()` no longer changes the process working directory; the
   Poreblazer helpers take a `directory` argument.
 - The CSV step log is flushed after every row.

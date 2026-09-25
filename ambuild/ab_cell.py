@@ -2187,6 +2187,12 @@ class Cell:
         return False
 
     def poreblazer(self, poreblazer_exe):
+        """Run Poreblazer on the current cell and return its results.
+
+        Poreblazer runs in a new poreblazer_<fileCount> directory in outputDir. The return
+        value is the dict from ab_poreblazer.parse_output, plus the run directory and the
+        executable's return code; values Poreblazer did not produce are None.
+        """
         from ambuild import ab_poreblazer
 
         rundir = os.path.abspath(
@@ -2205,6 +2211,17 @@ class Cell:
             logger.critical(
                 "Error running poreblazer - check files in directory: {}".format(rundir)
             )
+        results = ab_poreblazer.parse_output(rundir)
+        results["directory"] = rundir
+        results["returncode"] = ret
+        logger.info(
+            "Poreblazer: surface area %s m^2/g, pore limiting diameter %s A, "
+            "maximum pore diameter %s A",
+            results["surface_area_m2_g"],
+            results["pore_limiting_diameter_A"],
+            results["maximum_pore_diameter_A"],
+        )
+        return results
 
     def positionInCell(self, block):
         """Make sure the given block is positioned within the cell"""
