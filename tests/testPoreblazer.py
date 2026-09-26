@@ -143,6 +143,34 @@ class Test(unittest.TestCase):
             self.assertEqual(exact["surface_area_m2_g"], default["surface_area_m2_g"])
         mycell.close()
 
+    def testMemoryEstimate(self):
+        """The grid follows Poreblazer's arithmetic and the estimate bounds the measured peaks"""
+        self.assertEqual(ab_poreblazer.grid_shape(20.0, 20.0, 20.0), (100, 100, 100))
+        self.assertEqual(ab_poreblazer.grid_shape(50.0, 50.0, 50.0), (250, 250, 250))
+        self.assertEqual(ab_poreblazer.grid_shape(30.0, 30.0, 30.0, 0.3), (100, 100, 100))
+        # measured peaks of the fork (docs/benchmarks.md): 86 MB at 20 A, 502 MB at 50 A, 929 MB at 60 A
+        for side, measured in ((20.0, 86), (50.0, 502), (60.0, 929)):
+            estimate = ab_poreblazer.memory_estimate_mb(side, side, side)
+            self.assertGreaterEqual(estimate, measured)
+            self.assertLess(estimate, 1.25 * measured)
+        self.assertGreater(ab_poreblazer.memory_estimate_mb(50.0, 50.0, 50.0, percolation_labelling="exact"),
+                           ab_poreblazer.memory_estimate_mb(50.0, 50.0, 50.0))
+
+    @unittest.skipUnless(os.path.isfile("/bin/cat"), "Needs /bin/cat as a dummy executable")
+    def testMemoryLimit(self):
+        """A cell too large for memory_limit_mb is refused before anything is written"""
+        rundir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, rundir)
+        mycell = ab_cell.Cell([20.0, 20.0, 20.0], paramsDir=PARAMS_DIR, outputDir=rundir)
+        mycell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "ch4.car"), fragmentType="A")
+        mycell.seed(3)
+        with self.assertRaises(RuntimeError):
+            mycell.poreblazer("/bin/cat", memory_limit_mb=50)
+        self.assertFalse(os.path.exists(os.path.join(rundir, "poreblazer_0")))
+        results = mycell.poreblazer("/bin/cat", memory_limit_mb=200)
+        self.assertAlmostEqual(results["memory_estimate_mb"], ab_poreblazer.memory_estimate_mb(20.0, 20.0, 20.0))
+        mycell.close()
+
     @unittest.skipUnless(os.path.isfile("/bin/cat"), "Needs /bin/cat as a dummy executable")
     def testExactLabellingRefusedWithoutFork(self):
         """A Poreblazer that does not report exact labelling raises instead of returning results"""

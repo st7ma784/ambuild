@@ -19,7 +19,7 @@ ARG HOOMD_VERSION=7.2.0
 ARG HOOMD_VARIANT=cpu
 # Ambuild's fork of Poreblazer: upstream 3.0.5 with correct, enabled OpenMP (FORK.md there)
 ARG POREBLAZER_REPO=https://github.com/st7ma784/poreblazer.git
-ARG POREBLAZER_COMMIT=ac451fbc9ad906e706c9552c3b857a1db587b40f
+ARG POREBLAZER_COMMIT=8ed0c7035de32e4737f4aa701ac98507ab5404e9
 
 # --- conda-forge environment, pruned of headers, static libraries and caches
 FROM mambaorg/micromamba:2.3.2 AS hoomd-env

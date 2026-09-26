@@ -8,7 +8,7 @@ FROM python:3.11-slim
 
 # Ambuild's fork (upstream 3.0.5 with correct, enabled OpenMP)
 ARG POREBLAZER_REPO=https://github.com/st7ma784/poreblazer.git
-ARG POREBLAZER_COMMIT=ac451fbc9ad906e706c9552c3b857a1db587b40f
+ARG POREBLAZER_COMMIT=8ed0c7035de32e4737f4aa701ac98507ab5404e9
 RUN apt-get update \
  && apt-get install -y --no-install-recommends gfortran make git ca-certificates \
  && rm -rf /var/lib/apt/lists/*

@@ -374,8 +374,13 @@ def run_command(
     )
 
     if stdin is not None:
-        p.stdin.write(stdinstr.encode())
-        p.stdin.close()
+        try:
+            p.stdin.write(stdinstr.encode())
+            p.stdin.close()
+        except BrokenPipeError:
+            # The command exited without reading all of its input; its return code says
+            # whether that was a failure
+            pass
         if dolog:
             logger.debug("stdin for cmd was: %s", stdinstr)
     p.wait()
