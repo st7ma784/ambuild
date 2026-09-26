@@ -48,7 +48,7 @@ S3-compatible object storage; see [Deployment](#deployment) for when it runs.
 ```mermaid
 flowchart LR
     script["User script / API job"] --> cell["Cell"]
-    cell <--> md["MD engine interface<br/>(HOOMD-blue 2 or 4+)"]
+    cell <--> md["MD engine interface<br/>(HOOMD-blue 4+)"]
     cell --> pb["Poreblazer adapter<br/>runs in run dir, parses results"]
     cell --> rec["Analyse / Recorder<br/>emits events"]
     pb -- "pore result event" --> rec
@@ -136,10 +136,10 @@ flowchart LR
   between MPI ranks, so Ambuild itself runs as one process. A build job with
   `--ntasks=N` sets `AMBUILD_HOOMD_LAUNCHER="srun --ntasks=N"`, and each
   optimisation or MD run is handed to `python -m ambuild.hoomd_worker` across
-  the N tasks (`ambuild/ab_hoomdlauncher.py`). The worker's HOOMD-blue 2 must be
-  an MPI build; rank 0 writes the new coordinates back. Only all-atom
-  calculations are decomposed; rigid-body ones (the default) run on one process,
-  as HOOMD-blue 2 cannot decompose Ambuild's bonded rigid bodies. For many
+  the N tasks (`ambuild/ab_hoomdlauncher.py`). The worker's HOOMD-blue must be
+  an MPI build (conda-forge's are not); rank 0 writes the new coordinates back.
+  Only all-atom calculations are decomposed; rigid-body ones (the default) run
+  on one process, as HOOMD-blue 2 could not decompose Ambuild's bonded rigid bodies. For many
   queued builds, scaling across runs and checkpoints (TODO §8) matters more.
   Poreblazer scales out by job arrays.
 - **Local stack.** `deploy/docker-compose.yml` runs PostgreSQL, SeaweedFS and the
@@ -158,7 +158,7 @@ and the existing scripts working. Later increments depend only on earlier ones.
 | 3 | **Event emitter.** `Analyse` sends events to a list of sinks; the CSV writer becomes the default sink. | ✅ CSV output byte-identical to before (checked against `csv.DictWriter` over the step events). | §6 |
 | 4 | **JSONL sink + provenance.** `run.json` and `events.jsonl` in the run directory. | ✅ A run can be reconstructed from its directory alone (`Cell(recordRun=True)`; tested by moving the directory and restoring from it). | §6 |
 | 5 | **Uploader and schema.** Idempotent ingestion into PostgreSQL + object storage. | ✅ Re-uploading a run creates no duplicate rows (`services/ingest`; Slurm end-to-end test in `deploy/slurm/test`). | §6, §3 |
-| 6 | **HOOMD-blue 7 engine** behind an MD engine interface; drop HOOMD 1, then HOOMD 2. | ✅ Same static energies under HOOMD 2 and 7 (`testHoomdParity`, within 3e-6); suite passes on 7. HOOMD 2 still to remove. | §5 |
+| 6 | **HOOMD-blue 7 engine** behind an MD engine interface; drop HOOMD 1, then HOOMD 2. | ✅ Same static energies under HOOMD 2 and 7 (`testHoomdParity`, within 3e-6); suite passes on 7; HOOMD 1 and 2 removed. | §5 |
 | 7 | **Split `ab_cell.py`** and add non-pickle serialisation. | No public API change. | §5 |
 
 Increments 1–4 are useful without any server; 5 adds the uploader, the

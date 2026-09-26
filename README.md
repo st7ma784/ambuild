@@ -19,7 +19,7 @@ pip install numpy
 With numpy installed Ambuild can be used to create molecular structures, but cannot run any Molecular Dynamics or Optimisation steps. In order to do that, [HOOMD-Blue](http://glotzerlab.engin.umich.edu/hoomd-blue/) is required.
 
 #### HOOMD-blue from conda-forge (recommended)
-Ambuild supports HOOMD-blue 4.0 and later (tested with 7.2) as well as HOOMD-blue 2. HOOMD-blue is not on PyPI; install it from conda-forge, for example with [micromamba](https://mamba.readthedocs.io/):
+Ambuild supports HOOMD-blue 4.0 and later (tested with 7.2); HOOMD-blue 1 and 2 are no longer supported. HOOMD-blue is not on PyPI; install it from conda-forge, for example with [micromamba](https://mamba.readthedocs.io/):
 ```
 micromamba create -n ambuild -c conda-forge python=3.12 "hoomd=7.2=cpu*" numpy
 micromamba activate ambuild
@@ -27,8 +27,13 @@ pip install ./ambuild
 ```
 Use `"hoomd=7.2=gpu*"` for the CUDA build. conda-forge does not publish MPI builds, so running HOOMD-blue across MPI ranks (`AMBUILD_HOOMD_LAUNCHER`) needs HOOMD-blue built from source. `tests/docker/hoomd7.Dockerfile` builds a container with this environment.
 
-#### HOOMD-blue 2 in Docker (legacy)
-The steps below install Docker and the NVIDIA runtime to run Ambuild with the 2020 HOOMD-blue 2 containers.
+#### HOOMD-blue in Docker
+`tests/docker/hoomd7.Dockerfile` builds a lightweight (~580 MB) image with HOOMD-blue 7 from conda-forge:
+```
+docker build -f tests/docker/hoomd7.Dockerfile -t ambuild-hoomd7 .
+docker build -f tests/docker/hoomd7.Dockerfile --build-arg HOOMD_VARIANT=gpu -t ambuild-hoomd7-gpu .
+```
+`misc/run_ambuild_docker.sh script.py` runs a build script in it with this checkout's `ambuild` package (`AMBUILD_IMAGE` picks the image, `AMBUILD_GPU=1` passes the GPUs through). The steps below install Docker and, for the GPU image, the NVIDIA drivers and container runtime.
 
 
 #### 2. Install Docker
@@ -244,7 +249,7 @@ PYTHONHASHSEED=0 python run_tests.py
 ```
 Many tests build random structures. `run_tests.py` reseeds Python's random number generator before every test (set `AMBUILD_TEST_SEED` to change the seed) and `PYTHONHASHSEED=0` fixes set ordering, so a run is reproducible.
 
-Tests that need HOOMD-Blue are skipped unless it is installed; `tests/run_tests_docker.sh` runs the full suite in the glotzerlab container.
+Tests that need HOOMD-Blue are skipped unless it is installed; `tests/run_tests_docker.sh` runs the full suite in the HOOMD-blue 7 image, building it first if needed.
 
 ## Installation of optional dependencies
 ### Poreblazer

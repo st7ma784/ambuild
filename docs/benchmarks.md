@@ -3,6 +3,10 @@
 Measurements behind the scaling decisions in [`../TODO.md`](../TODO.md) §4, §7
 and §8. Raw results are in [`../benchmarks/results/`](../benchmarks/results/).
 
+The HOOMD-blue figures were measured with HOOMD-blue 2.9.3, before Ambuild moved to
+HOOMD-blue 4+. The launcher costs and the conclusions still apply; rerunning
+`bench_hoomd.py` for multiple ranks needs an MPI build of HOOMD-blue 4+.
+
 **Machine:** 4 × Intel Xeon E5-4620 v4 (2.1 GHz Broadwell, 80 threads), 30 GB
 RAM, rootless Docker. The cores are slow, which makes fixed costs easy to see.
 Every figure is the median of 3 runs.
