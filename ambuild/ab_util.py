@@ -200,7 +200,7 @@ def dumpPkl(pickleFile, split=None, nonPeriodic=False, paramsDir=None):
     mycell = cellFromPickle(pickleFile, paramsDir=paramsDir)
     if split == "fragments":
         for t in mycell.fragmentTypes().keys():
-            data = mycell.cellData(fragmentType=t)
+            data = mycell.cellData(fragmentType=t, noRigidParticles=True)
             mycell.writeXyz("{0}_{1}_P.xyz".format(prefix, t), data=data, periodic=True)
             mycell.writeCml(
                 "{0}_{1}_PV.cml".format(prefix, t),
