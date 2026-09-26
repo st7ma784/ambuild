@@ -122,18 +122,23 @@ def write_input_dat(xyzin, A, B, C, directory=None):
     return input_dat
 
 
-def run_poreblazer(poreblazer_exe, input_dat, directory=None, settings=None):
+def run_poreblazer(poreblazer_exe, input_dat, directory=None, settings=None, threads=None):
+    """Run Poreblazer in directory; threads sets OMP_NUM_THREADS for Ambuild's OpenMP build"""
     logger.info("Running poreblazer using executable: {}".format(poreblazer_exe))
     directory = directory or os.getcwd()
     with open(os.path.join(directory, "defaults.dat"), "w") as w:
         w.write(defaults_dat(**(settings or {})))
     with open(os.path.join(directory, "UFF.atoms"), "w") as w:
         w.write(UFF_ATOMS)
+    env = None
+    if threads is not None:
+        env = dict(os.environ, OMP_NUM_THREADS=str(int(threads)))
     return run_command(
         [poreblazer_exe],
         stdin=input_dat,
         logfile=os.path.join(directory, "poreblazer.log"),
         directory=directory,
+        env=env,
     )
 
 

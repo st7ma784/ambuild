@@ -2237,13 +2237,15 @@ class Cell:
                 return True
         return False
 
-    def poreblazer(self, poreblazer_exe, **settings):
+    def poreblazer(self, poreblazer_exe, threads=None, **settings):
         """Run Poreblazer on the current cell and return its results.
 
         Poreblazer runs in a new poreblazer_<fileCount> directory in outputDir. settings
         override ab_poreblazer.DEFAULT_SETTINGS, e.g. cubelet_size=0.3 (a coarser grid:
         several times faster, see docs/benchmarks.md) or visualisation="grd" to keep
-        Poreblazer's nitrogen network file. The return value is the dict from
+        Poreblazer's nitrogen network file. threads sets OMP_NUM_THREADS for the OpenMP
+        build of Ambuild's Poreblazer fork (default: the environment's, which OpenMP takes
+        as every CPU it can see). The return value is the dict from
         ab_poreblazer.parse_output, plus the settings used, the run directory and the
         executable's return code; values Poreblazer did not produce are None.
         """
@@ -2263,7 +2265,7 @@ class Cell:
             xyzin, self.dim[0], self.dim[1], self.dim[2], directory=rundir
         )
         ret = ab_poreblazer.run_poreblazer(
-            poreblazer_exe, input_dat, directory=rundir, settings=settings
+            poreblazer_exe, input_dat, directory=rundir, settings=settings, threads=threads
         )
         if ret != 0:
             logger.critical(
@@ -2271,6 +2273,7 @@ class Cell:
             )
         results = ab_poreblazer.parse_output(rundir)
         results["settings"] = settings
+        results["threads"] = threads
         results["directory"] = rundir
         results["returncode"] = ret
         logger.info(

@@ -17,7 +17,9 @@
 
 ARG HOOMD_VERSION=7.2.0
 ARG HOOMD_VARIANT=cpu
-ARG POREBLAZER_COMMIT=a753c72bf255da58a48a8898170f3307dac6a325
+# Ambuild's fork of Poreblazer: upstream 3.0.5 with correct, enabled OpenMP (FORK.md there)
+ARG POREBLAZER_REPO=https://github.com/st7ma784/poreblazer.git
+ARG POREBLAZER_COMMIT=618d0c0ce264ab1c3437f5ae1820d2d140668e99
 
 # --- conda-forge environment, pruned of headers, static libraries and caches
 FROM mambaorg/micromamba:2.3.2 AS hoomd-env
@@ -31,14 +33,15 @@ RUN micromamba create -y -p /opt/env -c conda-forge \
  && rm -rf /opt/env/include /opt/env/share/doc /opt/env/share/man /opt/env/conda-meta \
            /opt/env/lib/python3.12/site-packages/hoomd/pytest /opt/env/lib/python3.12/test
 
-# --- Poreblazer, compiled with the upstream Makefile's flags (gfortran -O2, the fastest
-# build measured in docs/benchmarks.md)
+# --- Poreblazer (Ambuild's fork), compiled with its Makefile: gfortran -O2 -fopenmp
+# (-O2 was the fastest build measured in docs/benchmarks.md)
 FROM debian:bookworm-slim AS poreblazer-build
+ARG POREBLAZER_REPO
 ARG POREBLAZER_COMMIT
 RUN apt-get update \
  && apt-get install -y --no-install-recommends gfortran make git ca-certificates \
  && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/richardjgowers/poreblazer.git /src/poreblazer \
+RUN git clone "$POREBLAZER_REPO" /src/poreblazer \
  && cd /src/poreblazer && git checkout "$POREBLAZER_COMMIT" \
  && cd src && make && strip poreblazer.exe
 
@@ -64,7 +67,7 @@ CMD ["python"]
 FROM ambuild AS ambuild-poreblazer
 USER root
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libgfortran5 \
+ && apt-get install -y --no-install-recommends libgfortran5 libgomp1 \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=poreblazer-build /src/poreblazer/src/poreblazer.exe /opt/poreblazer/poreblazer.exe
 ENV POREBLAZER_EXE=/opt/poreblazer/poreblazer.exe

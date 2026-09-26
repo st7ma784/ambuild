@@ -3,6 +3,8 @@
 #   docker build -f benchmarks/poreblazer-flags.Dockerfile --build-arg OFLAGS="-O3 -march=native" -t ambuild-bench-pb:O3 .
 #   docker build -f benchmarks/poreblazer-flags.Dockerfile --build-arg OFLAGS="-O2 -pg" --build-arg LINKERFLAGS=-pg -t ambuild-bench-pb:gprof .
 FROM python:3.11-slim
+# Upstream by default; Ambuild's fork is https://github.com/st7ma784/poreblazer.git
+ARG POREBLAZER_REPO=https://github.com/richardjgowers/poreblazer.git
 ARG POREBLAZER_COMMIT=a753c72bf255da58a48a8898170f3307dac6a325
 # Optimisation flags; empty keeps the upstream Makefile's gfortran default, "-O2 -unshared"
 ARG OFLAGS=""
@@ -11,7 +13,7 @@ ARG LINKERFLAGS=""
 RUN apt-get update \
  && apt-get install -y --no-install-recommends gfortran make git ca-certificates binutils time \
  && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/richardjgowers/poreblazer.git /opt/poreblazer \
+RUN git clone "$POREBLAZER_REPO" /opt/poreblazer \
  && cd /opt/poreblazer && git checkout "$POREBLAZER_COMMIT" \
  && cd src \
  && make ${OFLAGS:+OFLAGS="$OFLAGS"} ${LINKERFLAGS:+LINKERFLAGS="$LINKERFLAGS"} \

@@ -113,14 +113,22 @@ runtime rather than on the current developer machines.
     existing OpenMP directives is slower (147 s vs 81 s on 4 threads) and racy.
   - Rerun the flags comparison on scc-hdd-02 (older Westmere CPU, no AVX) once
     that host's storage fault is fixed.
-- [ ] Fork Poreblazer and parallelise its two hotspots properly: private loop
+- [x] Fork Poreblazer and parallelise its two hotspots properly: private loop
   temporaries and per-thread cube lists in `lattice_calculations`, per-thread
   random streams for the 10,000 PSD samples; check results against
   `tests/test_data/poreblazer` and the profile cells.
+  - [st7ma784/poreblazer](https://github.com/st7ma784/poreblazer) `ambuild`
+    branch: output identical to upstream at every thread count; 3.1–5.4x faster
+    on 8 threads for the 30–40 Å cells (`docs/benchmarks.md`). The images build
+    it; `Cell.poreblazer(exe, threads=N)` and the Slurm tasks set the threads.
+  - [ ] Parallelise the nitrogen lattice's percolation analysis, now the floor
+    for small cells (~2.5 s at 30 Å).
+  - [ ] Offer the race fix upstream (richardjgowers/poreblazer is unchanged since
+    2018, so it may not be picked up).
 - [ ] Algorithmic changes in the same fork: a cell list so each grid cube checks
   only atoms within the cutoff, and a spatial index for the PSD search.
-- [ ] Let recipes and the dispatcher (§8) choose `cubelet_size`: 0.3 Å is 3.6x
-  faster than 0.2 Å with small changes in diameters, and sizes memory requests.
+- [ ] Let recipes and the dispatcher (§8) choose `cubelet_size` (default stays
+  0.2 Å) and Poreblazer's threads, and size memory requests from the grid.
 - [ ] Compare a CPU-optimized build against any GPU prototype; retain a GPU
   path only if it improves the target workloads after data-transfer overhead.
 - [x] Wrap Poreblazer configuration and executable discovery so it is not tied

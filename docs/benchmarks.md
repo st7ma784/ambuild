@@ -153,6 +153,30 @@ Poreblazer has no MPI support; splitting the grid across ranks is possible, but
 threads and the algorithmic changes above come first, and many cells already run
 in parallel as Slurm array tasks.
 
+## Poreblazer: Ambuild's OpenMP fork
+
+[st7ma784/poreblazer](https://github.com/st7ma784/poreblazer) (branch `ambuild`,
+commit `618d0c0`) fixes the races above and parallelises both hotspots: private
+temporaries and cubelet lists built after the lattice loop, and the 10,000 PSD
+sample sites drawn up front in the original order, then sampled in parallel. It
+builds with `-fopenmp`.
+
+`benchmarks/compare_poreblazer.py` runs upstream and the fork on the same saved
+structures (`benchmarks/results/compare_*.json`), in a container limited to 8 CPUs:
+
+| Cell | Atoms | Upstream | Fork, 1 thread | 2 | 4 | 8 threads | Speed-up |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 20 Å | 24 | 2.07 s | 2.20 | 1.77 | 1.54 | 1.45 | 1.4x |
+| 30 Å | 72 | 20.43 s | 21.51 | 12.24 | 8.30 | 6.68 | 3.1x |
+| 40 Å | 168 | 97.64 s | 95.19 | 53.76 | 31.90 | 22.33 | 4.4x |
+| 30 Å | 576 | 83.64 s | 80.43 | 42.99 | 24.76 | 15.57 | 5.4x |
+
+**Every run's output is identical to upstream's**: all 14 parsed results and the
+`psd.txt` and `psd_cumulative.txt` files, at every thread count (16 of 16 runs).
+Small cells gain least because the steps that stay serial (the nitrogen lattice's
+percolation analysis, ~2.5 s at 30 Å) set a floor. Set the threads with
+`Cell.poreblazer(exe, threads=N)` or `OMP_NUM_THREADS`.
+
 ## Reproducing
 
 From the repository root, on a machine with Docker:

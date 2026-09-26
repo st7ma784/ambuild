@@ -16,6 +16,16 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Ambuild's Poreblazer fork, [st7ma784/poreblazer](https://github.com/st7ma784/poreblazer)
+  (`ambuild` branch): upstream 3.0.5 with its OpenMP races fixed and both
+  hotspots parallelised, built with `-fopenmp`. Output is identical to upstream
+  at every thread count; dense and larger cells run 3–5x faster on 8 threads.
+  The runtime, Poreblazer test and Slurm test images build it.
+- `Cell.poreblazer(exe, threads=N)` sets `OMP_NUM_THREADS` for the run; Slurm
+  Poreblazer array tasks request 2 CPUs each (`AMBUILD_ARRAY_CPUS`) and use
+  them as threads.
+- `benchmarks/compare_poreblazer.py`: two Poreblazer builds on identical
+  structures, comparing results, output files and speed.
 - `Cell.poreblazer(exe, **settings)` sets any value of Poreblazer's
   `defaults.dat` (`ab_poreblazer.DEFAULT_SETTINGS`), e.g. `cubelet_size=0.3`,
   which is 3.6x faster than the 0.2 Å default with small changes in pore
@@ -172,6 +182,8 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   install. Install HOOMD-blue from conda-forge.
 
 ### Fixed
+- `ab_util.run_command` logged its keyword arguments at debug level, which would
+  have included the whole environment when one is passed; `env` is left out.
 - **With HOOMD-blue 2 or later installed, `Cell.writeXyz()` wrote files with no
   atoms, so `Cell.poreblazer()` analysed an empty box** (surface area NaN,
   diameters infinite). `cellData()` returned rigid-body particles instead of

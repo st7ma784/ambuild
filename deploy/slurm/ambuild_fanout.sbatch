@@ -6,6 +6,7 @@
 #   AMBUILD_RUN_DIR   the build's run directory
 #   POREBLAZER_EXE    the Poreblazer executable on the compute nodes
 #   AMBUILD_ARRAY_MAX optional: maximum array tasks running at once (default 20)
+#   AMBUILD_ARRAY_CPUS optional: CPUs (OpenMP threads) per Poreblazer task (default 2)
 #SBATCH --job-name=ambuild-fanout
 #SBATCH --ntasks=1
 #SBATCH --time=00:10:00
@@ -23,6 +24,7 @@ if [ "$count" -eq 0 ]; then
 fi
 
 array=$(sbatch --parsable --array="0-$((count - 1))%${AMBUILD_ARRAY_MAX:-20}" \
+    ${AMBUILD_ARRAY_CPUS:+--cpus-per-task="$AMBUILD_ARRAY_CPUS"} \
     --export=ALL,AMBUILD_PICKLE_LIST="$list" "$here/ambuild_poreblazer_task.sbatch")
 sbatch --parsable --dependency="afterany:$array" --export=ALL "$here/ambuild_upload.sbatch"
 echo "Submitted Poreblazer array $array ($count tasks) and its upload"
