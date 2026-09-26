@@ -344,7 +344,8 @@ def run_command(
         logger.debug("In directory %s", directory)
         logger.debug("Running command: %s", " ".join(cmd))
         if kwargs:
-            logger.debug("kwargs are: %s", str(kwargs))
+            # Never log env: it is the whole environment, which can hold credentials
+            logger.debug("kwargs are: %s", str({k: v for k, v in kwargs.items() if k != "env"}))
 
     file_handle = False
     if logfile:
