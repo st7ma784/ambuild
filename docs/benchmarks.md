@@ -226,6 +226,13 @@ The fork keeps upstream's labelling so that its results match; fixing it is a
 decision about results (TODO.md §4). Exact labelling would also let the percolation
 analysis run in parallel.
 
+The full study is in `benchmarks/percolation_study/`, with its code and raw data. It
+includes an 8-site counterexample traced step by step and statistics on random
+lattices: as the lattice grows, the exact labelling's threshold estimate approaches
+the known site percolation threshold (0.3116), while upstream's moves away from it.
+It also shows spanning against probe radius on real cells: upstream's answer is not
+monotonic, which misleads the limiting-diameter bisection.
+
 ## Reproducing
 
 From the repository root, on a machine with Docker:
