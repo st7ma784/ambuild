@@ -2,12 +2,14 @@
 
     python3 compare_poreblazer.py prepare CASE_DIR
     python3 compare_poreblazer.py run CASE_DIR LABEL OUT.json [--threads 1 2 4 8]
+                                     [--visualisation grd]
 
 prepare writes the structures once (Ambuild's builds differ between processes, so
 every build must read the same files). run times $POREBLAZER_EXE on each with
 OMP_NUM_THREADS set to each thread count, and records the parsed results and the
-sha256 of psd.txt and psd_cumulative.txt, so builds and thread counts can be checked
-for identical output.
+sha256 of psd.txt, psd_cumulative.txt and (with the grd visualisation, the default)
+nitrogen_network.grd, so builds and thread counts can be checked for identical
+output. --visualisation none times the nitrogen lattice step without writing the grid.
 """
 import argparse
 import glob
@@ -20,7 +22,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import profile_poreblazer as pp
 
-CASES = [(20, 2), (30, 6), (30, 48), (40, 14)]  # (box A, benzene blocks)
+CASES = [(20, 2), (30, 6), (30, 48), (40, 14), (40, 2), (60, 4)]  # (box A, benzene blocks); the last two are near-empty
 
 
 def prepare(args):
@@ -34,8 +36,10 @@ def prepare(args):
 
 
 def sha256(path):
+    if not os.path.isfile(path):
+        return None
     with open(path, "rb") as f:
-        return hashlib.sha256(f.read()).hexdigest() if os.path.isfile(path) else None
+        return hashlib.sha256(f.read()).hexdigest()
 
 
 def run(args):
@@ -51,13 +55,16 @@ def run(args):
             os.makedirs(rundir)
             xyz = os.path.join(rundir, "input.xyz")
             shutil.copy(os.path.join(case, "ambuild.xyz"), xyz)
-            r = pp.runPoreblazer(exe, xyz, float(info["box"]), 0.2, rundir, False)
+            r = pp.runPoreblazer(exe, xyz, float(info["box"]), 0.2, rundir, False, args.visualisation)
             r.update(info, label=args.label, threads=threads, case=os.path.basename(case),
                      psd_sha256=sha256(os.path.join(rundir, "psd.txt")),
-                     psd_cumulative_sha256=sha256(os.path.join(rundir, "psd_cumulative.txt")))
+                     psd_cumulative_sha256=sha256(os.path.join(rundir, "psd_cumulative.txt")),
+                     nitrogen_grd_sha256=sha256(os.path.join(rundir, "nitrogen_network.grd")),
+                     visualisation=args.visualisation)
             records.append(r)
-            print("%-9s %-16s threads %d  wall %7.2f s  lattice %6.2f  psd %6.2f  SA %s  PLD %s  psd %s" % (
+            print("%-9s %-16s threads %d  wall %7.2f s  lattice %6.2f  N2 %5.2f  psd %6.2f  SA %s  PLD %s  psd %s" % (
                 args.label, r["case"], threads, r["wall_seconds"], r["steps"].get("lattice", 0),
+                r["steps"].get("nitrogen_lattice", 0),
                 r["steps"].get("pore_distribution", 0), r["results"]["surface_area_m2_g"],
                 r["results"]["pore_limiting_diameter_A"], (r["psd_sha256"] or "-")[:10]), flush=True)
             with open(args.out, "w") as f:
@@ -74,6 +81,7 @@ def main():
     r.add_argument("label")
     r.add_argument("out")
     r.add_argument("--threads", type=int, nargs="+", default=[1, 2, 4, 8])
+    r.add_argument("--visualisation", default="grd", choices=sorted(pp.ab_poreblazer.VISUALISATION_OPTIONS))
     args = parser.parse_args()
     if args.command == "prepare":
         prepare(args)

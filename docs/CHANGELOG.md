@@ -21,11 +21,17 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   hotspots parallelised, built with `-fopenmp`. Output is identical to upstream
   at every thread count; dense and larger cells run 3–5x faster on 8 threads.
   The runtime, Poreblazer test and Slurm test images build it.
+  Commit `3ce6695` adds a cell list to the lattice step (each grid cube checks
+  only atoms within the cutoff; 3.4x faster at 40 Å), a parallel PSD sort, a
+  faster percolation relabelling and a faster `nitrogen_network.grd` writer,
+  still bit-identical to upstream: 7x faster than upstream on 8 threads for
+  the dense 30–40 Å cells.
 - `Cell.poreblazer(exe, threads=N)` sets `OMP_NUM_THREADS` for the run; Slurm
   Poreblazer array tasks request 2 CPUs each (`AMBUILD_ARRAY_CPUS`) and use
   them as threads.
 - `benchmarks/compare_poreblazer.py`: two Poreblazer builds on identical
-  structures, comparing results, output files and speed.
+  structures, comparing results, output files (including the hash of
+  `nitrogen_network.grd`) and speed; `--visualisation` picks the grid output.
 - `Cell.poreblazer(exe, **settings)` sets any value of Poreblazer's
   `defaults.dat` (`ab_poreblazer.DEFAULT_SETTINGS`), e.g. `cubelet_size=0.3`,
   which is 3.6x faster than the 0.2 Å default with small changes in pore
