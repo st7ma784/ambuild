@@ -107,7 +107,7 @@ class Test(unittest.TestCase):
         mycell.seed(6)
         results = mycell.poreblazer(POREBLAZER_EXE)
         mycell.close()
-        shutil.rmtree(rundir)
+        self.addCleanup(shutil.rmtree, rundir)
 
         self.assertEqual(results["returncode"], 0)
         self.assertIsNotNone(results["version"])
@@ -118,7 +118,59 @@ class Test(unittest.TestCase):
         )
         self.assertTrue(results["psd"])
         self.assertTrue(results["psd_cumulative"])
+        self.assertFalse(os.path.exists(os.path.join(results["directory"], "nitrogen_network.grd")))
 
+
+    def testDefaultsDatMatchesHistoricalFile(self):
+        """The generated defaults.dat reproduces the file Ambuild always wrote"""
+        historical = """UFF.atoms
+2.58, 10.22, 3.314, 298
+12.8, 500
+0.2
+20.0, 0.25
+21908391
+2
+
+! Default forcefield: UFF
+! Helium atom sigma (A), helium atom epsilon (K), nitrogen atom sigma (A), temperature (K)
+! Cutoff distance (A), accessible surface area coefficient (1.0 for hard sphere
+! surface, 1.122 for potential minimum surface), number of trials for surface area
+! calculation
+! 0.2: Cubelet size (A)
+! Largest anticipated pore diameter (A), size of the bin for PSD (A)
+! Random number seed
+
+! Do not change these values unless you know what you are doing
+"""
+        self.assertEqual(ab_poreblazer.DEFAULTS_DAT, historical)
+
+    def testSettings(self):
+        lines = ab_poreblazer.defaults_dat(cubelet_size=0.3, surface_trials=200).splitlines()
+        self.assertEqual(lines[2], "12.8, 200")
+        self.assertEqual(lines[3], "0.3")
+        self.assertEqual(lines[6], "0")  # visualisation defaults to none
+        self.assertEqual(ab_poreblazer.defaults_dat(visualisation="both").splitlines()[6], "3")
+        with self.assertRaises(ValueError):
+            ab_poreblazer.settings(cubelet=0.3)
+        with self.assertRaises(ValueError):
+            ab_poreblazer.settings(visualisation="png")
+
+    @unittest.skipUnless(os.path.isfile("/bin/cat"), "Needs /bin/cat as a dummy executable")
+    def testSettingsReachPoreblazer(self):
+        rundir = tempfile.mkdtemp()
+        mycell = ab_cell.Cell([20.0, 20.0, 20.0], paramsDir=PARAMS_DIR, outputDir=rundir)
+        mycell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "ch4.car"), fragmentType="A")
+        mycell.seed(3)
+        with self.assertRaises(ValueError):
+            mycell.poreblazer("/bin/cat", cubelet=0.3)
+        self.assertFalse(os.path.exists(os.path.join(rundir, "poreblazer_0")))
+        results = mycell.poreblazer("/bin/cat", cubelet_size=0.3)
+        mycell.close()
+        with open(os.path.join(results["directory"], "defaults.dat")) as f:
+            self.assertEqual(f.read().splitlines()[3], "0.3")
+        self.assertEqual(results["settings"]["cubelet_size"], 0.3)
+        self.assertEqual(results["settings"]["visualisation"], "none")
+        shutil.rmtree(rundir)
 
 if __name__ == "__main__":
     # import sys;sys.argv = ['', 'Test.testName']
