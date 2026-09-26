@@ -16,7 +16,19 @@ In order to run at all, Ambuild requires [numpy](https://numpy.org/), which is e
 pip install numpy
 ```
 
-With numpy installed Ambuild can be used to create molecular structures, but cannot run any Molecular Dynamics or Optimisation steps. In order to do that, [HOOMD-Blue](http://glotzerlab.engin.umich.edu/hoomd-blue/) is required. The instructions below detail how to install Ambuild and HOOMD-Blue.
+With numpy installed Ambuild can be used to create molecular structures, but cannot run any Molecular Dynamics or Optimisation steps. In order to do that, [HOOMD-Blue](http://glotzerlab.engin.umich.edu/hoomd-blue/) is required.
+
+#### HOOMD-blue from conda-forge (recommended)
+Ambuild supports HOOMD-blue 4.0 and later (tested with 7.2) as well as HOOMD-blue 2. HOOMD-blue is not on PyPI; install it from conda-forge, for example with [micromamba](https://mamba.readthedocs.io/):
+```
+micromamba create -n ambuild -c conda-forge python=3.12 "hoomd=7.2=cpu*" numpy
+micromamba activate ambuild
+pip install ./ambuild
+```
+Use `"hoomd=7.2=gpu*"` for the CUDA build. conda-forge does not publish MPI builds, so running HOOMD-blue across MPI ranks (`AMBUILD_HOOMD_LAUNCHER`) needs HOOMD-blue built from source. `tests/docker/hoomd7.Dockerfile` builds a container with this environment.
+
+#### HOOMD-blue 2 in Docker (legacy)
+The steps below install Docker and the NVIDIA runtime to run Ambuild with the 2020 HOOMD-blue 2 containers.
 
 
 #### 2. Install Docker

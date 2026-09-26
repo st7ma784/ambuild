@@ -18,10 +18,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Chemistry",
 ]
 
-[project.optional-dependencies]
-# HOOMD-Blue is best installed from conda-forge or the glotzerlab containers;
-# it is only needed for MD/geometry optimisation and the HOOMD test job.
-hoomd = ["hoomd"]
+# HOOMD-blue is needed only for MD and geometry optimisation. It is not on PyPI, so it
+# cannot be a pip extra: install it from conda-forge (e.g. micromamba install -c
+# conda-forge "hoomd=7.2=cpu*"); see tests/docker/hoomd7.Dockerfile.
 
 [project.urls]
 Homepage = "https://github.com/linucks/ambuild"

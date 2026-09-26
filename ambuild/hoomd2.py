@@ -12,121 +12,27 @@ import hoomd.md
 import numpy as np
 
 # Our imports
-from ambuild.ab_ffield import FfieldParameters
-from ambuild.ab_hoomdlauncher import applyResult
+from ambuild.ab_mdengine import MdEngineBase
 from ambuild import xyz_core
 
 logger = logging.getLogger(__name__)
 
 
-class Hoomd2(object):
-    """
-    TODO in 2
-    * fix masked atoms
-
-    TODO in 1
-    * change checkParameters to use self.particleTypes etc
-    * change setBonds etc to match hoomd2 so creation of oboject in routine
-
-
-    Each rigid body in the cell is a type of rigid body - define fragmentType:bodyCount
-    - calc centre for the body -> need coords and atomTypes for each body in a fragment
-
-    """
+class Hoomd2(MdEngineBase):
+    """MD engine for HOOMD-blue 2.x (see ab_mdengine for the interface)"""
 
     def __init__(self, paramsDir, outputDir=None):
-        self.ffield = FfieldParameters(paramsDir)
-        self.outputDir = outputDir
-        self.debug = False
-        self.rCut = 5.0
+        super(Hoomd2, self).__init__(paramsDir, outputDir=outputDir)
         self.system = None
-        self.rigidBody = False
-        self.exclusions = set()  # particle tags to be ignored in pair-pair interactions
-
-    def checkParameters(self, skipDihedrals=False):
-        assert self.ffield
-        assert self.particleTypes
-        ok = True
-        missingBonds = []
-        for bond in self.bond_types:
-            if not self.ffield.hasBond(bond):
-                ok = False
-                missingBonds.append(bond)
-        missingAngles = []
-        for angle in self.angle_types:
-            if not self.ffield.hasAngle(angle):
-                ok = False
-                missingAngles.append(angle)
-        missingDihedrals = []
-        missingImpropers = []
-        if not skipDihedrals:
-            for dihedral in self.dihedral_types:
-                if not self.ffield.hasDihedral(dihedral):
-                    ok = False
-                    missingDihedrals.append(dihedral)
-        #             for improper in self.impropers:
-        #                 if not self.ffield.hasImproper(improper):
-        #                     ok = False
-        #                     missingImpropers.append(improper)
-        missingPairs = []
-        activeParticles = set(self.particleTypes).difference(self.exclusions)
-        for atype, btype in itertools.combinations_with_replacement(activeParticles, 2):
-            if not self.ffield.hasPair(atype, btype):
-                ok = False
-                missingPairs.append((atype, btype))
-        if not ok:
-            msg = "The following parameters could not be found:\n"
-            if missingBonds:
-                msg += "Bonds: {0}\n".format(missingBonds)
-            if missingAngles:
-                msg += "Angles: {0}\n".format(missingAngles)
-            if missingDihedrals:
-                msg += "Dihedrals: {0}\n".format(missingDihedrals)
-            if missingImpropers:
-                msg += "Impropers: {0}\n".format(missingImpropers)
-            if missingPairs:
-                msg += "Pairs: {0}\n".format(missingPairs)
-            msg += "Please add these to the files in the directory: {0}\n".format(
-                self.ffield.paramsDir
-            )
-            raise RuntimeError(msg)
-        return
 
     def createSnapshot(self, data, doCharges=True, doDihedral=True):
         """Create a populated snapshot with all the particles.
 
         Rigid body will require creating the central particles so we'll do this later
         """
-        # Reset exclusions here for time being
-        self.exclusions = set()
-        # Create snapshot
-        # snap attributes: angles, bonds, box, constraints, dihedrals, impropers, pairs, particles
-        if self.rigidBody:
-            # Combined size includes rigid centre and constituent particles
-            nRigidParticles = len(data.rigidParticles)
-            nparticles = data.natoms + nRigidParticles
-            rigidCenters = set([r.type for r in data.rigidParticles])
-            atomTypes = set()
-            for r in data.rigidParticles:
-                atomTypes.update(r.b_atomTypes)
-            overlap = atomTypes.intersection(rigidCenters)
-            if overlap:
-                raise RuntimeError("Clashing atomTypes/rigidCenters".format(overlap))
-            self.particleTypes = sorted(atomTypes.union(rigidCenters))
-            self.exclusions = set(rigidCenters)
-        else:
-            nparticles = len(data.coords)
-            self.particleTypes = sorted(set(data.atomTypes))
-
+        nRigidParticles = self.setTypes(data, doDihedral=doDihedral)
+        nparticles = data.natoms + nRigidParticles if self.rigidBody else len(data.coords)
         assert nparticles > 0, "Simulation needs some particles!"
-        # NEED TO THINK ABOUT WHAT TO DO ABOUT MASKED ATOMS - set particleTypes?
-        # self.masked = data.masked
-        # Sorted so that every MPI rank (each with its own hash seed) orders the types alike
-        self.bond_types = sorted(set(data.bondLabels)) if len(data.bonds) else []
-        self.angle_types = sorted(set(data.angleLabels)) if len(data.angles) else []
-        self.dihedral_types = (
-            sorted(set(data.properLabels)) if len(data.propers) and doDihedral else []
-        )
         snapshot = hoomd.data.make_snapshot(
             N=nparticles,
             box=hoomd.data.boxdim(Lx=data.cell[0], Ly=data.cell[1], Lz=data.cell[2]),
@@ -554,11 +460,6 @@ class Hoomd2(object):
         )
         return
 
-    def outputPath(self, filename):
-        if self.outputDir is None:
-            return filename
-        return os.path.join(self.outputDir, filename)
-
     def setupContext(self, quiet=False):
         hoomd.context.initialize()
         if quiet:
@@ -691,10 +592,8 @@ class Hoomd2(object):
             "offset": offset,
         }
 
-    def updateCell(self, cell):
-        """Reset the particle positions from hoomdblue system"""
-        applyResult(cell, self.snapshotResult())
-        return
+    def numRanks(self):
+        return hoomd.comm.get_num_ranks()
 
     def _createLog(self, filename):
         return hoomd.analyze.log(
