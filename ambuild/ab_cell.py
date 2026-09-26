@@ -2243,11 +2243,14 @@ class Cell:
         Poreblazer runs in a new poreblazer_<fileCount> directory in outputDir. settings
         override ab_poreblazer.DEFAULT_SETTINGS, e.g. cubelet_size=0.3 (a coarser grid:
         several times faster, see docs/benchmarks.md) or visualisation="grd" to keep
-        Poreblazer's nitrogen network file. threads sets OMP_NUM_THREADS for the OpenMP
-        build of Ambuild's Poreblazer fork (default: the environment's, which OpenMP takes
-        as every CPU it can see). The return value is the dict from
-        ab_poreblazer.parse_output, plus the settings used, the run directory and the
-        executable's return code; values Poreblazer did not produce are None.
+        Poreblazer's nitrogen network file. percolation_labelling="exact" uses exact
+        cluster labelling in the percolation analysis instead of Poreblazer 3.0.5's, which
+        can split connected clusters; it needs Ambuild's Poreblazer fork, and a RuntimeError
+        is raised if the executable does not report using it. threads sets
+        OMP_NUM_THREADS for the OpenMP build of Ambuild's Poreblazer fork (default: the
+        environment's, which OpenMP takes as every CPU it can see). The return value is
+        the dict from ab_poreblazer.parse_output, plus the settings used, the run directory
+        and the executable's return code; values Poreblazer did not produce are None.
         """
         from ambuild import ab_poreblazer
 
@@ -2272,6 +2275,12 @@ class Cell:
                 "Error running poreblazer - check files in directory: {}".format(rundir)
             )
         results = ab_poreblazer.parse_output(rundir)
+        if settings["percolation_labelling"] == "exact" and results["percolation_labelling"] != "exact":
+            # Upstream Poreblazer ignores the setting and would give its own labelling
+            raise RuntimeError(
+                "Poreblazer did not report using exact percolation labelling ({0}); it needs "
+                "Ambuild's Poreblazer fork. Output is in {1}".format(poreblazer_exe, rundir)
+            )
         results["settings"] = settings
         results["threads"] = threads
         results["directory"] = rundir

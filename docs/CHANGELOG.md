@@ -26,6 +26,13 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   faster percolation relabelling and a faster `nitrogen_network.grd` writer,
   still bit-identical to upstream: 7x faster than upstream on 8 threads for
   the dense 30–40 Å cells.
+- Opt-in exact percolation labelling: `Cell.poreblazer(exe,
+  percolation_labelling="exact")` (fork commit `24d884e`). Poreblazer 3.0.5's
+  cluster labelling can split one connected cluster into several, which affects
+  the pore limiting diameter and the PSD (`benchmarks/percolation_study/`).
+  The default stays Poreblazer's labelling, so results still match upstream. The
+  labelling used is returned as `percolation_labelling` (from the fork's log), and
+  Ambuild raises if exact labelling was asked for but not confirmed.
 - `Cell.poreblazer(exe, threads=N)` sets `OMP_NUM_THREADS` for the run; Slurm
   Poreblazer array tasks request 2 CPUs each (`AMBUILD_ARRAY_CPUS`) and use
   them as threads.

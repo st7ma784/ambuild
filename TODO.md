@@ -127,11 +127,14 @@ runtime rather than on the current developer machines.
     no longer asks for by default. The grid is now written a plane at a time
     (~30% faster), the percolation relabelling uses a lookup table, and the PSD
     sort runs in parallel. The labelling itself stays serial (see below).
-  - [ ] Decide whether the fork fixes upstream's cluster labelling, which splits
-    connected clusters (54 of 60 random lattices). Exact labelling changes the
-    pore limiting diameter by up to ~2% and one PSD across the benchmark cells
-    (`docs/benchmarks.md`), so results would no longer match upstream; it would
-    also let the percolation analysis run in parallel.
+  - [x] Decide whether the fork fixes upstream's cluster labelling, which splits
+    connected clusters (54 of 60 random lattices). Decision: opt-in, default
+    unchanged. `percolation_labelling="exact"` (fork `24d884e`); the setting and the
+    labelling the executable reports are returned with every result.
+  - [ ] Parallelise the exact labelling (slab-wise union-find, then merge across
+    slab boundaries; the numbering stays thread-independent).
+  - [ ] Decide when, if ever, exact labelling becomes Ambuild's default, and offer
+    the defect and fix upstream.
   - [ ] Offer the race fix upstream (richardjgowers/poreblazer is unchanged since
     2018, so it may not be picked up).
 - [x] Algorithmic changes in the same fork: a cell list so each grid cube checks

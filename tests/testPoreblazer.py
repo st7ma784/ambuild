@@ -119,6 +119,41 @@ class Test(unittest.TestCase):
         self.assertTrue(results["psd"])
         self.assertTrue(results["psd_cumulative"])
         self.assertFalse(os.path.exists(os.path.join(results["directory"], "nitrogen_network.grd")))
+        self.assertIn(results["percolation_labelling"], ("poreblazer", None))  # None: upstream
+
+    @unittest.skipUnless(
+        POREBLAZER_EXE and os.path.isfile(POREBLAZER_EXE), "Set POREBLAZER_EXE to run"
+    )
+    def testRealPoreblazerExactLabelling(self):
+        """Exact labelling runs in Ambuild's fork, and is refused by builds without it"""
+        rundir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, rundir)
+        mycell = ab_cell.Cell([20.0, 20.0, 20.0], paramsDir=PARAMS_DIR, outputDir=rundir)
+        mycell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "benzene.car"), fragmentType="A")
+        mycell.seed(6)
+        default = mycell.poreblazer(POREBLAZER_EXE)
+        shutil.move(default["directory"], default["directory"] + "_default")  # free the name
+        if default["percolation_labelling"] is None:
+            with self.assertRaises(RuntimeError):
+                mycell.poreblazer(POREBLAZER_EXE, percolation_labelling="exact")
+        else:
+            exact = mycell.poreblazer(POREBLAZER_EXE, percolation_labelling="exact")
+            self.assertEqual(exact["percolation_labelling"], "exact")
+            self.assertEqual(exact["settings"]["percolation_labelling"], "exact")
+            self.assertEqual(exact["surface_area_m2_g"], default["surface_area_m2_g"])
+        mycell.close()
+
+    @unittest.skipUnless(os.path.isfile("/bin/cat"), "Needs /bin/cat as a dummy executable")
+    def testExactLabellingRefusedWithoutFork(self):
+        """A Poreblazer that does not report exact labelling raises instead of returning results"""
+        rundir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, rundir)
+        mycell = ab_cell.Cell([20.0, 20.0, 20.0], paramsDir=PARAMS_DIR, outputDir=rundir)
+        mycell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "ch4.car"), fragmentType="A")
+        mycell.seed(3)
+        with self.assertRaises(RuntimeError):
+            mycell.poreblazer("/bin/cat", percolation_labelling="exact")
+        mycell.close()
 
 
     def testDefaultsDatMatchesHistoricalFile(self):
@@ -150,6 +185,11 @@ class Test(unittest.TestCase):
         self.assertEqual(lines[3], "0.3")
         self.assertEqual(lines[6], "0")  # visualisation defaults to none
         self.assertEqual(ab_poreblazer.defaults_dat(visualisation="both").splitlines()[6], "3")
+        self.assertEqual(
+            ab_poreblazer.defaults_dat(percolation_labelling="exact", visualisation="grd").splitlines()[6], "2, 1"
+        )
+        with self.assertRaises(ValueError):
+            ab_poreblazer.settings(percolation_labelling="union-find")
         with self.assertRaises(ValueError):
             ab_poreblazer.settings(cubelet=0.3)
         with self.assertRaises(ValueError):
@@ -184,6 +224,7 @@ class Test(unittest.TestCase):
             self.assertEqual(f.read().splitlines()[3], "0.3")
         self.assertEqual(results["settings"]["cubelet_size"], 0.3)
         self.assertEqual(results["settings"]["visualisation"], "none")
+        self.assertEqual(results["settings"]["percolation_labelling"], "poreblazer")
         shutil.rmtree(rundir)
 
 if __name__ == "__main__":

@@ -2,14 +2,15 @@
 
     python3 compare_poreblazer.py prepare CASE_DIR
     python3 compare_poreblazer.py run CASE_DIR LABEL OUT.json [--threads 1 2 4 8]
-                                     [--visualisation grd]
+                                     [--visualisation grd] [--labelling poreblazer]
 
 prepare writes the structures once (Ambuild's builds differ between processes, so
 every build must read the same files). run times $POREBLAZER_EXE on each with
 OMP_NUM_THREADS set to each thread count, and records the parsed results and the
 sha256 of psd.txt, psd_cumulative.txt and (with the grd visualisation, the default)
 nitrogen_network.grd, so builds and thread counts can be checked for identical
-output. --visualisation none times the nitrogen lattice step without writing the grid.
+output. --visualisation none times the nitrogen lattice step without writing the grid;
+--labelling exact uses the fork's exact percolation labelling.
 """
 import argparse
 import glob
@@ -55,12 +56,13 @@ def run(args):
             os.makedirs(rundir)
             xyz = os.path.join(rundir, "input.xyz")
             shutil.copy(os.path.join(case, "ambuild.xyz"), xyz)
-            r = pp.runPoreblazer(exe, xyz, float(info["box"]), 0.2, rundir, False, args.visualisation)
+            r = pp.runPoreblazer(exe, xyz, float(info["box"]), 0.2, rundir, False, args.visualisation,
+                                 args.labelling)
             r.update(info, label=args.label, threads=threads, case=os.path.basename(case),
                      psd_sha256=sha256(os.path.join(rundir, "psd.txt")),
                      psd_cumulative_sha256=sha256(os.path.join(rundir, "psd_cumulative.txt")),
                      nitrogen_grd_sha256=sha256(os.path.join(rundir, "nitrogen_network.grd")),
-                     visualisation=args.visualisation)
+                     visualisation=args.visualisation, labelling=args.labelling)
             records.append(r)
             print("%-9s %-16s threads %d  wall %7.2f s  lattice %6.2f  N2 %5.2f  psd %6.2f  SA %s  PLD %s  psd %s" % (
                 args.label, r["case"], threads, r["wall_seconds"], r["steps"].get("lattice", 0),
@@ -82,6 +84,7 @@ def main():
     r.add_argument("out")
     r.add_argument("--threads", type=int, nargs="+", default=[1, 2, 4, 8])
     r.add_argument("--visualisation", default="grd", choices=sorted(pp.ab_poreblazer.VISUALISATION_OPTIONS))
+    r.add_argument("--labelling", default="poreblazer", choices=sorted(pp.ab_poreblazer.LABELLING_OPTIONS))
     args = parser.parse_args()
     if args.command == "prepare":
         prepare(args)
