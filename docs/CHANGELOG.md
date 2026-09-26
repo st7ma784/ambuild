@@ -16,6 +16,14 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- `Cell.poreblazer(exe, **settings)` sets any value of Poreblazer's
+  `defaults.dat` (`ab_poreblazer.DEFAULT_SETTINGS`), e.g. `cubelet_size=0.3`,
+  which is 3.6x faster than the 0.2 Å default with small changes in pore
+  diameters. The settings used are returned with the results, so they reach
+  the `pore_result` event. `ab_poreblazer.defaults_dat()` writes the file.
+- `benchmarks/profile_poreblazer.py`: Poreblazer's time per step, CPU time,
+  memory and a gprof profile across cell size, atom count and grid spacing;
+  findings in `docs/benchmarks.md`.
 - Root `Dockerfile`: the runtime image, with Python 3.12, HOOMD-blue 7 and NumPy
   from conda-forge and Ambuild installed, in debian-slim, running as a non-root
   user. Targets `ambuild` (585 MB) and `ambuild-poreblazer` (591 MB, the default,
@@ -111,6 +119,9 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
 
 ### Changed
+- Poreblazer no longer writes `nitrogen_network.grd` (~13 MB for a 20 Å cell,
+  growing with volume) unless asked: `visualisation` defaults to `"none"`;
+  pass `visualisation="grd"` (or `"xyz"`, `"both"`) to keep it.
 - `tests/run_tests_docker.sh` and the `misc/` Docker scripts use the HOOMD-blue 7
   image instead of the 2020 glotzerlab images, pass GPUs only when asked
   (`AMBUILD_GPU=1`, with the image built using `HOOMD_VARIANT=gpu`), and run as

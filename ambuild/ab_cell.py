@@ -2237,14 +2237,19 @@ class Cell:
                 return True
         return False
 
-    def poreblazer(self, poreblazer_exe):
+    def poreblazer(self, poreblazer_exe, **settings):
         """Run Poreblazer on the current cell and return its results.
 
-        Poreblazer runs in a new poreblazer_<fileCount> directory in outputDir. The return
-        value is the dict from ab_poreblazer.parse_output, plus the run directory and the
+        Poreblazer runs in a new poreblazer_<fileCount> directory in outputDir. settings
+        override ab_poreblazer.DEFAULT_SETTINGS, e.g. cubelet_size=0.3 (a coarser grid:
+        several times faster, see docs/benchmarks.md) or visualisation="grd" to keep
+        Poreblazer's nitrogen network file. The return value is the dict from
+        ab_poreblazer.parse_output, plus the settings used, the run directory and the
         executable's return code; values Poreblazer did not produce are None.
         """
         from ambuild import ab_poreblazer
+
+        settings = ab_poreblazer.settings(**settings)  # Check before creating anything
 
         rundir = os.path.abspath(
             self.outputPath("{}_{}".format(ab_poreblazer.NAME_STEM, self._fileCount))
@@ -2257,12 +2262,15 @@ class Cell:
         input_dat = ab_poreblazer.write_input_dat(
             xyzin, self.dim[0], self.dim[1], self.dim[2], directory=rundir
         )
-        ret = ab_poreblazer.run_poreblazer(poreblazer_exe, input_dat, directory=rundir)
+        ret = ab_poreblazer.run_poreblazer(
+            poreblazer_exe, input_dat, directory=rundir, settings=settings
+        )
         if ret != 0:
             logger.critical(
                 "Error running poreblazer - check files in directory: {}".format(rundir)
             )
         results = ab_poreblazer.parse_output(rundir)
+        results["settings"] = settings
         results["directory"] = rundir
         results["returncode"] = ret
         logger.info(

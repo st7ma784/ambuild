@@ -81,6 +81,78 @@ Wall time (s):
   from 20 to 30 Å and 5x from 30 to 40 Å. The levers are OpenMP over the grid,
   splitting the work, or fanning out runs (as the Slurm array already does).
 
+## Poreblazer: where the time goes
+
+`benchmarks/profile_poreblazer.py` (results in `benchmarks/results/profile_*.json`)
+times each of Poreblazer's eight steps, with CPU time and peak memory, for benzene
+cells that vary one thing at a time; a `-pg` build adds a gprof profile. Same
+machine, one CPU, upstream `-O2` build, 0.2 Å grid unless stated.
+
+Wall time (s) of the steps that matter:
+
+| Cell | Atoms | Total | Lattice | N₂ lattice | Pore size distribution | Peak memory |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 20 Å | 24 | 2.2 | 0.72 | 0.81 | 0.38 | 90 MB |
+| 30 Å | 72 | 21.0 | 6.63 | 2.54 | 11.09 | 234 MB |
+| 40 Å | 168 | 96.6 | 35.03 | 5.87 | 53.46 | 549 MB |
+| 30 Å | 36 | 10.0 | 3.31 | 2.69 | 3.31 | 235 MB |
+| 30 Å | 144 | 42.0 | 14.15 | 2.59 | 24.27 | 232 MB |
+| 30 Å | 576 | 84.6 | 54.07 | 2.60 | 26.28 | 225 MB |
+
+Helium lattice, helium volume, surface area and limiting diameter together take
+under 1.5 s in every case.
+
+- **Two steps take ~90% of the time.** `lattice_calculations` measures the distance
+  from every grid cube to every atom (cost ∝ cubes × atoms), and dominates dense
+  cells. `pore_distribution` takes 10,000 random points and, for each, scans the
+  cubes from the largest empty sphere down until one contains the point; the scan
+  gets longer as pores get smaller, and it dominates sparse cells.
+- **Both spend their time in one function.** gprof puts 30–40% of the total in
+  `fundcell_snglminimage`, the periodic minimum-image distance, called ~2.4 billion
+  times for the 40 Å and 576-atom cells.
+- **Memory grows with the grid volume**: ~90 MB at 20 Å, 549 MB at 40 Å; roughly
+  1.8 GB can be expected at 60 Å.
+
+Grid spacing (the 30 Å, 72-atom cell):
+
+| Grid | Time | Memory | Pore limiting diameter | Maximum pore diameter | Surface area, volumes |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 0.2 Å (default) | 21.7 s | 234 MB | 20.48 Å | 25.98 Å | reference |
+| 0.3 Å | 6.1 s | 91 MB | 20.19 Å | 25.93 Å | unchanged |
+| 0.4 Å | 2.9 s | 62 MB | 20.41 Å | 25.98 Å | unchanged |
+
+A coarser grid is 3.6–7.6x faster here with little change, but diameters are only
+resolved to about the grid spacing, so small-pore structures lose relatively more.
+`Cell.poreblazer(exe, cubelet_size=0.3)` now selects it.
+
+Builds that do not help:
+
+| Build | 72 atoms | 576 atoms | Results |
+| --- | ---: | ---: | --- |
+| upstream `-O2` | 20.4 s | 80.9 s | reference |
+| `-O2 -flto` (lets the distance function inline) | 20.9 s | 79.7 s | identical |
+| `-O2 -fopenmp`, 4 threads | 20.9 s | 147.2 s | identical here |
+
+Poreblazer already carries OpenMP directives on the lattice loop, which the
+Makefile never enables. Switching them on is **slower** (and used 488 s of CPU for
+the 576-atom cell), and the loop has data races: loop temporaries such as
+`sig2_rdist2`, `rdist6`, `rdist12` and `lj_energy` are shared between threads, and
+the cube lists are filled using a counter read after another thread may have
+incremented it. Results matched in this test, but the races are real.
+
+Where speed-ups could come from, all needing changes to Poreblazer's Fortran:
+
+| Step | Parallel? | Better algorithm |
+| --- | --- | --- |
+| Lattice (cubes × atoms) | Yes: every cube is independent. Fix the races (private temporaries, per-thread cube lists merged afterwards) | Bin atoms into cells and check only those within the cutoff (12.8 Å) rather than every atom |
+| Pore size distribution (10,000 samples) | Yes: samples are independent, given a per-thread random stream | A spatial index over the sphere centres instead of a linear scan |
+| Surface area (atoms² × 500 trials) | Yes, per atom, with per-thread random streams | Cell list for the overlap test; negligible for current cells |
+| Percolation, volumes | Small | — |
+
+Poreblazer has no MPI support; splitting the grid across ranks is possible, but
+threads and the algorithmic changes above come first, and many cells already run
+in parallel as Slurm array tasks.
+
 ## Reproducing
 
 From the repository root, on a machine with Docker:
@@ -104,6 +176,15 @@ for t in O0 O2 O3; do
   docker run --rm --cpus=1 -v "$PWD/pb":/pb -v "$PWD/benchmarks/results":/results ambuild-bench-pb:$t \
     python3 /ambuild/benchmarks/bench_poreblazer.py run /pb $t /results/poreblazer_$t.json
 done
+```
+
+Poreblazer profile (the gprof build compiles and links with `-pg`):
+
+```sh
+docker build -f benchmarks/poreblazer-flags.Dockerfile -t ambuild-bench-pb:O2 .
+docker build -f benchmarks/poreblazer-flags.Dockerfile --build-arg OFLAGS="-O2 -pg" \n  --build-arg LINKERFLAGS=-pg -t ambuild-bench-pb:gprof .
+docker run --rm --cpus=1 -v "$PWD/benchmarks/results":/results ambuild-bench-pb:O2 \n  python3 /ambuild/benchmarks/profile_poreblazer.py /results/profile_O2.json
+docker run --rm --cpus=1 -v "$PWD/benchmarks/results":/results ambuild-bench-pb:gprof \n  python3 /ambuild/benchmarks/profile_poreblazer.py /results/profile_gprof.json --gprof
 ```
 
 The `--user 0:0` and `OMPI_ALLOW_RUN_AS_ROOT*` settings are for rootless Docker,

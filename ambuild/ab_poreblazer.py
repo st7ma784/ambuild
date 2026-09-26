@@ -41,25 +41,70 @@ Pd    2.899    0.048    106.42
 
 """
 
-DEFAULTS_DAT = """UFF.atoms
-2.58, 10.22, 3.314, 298
-12.8, 500
-0.2
-20.0, 0.25
-21908391
-2
+# Poreblazer's settings (its defaults.dat) and the values Ambuild uses by default.
+# visualisation controls the nitrogen-network files Poreblazer writes: "none", "xyz",
+# "grd" (nitrogen_network.grd, ~13 MB for a 20 A cell and growing with volume) or "both".
+DEFAULT_SETTINGS = {
+    "sigma_he": 2.58,  # helium atom sigma (A)
+    "eps_he": 10.22,  # helium atom epsilon (K)
+    "sigma_n": 3.314,  # nitrogen atom sigma (A)
+    "temperature": 298,  # K
+    "cutoff": 12.8,  # A
+    "surface_trials": 500,  # random trials per atom for the surface area
+    "cubelet_size": 0.2,  # grid spacing (A): runtime and memory scale with its inverse cube
+    "largest_pore": 20.0,  # largest anticipated pore diameter (A)
+    "psd_bin": 0.25,  # bin size for the pore size distribution (A)
+    "seed": 21908391,  # random number seed
+    "visualisation": "none",
+}
+VISUALISATION_OPTIONS = {"none": 0, "xyz": 1, "grd": 2, "both": 3}
+
+DEFAULTS_DAT_TEMPLATE = """UFF.atoms
+{sigma_he}, {eps_he}, {sigma_n}, {temperature}
+{cutoff}, {surface_trials}
+{cubelet_size}
+{largest_pore}, {psd_bin}
+{seed}
+{vis_option}
 
 ! Default forcefield: UFF
 ! Helium atom sigma (A), helium atom epsilon (K), nitrogen atom sigma (A), temperature (K)
 ! Cutoff distance (A), accessible surface area coefficient (1.0 for hard sphere
 ! surface, 1.122 for potential minimum surface), number of trials for surface area
 ! calculation
-! 0.2: Cubelet size (A)
+! {cubelet_size}: Cubelet size (A)
 ! Largest anticipated pore diameter (A), size of the bin for PSD (A)
 ! Random number seed
 
 ! Do not change these values unless you know what you are doing
 """
+
+
+def settings(**overrides):
+    """Return DEFAULT_SETTINGS updated with overrides, checking the names and visualisation"""
+    unknown = set(overrides) - set(DEFAULT_SETTINGS)
+    if unknown:
+        raise ValueError(
+            "Unknown Poreblazer settings {0}; known: {1}".format(sorted(unknown), sorted(DEFAULT_SETTINGS))
+        )
+    result = dict(DEFAULT_SETTINGS)
+    result.update(overrides)
+    if result["visualisation"] not in VISUALISATION_OPTIONS:
+        raise ValueError(
+            "visualisation must be one of {0}".format(sorted(VISUALISATION_OPTIONS))
+        )
+    return result
+
+
+def defaults_dat(**overrides):
+    """Return the text of Poreblazer's defaults.dat for the given settings"""
+    values = settings(**overrides)
+    values["vis_option"] = VISUALISATION_OPTIONS[values["visualisation"]]
+    return DEFAULTS_DAT_TEMPLATE.format(**values)
+
+
+# The file Ambuild wrote before the settings were configurable (it wrote the .grd network)
+DEFAULTS_DAT = defaults_dat(visualisation="grd")
 
 logger = logging.getLogger()
 
@@ -77,11 +122,11 @@ def write_input_dat(xyzin, A, B, C, directory=None):
     return input_dat
 
 
-def run_poreblazer(poreblazer_exe, input_dat, directory=None):
+def run_poreblazer(poreblazer_exe, input_dat, directory=None, settings=None):
     logger.info("Running poreblazer using executable: {}".format(poreblazer_exe))
     directory = directory or os.getcwd()
     with open(os.path.join(directory, "defaults.dat"), "w") as w:
-        w.write(DEFAULTS_DAT)
+        w.write(defaults_dat(**(settings or {})))
     with open(os.path.join(directory, "UFF.atoms"), "w") as w:
         w.write(UFF_ATOMS)
     return run_command(
