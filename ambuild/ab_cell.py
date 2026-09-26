@@ -2237,7 +2237,7 @@ class Cell:
                 return True
         return False
 
-    def poreblazer(self, poreblazer_exe, threads=None, **settings):
+    def poreblazer(self, poreblazer_exe, threads=None, memory_limit_mb=None, **settings):
         """Run Poreblazer on the current cell and return its results.
 
         Poreblazer runs in a new poreblazer_<fileCount> directory in outputDir. settings
@@ -2248,13 +2248,29 @@ class Cell:
         can split connected clusters; it needs Ambuild's Poreblazer fork, and a RuntimeError
         is raised if the executable does not report using it. threads sets
         OMP_NUM_THREADS for the OpenMP build of Ambuild's Poreblazer fork (default: the
-        environment's, which OpenMP takes as every CPU it can see). The return value is
-        the dict from ab_poreblazer.parse_output, plus the settings used, the run directory
-        and the executable's return code; values Poreblazer did not produce are None.
+        environment's, which OpenMP takes as every CPU it can see). memory_limit_mb, if
+        given, is the memory available to Poreblazer: a run whose estimated peak memory
+        (ab_poreblazer.memory_estimate_mb, which scales with the cell volume over
+        cubelet_size cubed) is larger raises a RuntimeError before starting. The return
+        value is the dict from ab_poreblazer.parse_output, plus the settings used, the
+        memory estimate, the run directory and the executable's return code; values
+        Poreblazer did not produce are None.
         """
         from ambuild import ab_poreblazer
 
         settings = ab_poreblazer.settings(**settings)  # Check before creating anything
+        memory_mb = ab_poreblazer.memory_estimate_mb(
+            self.dim[0], self.dim[1], self.dim[2], settings["cubelet_size"],
+            settings["percolation_labelling"],
+        )
+        if memory_limit_mb is not None and memory_mb > memory_limit_mb:
+            raise RuntimeError(
+                "Poreblazer would need about {0:.0f} MB for this {1} A cell at a cubelet size of "
+                "{2} A, more than the {3:.0f} MB available; ask for more memory or use a larger "
+                "cubelet_size".format(memory_mb, "x".join("%g" % d for d in self.dim),
+                                      settings["cubelet_size"], memory_limit_mb)
+            )
+        logger.info("Poreblazer memory estimate: %.0f MB", memory_mb)
 
         rundir = os.path.abspath(
             self.outputPath("{}_{}".format(ab_poreblazer.NAME_STEM, self._fileCount))
@@ -2282,6 +2298,7 @@ class Cell:
                 "Ambuild's Poreblazer fork. Output is in {1}".format(poreblazer_exe, rundir)
             )
         results["settings"] = settings
+        results["memory_estimate_mb"] = memory_mb
         results["threads"] = threads
         results["directory"] = rundir
         results["returncode"] = ret

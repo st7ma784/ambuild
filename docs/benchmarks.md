@@ -156,7 +156,7 @@ in parallel as Slurm array tasks.
 ## Poreblazer: Ambuild's OpenMP fork
 
 [st7ma784/poreblazer](https://github.com/st7ma784/poreblazer) (branch `ambuild`,
-commit `ac451fb`, described in its `FORK.md`) changes upstream 3.0.5 in four rounds:
+commit `8ed0c70`, described in its `FORK.md`) changes upstream 3.0.5 in five rounds:
 
 1. **OpenMP made correct** (commit `618d0c0`): private temporaries and cubelet lists
    built after the lattice loop, and the 10,000 PSD sample sites drawn up front in the
@@ -187,6 +187,7 @@ commit `ac451fb`, described in its `FORK.md`) changes upstream 3.0.5 in four rou
    - *Vectorised lattice distances*: a separate loop over contiguous arrays with an exact,
      vectorisable `anint`. The Makefile adds `-ffp-contract=off` (no fused multiply-adds)
      and `-fvect-cost-model=dynamic`.
+5. **Half the memory** (commit `8ed0c70`); see "Memory" below.
 
 `benchmarks/compare_poreblazer.py` runs each build on the same saved structures, in
 a container limited to 8 CPUs (`benchmarks/results/compare_*.json`). The first four
@@ -257,6 +258,51 @@ Across the benchmark cells (`compare_round4*.json`, grid file written):
 
 For the near-empty cells, most of what is left is writing `nitrogen_network.grd`
 (20 s at 60 Å), which Ambuild does not ask for by default.
+
+### Memory
+
+Poreblazer's memory scales with the number of grid cubes, (side / cubelet size)³: 15.6
+million at 50 Å and 0.2 Å, 125 million at 100 Å. Upstream and the earlier fork kept
+about 70 bytes per cube. The fork now keeps about 34, all of them needed:
+
+| Per cube | Bytes | What |
+| --- | ---: | --- |
+| `lattice_rdist2` | 8 | pore radius (squared), read by the PSD, the limiting diameter and the grid file |
+| `lattice_lj_he` | 8 | helium Lennard-Jones energy (could be recomputed, at the cost of lattice time) |
+| 4 masks | 4 | geometric, helium and nitrogen accessibility, and the limiting diameter's scratch mask |
+| percolation labels | 4 | only while a percolation analysis runs (4 more with exact labelling) |
+| sorted radii | 8 × accessible fraction | the limiting diameter's bisection |
+| nitrogen list | 4 × accessible fraction | the PSD's sample sites |
+
+Removed: the stored indices of each cube (computed from its number instead), an unused
+list of geometric cubes, a helium list that repeated the helium mask, three index
+copies in the sorted PSD array, and the 2-byte masks (now 1 byte). The arrays stay
+separate, one per quantity (structure of arrays): the loops read one or two of them at a
+time and the lattice distances vectorise, so packing them into a record per cube would
+only add padding.
+
+| Cell | Before | After |
+| --- | ---: | ---: |
+| 20 Å | 110 MB | 86 MB |
+| 30 Å | 235 MB | 149 MB |
+| 40 Å | 550 MB | 276 MB |
+| 50 Å, 1,800 atoms | 1,045 MB | 502 MB |
+| 60 Å | 1,857 MB | 929 MB |
+
+Run times are unchanged, and output is still identical:
+- the default labelling matches upstream in 12 of 12 runs;
+- exact labelling matches its reference in 6 of 6;
+- the 50 Å cell matches upstream on 1 and 8 threads.
+
+`ab_poreblazer.memory_estimate_mb(A, B, C, cubelet_size)` bounds the peak: 64 MB plus
+36 bytes per cube, or 40 with exact labelling. It uses Poreblazer's own grid
+arithmetic. It is within 25% above every measurement, and gives about 4.4 GB for a 100 Å
+cell.
+- `Cell.poreblazer(exe, memory_limit_mb=...)` refuses a cell that would not fit, before
+  starting, and returns the estimate as `memory_estimate_mb`.
+- The Slurm fan-out asks for the estimate as `--mem`, plus 10% and room for the Python
+  process (`AMBUILD_ARRAY_MEM` overrides it; `none` uses the site's default). Each task
+  passes its allocation on as the limit.
 
 ### Upstream's cluster labelling splits connected clusters
 
@@ -335,7 +381,7 @@ value and the hashes of the PSD files and `nitrogen_network.grd`):
 docker build -f benchmarks/poreblazer-flags.Dockerfile -t ambuild-bench-pb:upstream .
 docker build -f benchmarks/poreblazer-flags.Dockerfile \
   --build-arg POREBLAZER_REPO=https://github.com/st7ma784/poreblazer.git \
-  --build-arg POREBLAZER_COMMIT=ac451fbc9ad906e706c9552c3b857a1db587b40f \
+  --build-arg POREBLAZER_COMMIT=8ed0c7035de32e4737f4aa701ac98507ab5404e9 \
   -t ambuild-bench-pb:fork .   # the fork's Makefile flags
 docker run --rm -v "$PWD/cases":/cases ambuild-bench-pb:fork \
   python3 /ambuild/benchmarks/compare_poreblazer.py prepare /cases

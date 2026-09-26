@@ -40,6 +40,12 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 - `Cell.poreblazer(exe, threads=N)` sets `OMP_NUM_THREADS` for the run; Slurm
   Poreblazer array tasks request 2 CPUs each (`AMBUILD_ARRAY_CPUS`) and use
   them as threads.
+- Poreblazer fork commit `8ed0c70` halves its memory (about 34 instead of 70
+  bytes per grid cube; 1,045 to 502 MB for a 50 Å cell), results unchanged.
+  `ab_poreblazer.memory_estimate_mb()` bounds the peak from the cell size;
+  `Cell.poreblazer(exe, memory_limit_mb=...)` refuses a cell that would not fit
+  and returns `memory_estimate_mb`; the Slurm fan-out requests `--mem` from the
+  estimate (`AMBUILD_ARRAY_MEM` to override) and each task checks its allocation.
 - `benchmarks/compare_poreblazer.py`: two Poreblazer builds on identical
   structures, comparing results, output files (including the hash of
   `nitrogen_network.grd`) and speed; `--visualisation` picks the grid output.

@@ -122,6 +122,29 @@ def defaults_dat(**overrides):
 # The file Ambuild wrote before the settings were configurable (it wrote the .grd network)
 DEFAULTS_DAT = defaults_dat(visualisation="grd")
 
+# Peak memory of Ambuild's Poreblazer fork: a fixed part and bytes per grid cube, an upper
+# bound fitted to the measurements in docs/benchmarks.md (34 bytes per cube were measured
+# with every cube accessible). Exact labelling adds a 4-byte union-find table per cube.
+MEMORY_BASE_MB = 64
+MEMORY_BYTES_PER_CUBE = {"poreblazer": 36, "exact": 40}
+
+
+def grid_shape(A, B, C, cubelet_size=DEFAULT_SETTINGS["cubelet_size"]):
+    """The number of grid cubes along each side of an A x B x C (A) cell, as Poreblazer
+    computes it from input.dat (which holds the lengths to 4 significant figures)"""
+    A, B, C = (float(format(float(x), ".4")) for x in (A, B, C))
+    n = int(A / cubelet_size)
+    cube = A / n  # Poreblazer corrects the cubelet size to fit the first side
+    return int(A / cube), int(B / cube), int(C / cube)
+
+
+def memory_estimate_mb(A, B, C, cubelet_size=DEFAULT_SETTINGS["cubelet_size"],
+                       percolation_labelling=DEFAULT_SETTINGS["percolation_labelling"]):
+    """An upper bound on the peak memory (MB) of Ambuild's Poreblazer fork for an
+    A x B x C (A) cell: it scales with the number of grid cubes, (side / cubelet_size)^3"""
+    nx, ny, nz = grid_shape(A, B, C, cubelet_size)
+    return MEMORY_BASE_MB + nx * ny * nz * MEMORY_BYTES_PER_CUBE[percolation_labelling] / 2.0 ** 20
+
 logger = logging.getLogger()
 
 

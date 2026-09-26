@@ -146,10 +146,15 @@ runtime rather than on the current developer machines.
   - [ ] An expanding search in the cell list for cubes in pores wider than twice
     the cutoff, which now check every atom (costly only for large, dense-walled
     cells with very large pores).
-  - [ ] Memory: about 67 bytes per grid cube (1 GB at 50 Å, ~8 GB at 100 Å). Store
-    less per cube (e.g. compute `lattice_index` instead of storing it).
+  - [x] Memory: about 67 bytes per grid cube (1 GB at 50 Å, ~8 GB at 100 Å). Now
+    about 34 (fork `8ed0c70`), with `ab_poreblazer.memory_estimate_mb()` sizing
+    Slurm requests and refusing cells that would not fit.
+  - [ ] Recompute the helium Lennard-Jones energy for the cubes that percolate
+    instead of storing it for every cube (8 more bytes per cube, for some lattice
+    time); worth it for cells of ~100 Å or more.
 - [ ] Let recipes and the dispatcher (§8) choose `cubelet_size` (default stays
-  0.2 Å) and Poreblazer's threads, and size memory requests from the grid.
+  0.2 Å) and Poreblazer's threads; memory requests can come from
+  `ab_poreblazer.memory_estimate_mb()`.
 - [ ] Compare a CPU-optimized build against any GPU prototype; retain a GPU
   path only if it improves the target workloads after data-transfer overhead.
 - [x] Wrap Poreblazer configuration and executable discovery so it is not tied
