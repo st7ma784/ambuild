@@ -6,12 +6,14 @@
 #       -e PYTHONHASHSEED=0 ambuild-poreblazer python3 run_tests.py
 FROM python:3.11-slim
 
-ARG POREBLAZER_COMMIT=a753c72bf255da58a48a8898170f3307dac6a325
+# Ambuild's fork (upstream 3.0.5 with correct, enabled OpenMP)
+ARG POREBLAZER_REPO=https://github.com/st7ma784/poreblazer.git
+ARG POREBLAZER_COMMIT=618d0c0ce264ab1c3437f5ae1820d2d140668e99
 RUN apt-get update \
  && apt-get install -y --no-install-recommends gfortran make git ca-certificates \
  && rm -rf /var/lib/apt/lists/*
-# The upstream Makefile compiles with gfortran -O2 (its OFLAGS)
-RUN git clone https://github.com/richardjgowers/poreblazer.git /opt/poreblazer \
+# The fork's Makefile compiles with gfortran -O2 -fopenmp
+RUN git clone "$POREBLAZER_REPO" /opt/poreblazer \
  && cd /opt/poreblazer && git checkout "$POREBLAZER_COMMIT" \
  && cd src && make
 RUN pip install --no-cache-dir numpy

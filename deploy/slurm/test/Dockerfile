@@ -3,13 +3,13 @@
 FROM python:3.11-slim-bookworm AS poreblazer
 RUN apt-get update && apt-get install -y --no-install-recommends gfortran make git ca-certificates \
  && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/richardjgowers/poreblazer.git /src/poreblazer \
- && cd /src/poreblazer && git checkout a753c72bf255da58a48a8898170f3307dac6a325 \
+RUN git clone https://github.com/st7ma784/poreblazer.git /src/poreblazer \
+ && cd /src/poreblazer && git checkout 618d0c0ce264ab1c3437f5ae1820d2d140668e99 \
  && cd src && make
 
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        slurm-wlm munge python3 python3-pip python3-venv libgfortran5 procps \
+        slurm-wlm munge python3 python3-pip python3-venv libgfortran5 libgomp1 procps \
  && rm -rf /var/lib/apt/lists/*
 RUN python3 -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
