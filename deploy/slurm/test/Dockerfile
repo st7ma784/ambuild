@@ -4,7 +4,7 @@ FROM python:3.11-slim-bookworm AS poreblazer
 RUN apt-get update && apt-get install -y --no-install-recommends gfortran make git ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 RUN git clone https://github.com/st7ma784/poreblazer.git /src/poreblazer \
- && cd /src/poreblazer && git checkout 24d884e3a5b0f7d674faf9256e809844ad58aab1 \
+ && cd /src/poreblazer && git checkout ac451fbc9ad906e706c9552c3b857a1db587b40f \
  && cd src && make
 
 FROM debian:trixie-slim

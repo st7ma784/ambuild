@@ -140,11 +140,14 @@ runtime rather than on the current developer machines.
 - [x] Algorithmic changes in the same fork: a cell list so each grid cube checks
   only atoms within the cutoff (`3ce6695`: lattice step 3.4x faster at 40 Å,
   output bit-identical to upstream in 24 of 24 runs, `docs/benchmarks.md`).
-  - [ ] A spatial index for the PSD search, now the largest cost for dense cells
-    (each of 10,000 samples scans the cubes sorted by pore radius).
+  - [x] A spatial index for the PSD search (round 4, fork `ac451fb`: block search,
+    29 s to 1.5 s on the 50 Å cell), with a one-pass spanning test, a parallel
+    surface area and vectorised lattice distances; all bit-identical.
   - [ ] An expanding search in the cell list for cubes in pores wider than twice
     the cutoff, which now check every atom (costly only for large, dense-walled
     cells with very large pores).
+  - [ ] Memory: about 67 bytes per grid cube (1 GB at 50 Å, ~8 GB at 100 Å). Store
+    less per cube (e.g. compute `lattice_index` instead of storing it).
 - [ ] Let recipes and the dispatcher (§8) choose `cubelet_size` (default stays
   0.2 Å) and Poreblazer's threads, and size memory requests from the grid.
 - [ ] Compare a CPU-optimized build against any GPU prototype; retain a GPU

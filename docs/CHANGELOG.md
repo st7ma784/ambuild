@@ -26,6 +26,10 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   faster percolation relabelling and a faster `nitrogen_network.grd` writer,
   still bit-identical to upstream: 7x faster than upstream on 8 threads for
   the dense 30–40 Å cells.
+- Poreblazer fork round 4 (commit `ac451fb`), still bit-identical to upstream:
+  a block search for the pore size distribution, a one-pass spanning test, a
+  parallel surface area with a cell list, and vectorised lattice distances. A 50 Å,
+  1,800-atom cell drops from 67 s to 12 s on 8 threads (368 s to 54 s on 1).
 - Opt-in exact percolation labelling: `Cell.poreblazer(exe,
   percolation_labelling="exact")` (fork commit `24d884e`). Poreblazer 3.0.5's
   cluster labelling can split one connected cluster into several, which affects

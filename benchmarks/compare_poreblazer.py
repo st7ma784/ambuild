@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import profile_poreblazer as pp
 
-CASES = [(20, 2), (30, 6), (30, 48), (40, 14), (40, 2), (60, 4)]  # (box A, benzene blocks); the last two are near-empty
+CASES = [(20, 2), (30, 6), (30, 48), (40, 14), (40, 2), (60, 4), (50, 150)]  # (box A, benzene blocks); (40, 2) and (60, 4) are near-empty
 
 
 def prepare(args):
