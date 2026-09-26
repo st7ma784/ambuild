@@ -16,6 +16,13 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Root `Dockerfile`: the runtime image, with Python 3.12, HOOMD-blue 7 and NumPy
+  from conda-forge and Ambuild installed, in debian-slim, running as a non-root
+  user. Targets `ambuild` (585 MB) and `ambuild-poreblazer` (591 MB, the default,
+  with Poreblazer built at the pinned commit with upstream flags);
+  `HOOMD_VARIANT=gpu` for CUDA. `AMBUILD_PARAMS_DIR`, `AMBUILD_BLOCKS_DIR` and
+  `POREBLAZER_EXE` point at the bundled parameters, example blocks and
+  Poreblazer. CI builds it and runs the full suite inside it.
 - HOOMD-blue 4.0 and later (tested with 7.2.0 from conda-forge):
   `ambuild/hoomd4.py` ports the HOOMD 2 engine to the `hoomd.Simulation` API
   with the same force field (LJ pairs, harmonic bonds and angles, periodic
@@ -154,6 +161,13 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   install. Install HOOMD-blue from conda-forge.
 
 ### Fixed
+- **With HOOMD-blue 2 or later installed, `Cell.writeXyz()` wrote files with no
+  atoms, so `Cell.poreblazer()` analysed an empty box** (surface area NaN,
+  diameters infinite). `cellData()` returned rigid-body particles instead of
+  atom coordinates; `writeXyz()`, `writeCar()` and `ab_util`'s per-fragment
+  export now ask for atoms. This predates 2.0.1: Poreblazer results and `.xyz`
+  files from environments with HOOMD installed (such as the glotzerlab
+  containers) should be regenerated.
 - HOOMD-blue 3 and later were not detected (`hoomd.__version__` became
   `hoomd.version.version`), so Ambuild ran as if HOOMD were missing.
 - Docs said the upstream Poreblazer Makefile compiles without optimisation;

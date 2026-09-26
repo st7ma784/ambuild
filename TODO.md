@@ -36,10 +36,12 @@ runtime rather than on the current developer machines.
 - [x] Run the CPU/unit test suite on a small Python version matrix.
   - `testCell.testWriteCml` and `testCatalysis.testUnbonding` are marked
     `expectedFailure` (stale reference CML; unimplemented `catalyst=` API).
-- [ ] Add a root `Dockerfile` only when the image is the supported reproducible
+- [x] Add a root `Dockerfile` only when the image is the supported reproducible
   runtime; pin its Python, HOOMD/CUDA, and system dependencies.
-  - `tests/docker/hoomd7.Dockerfile` pins Python 3.12 and HOOMD-blue 7.2.0 (CPU
-    or GPU) and is the candidate for the backend image.
+  - Root `Dockerfile`: Python 3.12, HOOMD-blue 7.2.0 (CPU or GPU) and Poreblazer
+    at a pinned commit, ~590 MB; CI runs the full suite inside it.
+- [ ] Publish the runtime image (e.g. GHCR, with the `ambuild-ingest` image, §7)
+  on version tags, and offer it to Slurm users through Apptainer/Singularity.
 - [ ] Make randomised tests deterministic individually (seed per test or
   inject an RNG) rather than relying on the suite-wide seed in `run_tests.py`.
 - [x] Move HOOMD integration tests into a separate, explicitly optional job.
