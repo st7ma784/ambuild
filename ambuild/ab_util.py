@@ -28,14 +28,22 @@ from ambuild import xyz_util
 PARAMS_DIR = os.path.join(AMBUILD_DIR, "tests", "params")
 
 
+def parseHoomdVersion(version):
+    """Return [major, minor, patch] from a HOOMD-blue version string such as "7.2.0" or "4.0.0rc1" """
+    import re
+
+    numbers = [int(n) for n in re.findall(r"\d+", version)[:3]]
+    return numbers + [0] * (3 - len(numbers))
+
+
 HOOMDVERSION = None
 try:
     import hoomd
 
-    HOOMDVERSION = hoomd.__version__
-    if isinstance(HOOMDVERSION, str):
-        HOOMDVERSION = [int(i) for i in HOOMDVERSION.split(".")]
-    del hoomd
+    # HOOMD-blue 2 has hoomd.__version__; 3 and later have hoomd.version.version
+    _version = getattr(getattr(hoomd, "version", None), "version", None) or hoomd.__version__
+    HOOMDVERSION = parseHoomdVersion(_version) if isinstance(_version, str) else list(_version)
+    del hoomd, _version
 except Exception:
     pass
 
