@@ -121,12 +121,27 @@ runtime rather than on the current developer machines.
     branch: output identical to upstream at every thread count; 3.1–5.4x faster
     on 8 threads for the 30–40 Å cells (`docs/benchmarks.md`). The images build
     it; `Cell.poreblazer(exe, threads=N)` and the Slurm tasks set the threads.
-  - [ ] Parallelise the nitrogen lattice's percolation analysis, now the floor
-    for small cells (~2.5 s at 30 Å).
+  - [x] Parallelise the nitrogen lattice's percolation analysis, then the floor
+    for small cells (~2.5 s at 30 Å). Measured: the percolation analysis itself
+    takes 0.1–0.4 s; the rest was writing `nitrogen_network.grd`, which Ambuild
+    no longer asks for by default. The grid is now written a plane at a time
+    (~30% faster), the percolation relabelling uses a lookup table, and the PSD
+    sort runs in parallel. The labelling itself stays serial (see below).
+  - [ ] Decide whether the fork fixes upstream's cluster labelling, which splits
+    connected clusters (54 of 60 random lattices). Exact labelling changes the
+    pore limiting diameter by up to ~2% and one PSD across the benchmark cells
+    (`docs/benchmarks.md`), so results would no longer match upstream; it would
+    also let the percolation analysis run in parallel.
   - [ ] Offer the race fix upstream (richardjgowers/poreblazer is unchanged since
     2018, so it may not be picked up).
-- [ ] Algorithmic changes in the same fork: a cell list so each grid cube checks
-  only atoms within the cutoff, and a spatial index for the PSD search.
+- [x] Algorithmic changes in the same fork: a cell list so each grid cube checks
+  only atoms within the cutoff (`3ce6695`: lattice step 3.4x faster at 40 Å,
+  output bit-identical to upstream in 24 of 24 runs, `docs/benchmarks.md`).
+  - [ ] A spatial index for the PSD search, now the largest cost for dense cells
+    (each of 10,000 samples scans the cubes sorted by pore radius).
+  - [ ] An expanding search in the cell list for cubes in pores wider than twice
+    the cutoff, which now check every atom (costly only for large, dense-walled
+    cells with very large pores).
 - [ ] Let recipes and the dispatcher (§8) choose `cubelet_size` (default stays
   0.2 Å) and Poreblazer's threads, and size memory requests from the grid.
 - [ ] Compare a CPU-optimized build against any GPU prototype; retain a GPU
