@@ -1,10 +1,12 @@
 """Write the HOOMD engine parity fixture: saved cells and their HOOMD-blue 2 energies.
 
-Run once under HOOMD-blue 2 from the tests directory:
+This was run once under HOOMD-blue 2.9.3, from the tests directory, before Ambuild
+dropped HOOMD 2:
 
     python test_data/hoomd_parity/make_reference.py
 
-testHoomdParity then checks that newer HOOMD-blue engines give the same energies.
+testHoomdParity checks the current engine against those energies. Do not regenerate
+them with the current engine, which would only test it against itself.
 """
 import json
 import os

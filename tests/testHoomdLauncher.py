@@ -206,7 +206,7 @@ class TestWithHoomd(unittest.TestCase):
             worker.analyse.last["potential_energy"], localEnergy, delta=1e-6 * abs(localEnergy)
         )
 
-        # All-atom, the mode HOOMD-blue 2 can decompose across MPI ranks
+        # All-atom: rigid-body calculations are never decomposed across MPI ranks
         kw = dict(rigidBody=False, optCycles=200, quiet=True)
         self.assertEqual(local.optimiseGeometry(**kw), worker.optimiseGeometry(**kw))
         self.assertLess(worker.analyse.last["potential_energy"], localEnergy)

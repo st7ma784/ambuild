@@ -1,9 +1,9 @@
 """MD engine for HOOMD-blue 4.0 and later (tested with 7.2).
 
-Ports hoomd2.Hoomd2 to the hoomd.Simulation API with the same force field:
+Ported from Ambuild's HOOMD-blue 2 engine (removed) with the same force field:
 Lennard-Jones pairs, harmonic bonds and angles, periodic dihedrals (HOOMD 2's
 harmonic dihedral with phi0 = 0) and Lennard-Jones walls, with rigid bodies through
-md.constrain.Rigid. As in hoomd2, charges are copied to the particles but no
+md.constrain.Rigid. As in the HOOMD 2 engine, charges are copied to the particles but no
 electrostatic force is applied.
 """
 import logging
@@ -236,7 +236,7 @@ class Hoomd4(MdEngineBase):
         base = hoomd.filter.Rigid(("center",)) if self.rigidBody else hoomd.filter.All()
         static = [i for i, s in enumerate(data.static) if s]
         if static:
-            # As hoomd2: remove the static fragments' atoms from the moving group
+            # As the HOOMD 2 engine did: remove the static fragments' atoms from the moving group
             return hoomd.filter.SetDifference(base, hoomd.filter.Tags(static))
         return base
 
@@ -292,7 +292,7 @@ class Hoomd4(MdEngineBase):
         finally:
             self.sim.operations.writers.remove(table)
             output.close()
-        # As with hoomd2, report success whether or not FIRE converged
+        # As the HOOMD 2 engine did, report success whether or not FIRE converged
         logger.info("Optimisation %s", "converged" if optimised else "did not converge")
         return True
 
