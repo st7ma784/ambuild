@@ -46,6 +46,18 @@ class Test(unittest.TestCase):
         self.assertEqual(self.csvRows(mycell.logcsv)[-1]["type"], "seed")
         self.assertEqual(os.getcwd(), self.cwd)
 
+    def testWriteXyzHasEveryAtom(self):
+        """writeXyz writes atoms, not HOOMD rigid-body particles, whether or not HOOMD is installed"""
+        mycell = self.makeCell(os.path.join(self.tmpdir, "run"))
+        mycell.seed(3)
+        mycell.writeXyz("cell.xyz")
+        mycell.close()
+        with open(os.path.join(self.tmpdir, "run", "cell.xyz")) as f:
+            lines = f.read().splitlines()
+        self.assertEqual(int(lines[0]), mycell.numAtoms())
+        self.assertEqual(len(lines) - 2, mycell.numAtoms())
+        self.assertGreater(mycell.numAtoms(), 0)
+
     def testTwoCellsSeparateDirs(self):
         cell1 = self.makeCell(os.path.join(self.tmpdir, "run1"))
         cell2 = self.makeCell(os.path.join(self.tmpdir, "run2"))

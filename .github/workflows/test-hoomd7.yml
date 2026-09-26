@@ -18,3 +18,20 @@ jobs:
       run: |
         docker run --rm --user "$(id -u)" -v "$PWD:/ambuild" -w /ambuild/tests \
           -e PYTHONPATH=/ambuild -e PYTHONHASHSEED=0 ambuild-hoomd7 python run_tests.py
+
+  image:
+    # The runtime image (root Dockerfile): the full suite against the installed package,
+    # with HOOMD-blue 7 and a real Poreblazer
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the ambuild-poreblazer image
+      run: docker build --target ambuild-poreblazer -t ambuild:test .
+    - name: Run the test suite in the image
+      run: |
+        docker run --rm --user "$(id -u)" -v "$PWD/tests:/tests" -w /tests \
+          -e PYTHONHASHSEED=0 ambuild:test python run_tests.py
+    - name: Image sizes
+      run: |
+        docker build -q --target ambuild -t ambuild:slim . > /dev/null
+        docker images ambuild

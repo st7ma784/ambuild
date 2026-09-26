@@ -27,8 +27,15 @@ pip install ./ambuild
 ```
 Use `"hoomd=7.2=gpu*"` for the CUDA build. conda-forge does not publish MPI builds, so running HOOMD-blue across MPI ranks (`AMBUILD_HOOMD_LAUNCHER`) needs HOOMD-blue built from source. `tests/docker/hoomd7.Dockerfile` builds a container with this environment.
 
-#### HOOMD-blue in Docker
-`tests/docker/hoomd7.Dockerfile` builds a lightweight (~580 MB) image with HOOMD-blue 7 from conda-forge:
+#### Docker
+The repository's `Dockerfile` builds the Ambuild runtime image (~590 MB): HOOMD-blue 7 from conda-forge, Poreblazer and Ambuild installed, running as a non-root user:
+```
+docker build -t ambuild .
+docker run --rm -v "$PWD:/work" -w /work --user "$(id -u):$(id -g)" ambuild python build.py
+```
+`--target ambuild` leaves out Poreblazer, and `--build-arg HOOMD_VARIANT=gpu` builds the CUDA variant. Inside the image, `AMBUILD_PARAMS_DIR`, `AMBUILD_BLOCKS_DIR` and `POREBLAZER_EXE` point at the bundled parameter files, example blocks and Poreblazer.
+
+For development, `tests/docker/hoomd7.Dockerfile` builds just the HOOMD-blue environment (~580 MB), for running this checkout's code without installing it:
 ```
 docker build -f tests/docker/hoomd7.Dockerfile -t ambuild-hoomd7 .
 docker build -f tests/docker/hoomd7.Dockerfile --build-arg HOOMD_VARIANT=gpu -t ambuild-hoomd7-gpu .

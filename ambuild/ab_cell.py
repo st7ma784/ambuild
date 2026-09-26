@@ -2971,7 +2971,7 @@ class Cell:
         """Car File
         """
         if not data:
-            data = self.cellData()
+            data = self.cellData(noRigidParticles=True)
         car = "!BIOSYM archive 3\n"
         if periodic:
             car += "PBC=ON\n"
@@ -3051,7 +3051,9 @@ class Cell:
         """
         ofile = self.outputPath(ofile)
         if data is None:
-            d = self.cellData(periodic=periodic, fragmentType=None)
+            # Atom coordinates, not HOOMD rigid-body particles (without this the file was
+            # empty whenever HOOMD-blue was installed)
+            d = self.cellData(periodic=periodic, fragmentType=None, noRigidParticles=True)
         else:
             d = data
         if periodic:
