@@ -155,6 +155,20 @@ class Test(unittest.TestCase):
         with self.assertRaises(ValueError):
             ab_poreblazer.settings(visualisation="png")
 
+    @unittest.skipUnless(os.path.isfile("/usr/bin/env"), "Needs /usr/bin/env as a dummy executable")
+    def testThreadsReachPoreblazer(self):
+        """threads sets OMP_NUM_THREADS for the run (env prints it into poreblazer.log)"""
+        rundir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, rundir)
+        mycell = ab_cell.Cell([20.0, 20.0, 20.0], paramsDir=PARAMS_DIR, outputDir=rundir)
+        mycell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "ch4.car"), fragmentType="A")
+        mycell.seed(3)
+        results = mycell.poreblazer("/usr/bin/env", threads=3)
+        mycell.close()
+        with open(os.path.join(results["directory"], "poreblazer.log")) as f:
+            self.assertIn("OMP_NUM_THREADS=3", f.read().splitlines())
+        self.assertEqual(results["threads"], 3)
+
     @unittest.skipUnless(os.path.isfile("/bin/cat"), "Needs /bin/cat as a dummy executable")
     def testSettingsReachPoreblazer(self):
         rundir = tempfile.mkdtemp()
