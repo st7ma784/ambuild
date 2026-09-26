@@ -21,16 +21,15 @@ def main(argv):
     with open(jobFile, "rb") as f:
         job = pickle.load(f)
 
-    import hoomd
-    from ambuild.hoomd2 import Hoomd2
+    from ambuild import ab_mdengine, ab_util
 
-    engine = Hoomd2(job["paramsDir"], outputDir=job["outputDir"])
+    engine = ab_mdengine.engineClass(ab_util.HOOMDVERSION)(job["paramsDir"], outputDir=job["outputDir"])
     engine.rCut = job["rCut"]
     d = {}
     ok = getattr(engine, job["method"])(job["data"], d=d, **job["kwargs"])
     result = engine.snapshotResult()  # Collective: every rank must call it
-    if hoomd.comm.get_rank() == 0:
-        result.update(ok=ok, d=d, ranks=hoomd.comm.get_num_ranks())
+    if result is not None:  # Only rank 0 has the result
+        result.update(ok=ok, d=d, ranks=engine.numRanks())
         tmp = resultFile + ".tmp"
         with open(tmp, "wb") as f:
             pickle.dump(result, f)

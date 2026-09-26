@@ -2501,37 +2501,19 @@ class Cell:
         **kw
     ):
 
-        """Run an MD simulation followed by a Geometry optimisation.
+        """Run an MD simulation followed by a geometry optimisation.
 
         Args:
-        See runMD and optimiseGeometry for acceptable arguments.
+        See runMD and optimiseGeometry for acceptable arguments; each ignores the other's.
+        Each part records its own step (runMD, then optimiseGeometry).
         """
-        if not self.mdEngineCls:
-            raise RuntimeError("No MDENGINE defined - cannot run MD.")
-        mdEngine = self.mdEngineCls(self.paramsDir, outputDir=self.outputDir)
-        assert rigidBody, "FIX runMD FOR ALL ATOM!!"
-        if doDihedral and doImproper:
-            raise RuntimeError("Cannot have impropers and dihedrals at the same time")
-        self.setRcut(rigidBody, mdEngine, kw)
-        d = {}
-        data = self.cellData(periodic=True, center=True, rigidBody=rigidBody)
-        ok = mdEngine.runMDAndOptimise(
-            data,
-            xmlFilename=xmlFilename,
-            rigidBody=rigidBody,
-            doDihedral=doDihedral,
-            doImproper=doImproper,
-            doCharges=doCharges,
-            d=d,
-            walls=self.walls,
-            wallAtomType=self.wallAtomType,
-            **kw
-        )
-
+        common = dict(rigidBody=rigidBody, doDihedral=doDihedral, doImproper=doImproper,
+                      doCharges=doCharges)
+        common.update(kw)
+        self.runMD(xmlFilename=xmlFilename, **common)
+        ok = self.optimiseGeometry(**common)
         if ok:
             logger.info("runMDAndOptimise succeeded")
-        self.analyse.stop("runMDAndOptimise", d)
-        mdEngine.updateCell(self)
         return ok
 
     def seed(
@@ -2737,17 +2719,7 @@ class Cell:
         return fragment.setMaxBond(bondType, count)
 
     def setMdEngineCls(self, hoomdVersion):
-        """Set the class definition for the MdEngine
-
-        We set a class rather then an instance as otherwise when running mutiple optimisations certain variables
-        get stored in the instance and aren't deleted on restart, generating errors in hoomd1 along the lines of:
-
-        *Warning*: Not all saved variables were cleared before calling reset()
-        *Warning*: 17 references to the particle data still exist somewhere
-        *Warning*: Going to try and reset anyways, further errors (such as out of memory) may result
-
-        Whenever we ditch hoomdblue 1, we can (probably) revert to using an instance.
-        """
+        """Set the class of MD engine to create for each calculation (see ab_mdengine)"""
         if hoomdVersion is None:
             logger.critical(
                 "HOOMD-BLUE could not be found! MD functionality will be unavailable."
@@ -2756,7 +2728,7 @@ class Cell:
         from ambuild import ab_hoomdlauncher
 
         launcher = ab_hoomdlauncher.launcherFromEnvironment()
-        if launcher is not None and hoomdVersion[0] >= 2:
+        if launcher is not None:
             # HOOMD must still be importable here: cellData() builds its rigid-body data.
             # Bind the launcher now: an engine is created for each calculation.
             self.mdEngineCls = functools.partial(ab_hoomdlauncher.HoomdLauncher, launcher=launcher)
@@ -2766,16 +2738,13 @@ class Cell:
                 " ".join(launcher) or "a separate process",
             )
             return
-        if hoomdVersion[0] < 2:
-            from ambuild.hoomd1 import Hoomd1
+        from ambuild import ab_mdengine
 
-            self.mdEngineCls = Hoomd1
-        else:
-            from ambuild.hoomd2 import Hoomd2
-
-            self.mdEngineCls = Hoomd2
+        self.mdEngineCls = ab_mdengine.engineClass(hoomdVersion)
         logger.info(
-            "Using HOOMD-BLUE version: {0}.{1}.{2}".format(*ab_util.HOOMDVERSION)
+            "Using HOOMD-BLUE version %s with %s",
+            ".".join(map(str, hoomdVersion)),
+            self.mdEngineCls.__name__,
         )
         return
 
