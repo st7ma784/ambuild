@@ -1,6 +1,6 @@
 """Time HOOMD-blue calculations in-process, in one worker process and across MPI ranks.
 
-Run inside an MPI build of HOOMD-blue 2 (see docs/benchmarks.md):
+Run inside an MPI build of HOOMD-blue (see docs/benchmarks.md, measured with HOOMD 2.9.3):
 
     python3 bench_hoomd.py OUT.json [--sizes 30 60 90] [--ranks 2 4 8] [--repeats 3]
 
@@ -67,7 +67,7 @@ def main():
     parser.add_argument("--mpirun", default="mpirun --oversubscribe -n {n}")
     parser.add_argument("--workdir", default="/tmp/bench_hoomd")
     args = parser.parse_args()
-    # In-process HOOMD-blue 2 parses the command line in context.initialize()
+    # HOOMD-blue 2 parsed the command line in context.initialize(); harmless for 4+
     sys.argv = sys.argv[:1]
 
     cases = [

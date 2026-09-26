@@ -1211,7 +1211,7 @@ class Cell:
         d.cell = self.dim
         if fragmentType is not None:
             if RIGIDPARTICLES:
-                assert False, "Need to update for HOOMD2"
+                assert False, "fragmentType is not supported with rigid particles"
             # Only returning data for one type of fragment
             assert (
                 fragmentType in self.fragmentTypes()
@@ -2749,7 +2749,7 @@ class Cell:
         return
 
     def setRcut(self, rigidBody, mdEngine, kw):
-        """if rCut not in kw, for hoomd2 rigidBodies calculate from max block size or use mdEngine default"""
+        """if rCut not in kw, for rigid bodies calculate from max block size or use mdEngine default"""
         RIGIDPARTICLES = (
             rigidBody and ab_util.HOOMDVERSION and ab_util.HOOMDVERSION[0] > 1
         )

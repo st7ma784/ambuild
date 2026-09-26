@@ -9,7 +9,7 @@ runtime rather than on the current developer machines.
 - [ ] Replace `/opt/ambuild.git`, `/opt/paramsDir`, Dropbox paths, and absolute
   interpreter paths in `standard_inputs/` and `ambuild/`.
   - Partly done: example scripts read `AMBUILD_PARAMS_DIR`, `AMBUILD_BLOCKS_DIR`
-    and `POREBLAZER_EXE` (defaults still `/opt/...`); `hoomd2.py` shebang fixed.
+    and `POREBLAZER_EXE` (defaults still `/opt/...`).
     `ab_util.py` still inserts the repo root into `sys.path` for legacy pickles.
 - [ ] Resolve repository data with `pathlib` where data is part of the
   checkout; pass user data, parameter directories, and external executables as
@@ -23,8 +23,9 @@ runtime rather than on the current developer machines.
   - After the HOOMD 7 port (§5): review each dependency and image. NumPy is the
     only hard dependency; HOOMD-blue comes from conda-forge only (not PyPI;
     the broken `hoomd` pip extra is removed); Poreblazer is compiled from
-    source; the 2020 glotzerlab images (7–13 GB) can go once HOOMD 2 is
-    dropped.
+    source. The 2020 glotzerlab images (7.5–13 GB) are replaced by
+    `tests/docker/hoomd7.Dockerfile` (~580 MB: micromamba environment copied
+    into debian-slim).
 
 ## 2. Reproducible tests and CI/CD
 
@@ -37,13 +38,17 @@ runtime rather than on the current developer machines.
     `expectedFailure` (stale reference CML; unimplemented `catalyst=` API).
 - [ ] Add a root `Dockerfile` only when the image is the supported reproducible
   runtime; pin its Python, HOOMD/CUDA, and system dependencies.
+  - `tests/docker/hoomd7.Dockerfile` pins Python 3.12 and HOOMD-blue 7.2.0 (CPU
+    or GPU) and is the candidate for the backend image.
 - [ ] Make randomised tests deterministic individually (seed per test or
   inject an RNG) rather than relying on the suite-wide seed in `run_tests.py`.
 - [x] Move HOOMD integration tests into a separate, explicitly optional job.
   Validate whether a self-hosted GPU runner is required before making this a
   required check.
-  - `test-hoomd2.yml` runs the HOOMD suite (`build`) and the MPI launcher
-    tests (`mpi`) on CPU. A GPU runner has not been evaluated.
+  - `test-hoomd7.yml` runs the full suite, with the HOOMD parity test, on
+    HOOMD-blue 7 (CPU). The multi-rank MPI test went with HOOMD 2: there is no
+    MPI build of HOOMD-blue 4+ to run it on (§7). A GPU runner has not been
+    evaluated.
 - [ ] Add release automation to build sdist/wheels and publish on version tags.
 - [ ] Add dependency and container scanning, test artifacts, and a documented
   release/versioning policy.
@@ -119,15 +124,15 @@ runtime rather than on the current developer machines.
   layouts, and `testCell.testCat2Paf2` fails with "Error computing cell list"
   for others. All three are skipped.
 - [ ] Fix `Cell.writeCar()`, which indexes `CellData` like a dict.
-- [ ] In-process HOOMD-blue 2 parses the build script's command line in
+- [x] In-process HOOMD-blue 2 parses the build script's command line in
   `hoomd.context.initialize()`, so scripts that take their own arguments fail
-  ("no such option"). Pass HOOMD an explicit, empty argument string.
+  ("no such option"). Resolved by dropping HOOMD 2; HOOMD-blue 4+ does not.
 - [x] Parse Poreblazer output (surface area, pore volume, pore limiting and
   largest cavity diameters, pore size distribution) into a result dict.
   Today Ambuild runs it and leaves the files unread.
 - [x] Pass `directory=` to `ab_util.run_command` rather than calling
   `os.chdir` in `Cell.poreblazer()`.
-- [ ] Port the MD engine to HOOMD-blue 7 (conda-forge 7.2.0; HOOMD 2 is
+- [x] Port the MD engine to HOOMD-blue 7 (conda-forge 7.2.0; HOOMD 2 is
   end-of-life and pinned to a 2020 container). In order:
   - [x] Define the MD engine interface the rest of Ambuild uses:
     `optimiseGeometry`, `runMD`, `snapshotResult`, `updateCell` (the
@@ -146,9 +151,9 @@ runtime rather than on the current developer machines.
     conda-forge publishes no MPI build of HOOMD-blue, so this needs HOOMD-blue
     built from source (or Spack); decide whether MPI is worth it first
     (`docs/benchmarks.md`).
-  - [ ] Then remove `hoomd2.py`, the 2020 images and `test-hoomd2.yml`.
+  - [x] Then remove `hoomd2.py`, the 2020 images and `test-hoomd2.yml`.
     HOOMD 3+ no longer parses the command line, which also fixes the in-process
-    argument problem below. Moving CI and `deploy/slurm` to HOOMD 7 comes first.
+    argument problem below.
 - [ ] Split `ab_cell.py` (~3,100 lines) along existing seams: building
   (seed/grow/join/zip), simulation adapters, I/O (`write*`, pickles), analysis.
 - [ ] Add a versioned, non-pickle serialisation of a cell (JSON or HDF5) for
@@ -214,11 +219,13 @@ runtime rather than on the current developer machines.
     tested here with `mpirun` on 1, 2 and 4 ranks in the glotzerlab OpenMPI
     image (identical static energies) and with `srun` launching plain
     processes in the Slurm test cluster.
-  - [ ] Rigid bodies under MPI: HOOMD-blue 2 domain decomposition fails for
+  - [ ] Rigid bodies under MPI: HOOMD-blue 2 domain decomposition failed for
     Ambuild's bonded rigid bodies ("Error during communication", "Error in
     bond calculation"), so rigid-body calculations, Ambuild's default, run on
-    one process. Revisit with the HOOMD 4 engine (§5) rather than patching
-    HOOMD 2.
+    one process. Untested with the HOOMD 4+ engine.
+  - [ ] If MPI is wanted: build an MPI image of HOOMD-blue 4+ from source (or
+    Spack) for clusters and for the launcher's multi-rank CI test, which was
+    removed with HOOMD 2. conda-forge publishes no MPI build.
 - [ ] Try the Slurm scripts on the real cluster: partitions, GPU `--gres`,
   module loads and the shared filesystem path.
 - [ ] Retention for object storage and the `.ambuild-uploaded` markers;

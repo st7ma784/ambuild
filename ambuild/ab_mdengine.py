@@ -12,10 +12,8 @@ provides:
     numRanks() -> int         the number of MPI ranks the calculation ran on
 
 data is the CellData from Cell.cellData(); keyword arguments are those of
-Cell.optimiseGeometry and Cell.runMD. Engines are:
-
-    hoomd2.Hoomd2   HOOMD-blue 2.x
-    hoomd4.Hoomd4   HOOMD-blue 4.0 and later
+Cell.optimiseGeometry and Cell.runMD. The engine is hoomd4.Hoomd4, for HOOMD-blue
+4.0 and later. HOOMD-blue 1 and 2 are no longer supported.
 """
 import itertools
 import os
@@ -27,19 +25,13 @@ def engineClass(hoomdVersion):
     """Return the MD engine class for a HOOMD-blue version given as [major, minor, patch]"""
     if hoomdVersion is None:
         return None
-    major = hoomdVersion[0]
-    if major >= 4:
+    if hoomdVersion[0] >= 4:
         from ambuild.hoomd4 import Hoomd4
 
         return Hoomd4
-    if major == 2:
-        from ambuild.hoomd2 import Hoomd2
-
-        return Hoomd2
     raise RuntimeError(
-        "HOOMD-blue {0} is not supported: use 2.x or 4.0 and later".format(
-            ".".join(map(str, hoomdVersion))
-        )
+        "HOOMD-blue {0} is not supported: install HOOMD-blue 4.0 or later from conda-forge "
+        "(see README)".format(".".join(map(str, hoomdVersion)))
     )
 
 

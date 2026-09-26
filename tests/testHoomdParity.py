@@ -1,8 +1,9 @@
 """
-Newer HOOMD-blue engines give the same energies as HOOMD-blue 2 for the same cells.
+The HOOMD-blue engine gives the same energies as HOOMD-blue 2 did for the same cells.
 
-test_data/hoomd_parity holds saved cells and their energies under HOOMD-blue 2
-(written by make_reference.py there).
+test_data/hoomd_parity holds saved cells and their energies under HOOMD-blue 2.9.3,
+written by make_reference.py there before HOOMD 2 support was removed. They are a fixed
+reference: regenerating them with the current engine would test it against itself.
 """
 import json
 import os
@@ -44,7 +45,7 @@ class Test(unittest.TestCase):
 
     def assertParity(self, name):
         energy, reference = self.staticEnergy(name)
-        # HOOMD-blue 2 in the reference container was built in single precision
+        # The HOOMD-blue 2.9.3 used for the reference was built in single precision
         self.assertAlmostEqual(energy, reference, delta=1e-4 * abs(reference),
                                msg="{0}: {1} vs HOOMD-blue 2 {2}".format(name, energy, reference))
 

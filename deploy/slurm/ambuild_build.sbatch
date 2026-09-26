@@ -8,7 +8,7 @@
 #
 # Ambuild runs as a single process. With more than one task (--ntasks=N), each HOOMD-blue
 # optimisation or MD run is launched across all N tasks with srun, which needs an MPI build
-# of HOOMD-blue 2. Set AMBUILD_SRUN_MPI to add --mpi=<type> (e.g. pmix) if your cluster
+# of HOOMD-blue 4+ (conda-forge's builds have no MPI; build HOOMD-blue from source). Set AMBUILD_SRUN_MPI to add --mpi=<type> (e.g. pmix) if your cluster
 # needs it, or set AMBUILD_HOOMD_LAUNCHER yourself to override the launcher entirely.
 # GPUs, if the HOOMD build supports them, are requested with e.g. --gpus-per-task=1.
 #SBATCH --job-name=ambuild-build

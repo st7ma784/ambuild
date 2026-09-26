@@ -64,7 +64,8 @@ child run, and a second upload follows the array.
 
 Ambuild runs as a single process. Submit with `--ntasks=N` to run each HOOMD-blue
 calculation across N MPI tasks (`srun --ntasks=N python -m ambuild.hoomd_worker`);
-this needs an MPI build of HOOMD-blue 2, and `AMBUILD_SRUN_MPI=pmix` (or similar)
+this needs an MPI build of HOOMD-blue 4+ (conda-forge has none: build it from source),
+and `AMBUILD_SRUN_MPI=pmix` (or similar)
 if your cluster's `srun` needs `--mpi=`. For example:
 
 ```sh
@@ -72,8 +73,8 @@ AMBUILD_SRUN_MPI=pmix deploy/slurm/submit_build.sh my_build.py --ntasks=8 --gpus
 ```
 
 Only all-atom calculations (`rigidBody=False`) are split across tasks; rigid-body
-calculations, Ambuild's default, run on one task because HOOMD-blue 2 cannot
-decompose Ambuild's bonded rigid bodies. Small cells are often faster on one task
+calculations, Ambuild's default, run on one task: HOOMD-blue 2 could not decompose
+Ambuild's bonded rigid bodies, and this is untested with HOOMD-blue 4+. Small cells are often faster on one task
 anyway; benchmark before scaling up.
 
 ## K3s fallback

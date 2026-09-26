@@ -9,11 +9,12 @@ ambuild.hoomd_worker, started with the command in AMBUILD_HOOMD_LAUNCHER:
     AMBUILD_HOOMD_LAUNCHER="srun --ntasks=4"   ...in 4 MPI ranks of the Slurm job
     AMBUILD_HOOMD_LAUNCHER="mpirun -n 4"       ...in 4 MPI ranks outside Slurm
 
-The worker's HOOMD build must support MPI for more than one rank. Rigid-body
-calculations (Ambuild's default) run in a single worker process without the launcher:
-HOOMD-blue 2's domain decomposition fails for Ambuild's bonded rigid bodies ("Error
-during communication", "Error in bond calculation"), while all-atom calculations
-(rigidBody=False) run across the ranks. This module does not import hoomd.
+The worker's HOOMD build must support MPI for more than one rank (conda-forge's
+does not). Rigid-body calculations (Ambuild's default) run in a single worker process
+without the launcher: HOOMD-blue 2's domain decomposition failed for Ambuild's bonded
+rigid bodies ("Error during communication", "Error in bond calculation") and this is
+untested with HOOMD-blue 4+, while all-atom calculations (rigidBody=False) run across
+the ranks. This module does not import hoomd.
 """
 import logging
 import os
@@ -44,7 +45,7 @@ def launcherFromEnvironment():
 def applyResult(cell, result):
     """Update the cell's coordinates and box from a HOOMD result.
 
-    result is the dict from Hoomd2.snapshotResult(): box [Lx, Ly, Lz], positions and
+    result is the dict from an engine's snapshotResult(): box [Lx, Ly, Lz], positions and
     images of every particle, and offset, the number of rigid-body centre particles
     that precede the atoms.
     """
@@ -76,7 +77,7 @@ def applyResult(cell, result):
 
 
 class HoomdLauncher:
-    """MD engine with the interface of hoomd2.Hoomd2 that runs each calculation in a worker"""
+    """MD engine (see ab_mdengine) that runs each calculation in a worker process"""
 
     # The most recent result, for diagnostics and tests (e.g. result["ranks"])
     lastResult = None
@@ -87,7 +88,7 @@ class HoomdLauncher:
         if launcher is None:
             launcher = launcherFromEnvironment() or []
         self.launcher = launcher
-        self.rCut = 5.0  # The Hoomd2 default; Cell.setRcut may change it
+        self.rCut = 5.0  # The engines' default; Cell.setRcut may change it
         self._result = None
 
     def optimiseGeometry(self, data, **kw):
@@ -119,8 +120,8 @@ class HoomdLauncher:
         launcher = self.launcher
         if launcher and kw.get("rigidBody"):
             logger.warning(
-                "Running rigid-body %s in one process: HOOMD-blue 2 domain decomposition "
-                "does not support Ambuild's bonded rigid bodies (launcher %s ignored)",
+                "Running rigid-body %s in one process: MPI domain decomposition of "
+                "Ambuild's bonded rigid bodies is unsupported (launcher %s ignored)",
                 method,
                 " ".join(launcher),
             )

@@ -104,6 +104,13 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
 
 ### Changed
+- `tests/run_tests_docker.sh` and the `misc/` Docker scripts use the HOOMD-blue 7
+  image instead of the 2020 glotzerlab images, pass GPUs only when asked
+  (`AMBUILD_GPU=1`, with the image built using `HOOMD_VARIANT=gpu`), and run as
+  the calling user, or as the container's root user under rootless Docker.
+- `tests/docker/hoomd7.Dockerfile` builds the micromamba environment in one stage
+  and copies it, pruned, into debian-slim: ~580 MB, against 7.5 and 13.3 GB for
+  the glotzerlab images it replaces.
 - `Cell.runMDAndOptimise()` runs `runMD()` then `optimiseGeometry()`, so it works
   with every engine (it needed HOOMD 1); it records two steps instead of one.
 - `Hoomd2` shares `MdEngineBase` with `Hoomd4`.
@@ -138,6 +145,11 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 ### Removed
 - HOOMD-blue 1 support: `ambuild/hoomd1.py` and its three tests, which only
   ran under HOOMD 1.
+- HOOMD-blue 2 support (`ambuild/hoomd2.py`); installing HOOMD-blue 2 now gives a
+  clear error. The parity test keeps HOOMD 2.9.3's energies as its fixed
+  reference.
+- `test-hoomd2.yml`, including the multi-rank MPI launcher job: there is no MPI
+  build of HOOMD-blue 4+ to run it on.
 - The `hoomd` pip extra: HOOMD-blue is not on PyPI, so it could never
   install. Install HOOMD-blue from conda-forge.
 
@@ -174,9 +186,8 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   is recorded as a `defaultdict` repr.
 - `Cell.writeCar()` fails when called without `data` (`CellData` is not
   subscriptable). Present before 2.0.1.
-- In-process HOOMD-blue 2 parses the build script's own command-line
-  arguments in `hoomd.context.initialize()`, so scripts that take
-  arguments fail with "no such option". HOOMD-blue 4+ does not.
+- Running HOOMD-blue across MPI ranks needs HOOMD-blue built from source, and
+  is no longer tested in CI.
 - Under MPI, only all-atom HOOMD calculations are decomposed; rigid-body
   calculations (the default) run on one process.
 
