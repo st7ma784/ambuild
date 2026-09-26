@@ -48,17 +48,18 @@ def buildCell(box, blocks, workdir):
     return xyz, atoms, added
 
 
-def defaultsWithCubelet(cubelet, visualisation="grd"):
+def defaultsWithCubelet(cubelet, visualisation="grd", labelling="poreblazer"):
     """defaults.dat with a different grid spacing (and the .grd output, as when profiled)"""
-    return ab_poreblazer.defaults_dat(cubelet_size=cubelet, visualisation=visualisation)
+    return ab_poreblazer.defaults_dat(cubelet_size=cubelet, visualisation=visualisation,
+                                      percolation_labelling=labelling)
 
 
-def runPoreblazer(exe, xyz, box, cubelet, rundir, gprof, visualisation="grd"):
+def runPoreblazer(exe, xyz, box, cubelet, rundir, gprof, visualisation="grd", labelling="poreblazer"):
     os.makedirs(rundir, exist_ok=True)
     os.replace(xyz, os.path.join(rundir, "ambuild.xyz"))
     inputDat = ab_poreblazer.write_input_dat("ambuild.xyz", box, box, box, directory=rundir)
     with open(os.path.join(rundir, "defaults.dat"), "w") as f:
-        f.write(defaultsWithCubelet(cubelet, visualisation))
+        f.write(defaultsWithCubelet(cubelet, visualisation, labelling))
     with open(os.path.join(rundir, "UFF.atoms"), "w") as f:
         f.write(ab_poreblazer.UFF_ATOMS)
 

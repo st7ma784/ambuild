@@ -44,6 +44,11 @@ Pd    2.899    0.048    106.42
 # Poreblazer's settings (its defaults.dat) and the values Ambuild uses by default.
 # visualisation controls the nitrogen-network files Poreblazer writes: "none", "xyz",
 # "grd" (nitrogen_network.grd, ~13 MB for a 20 A cell and growing with volume) or "both".
+# percolation_labelling selects the cluster labelling of the percolation analysis:
+# "poreblazer" (Poreblazer 3.0.5's, so results match upstream) or "exact" (union-find,
+# needs Ambuild's Poreblazer fork). Poreblazer's labelling can split one connected
+# cluster into several, which affects the pore limiting diameter and the PSD
+# (benchmarks/percolation_study/, docs/benchmarks.md).
 DEFAULT_SETTINGS = {
     "sigma_he": 2.58,  # helium atom sigma (A)
     "eps_he": 10.22,  # helium atom epsilon (K)
@@ -56,8 +61,10 @@ DEFAULT_SETTINGS = {
     "psd_bin": 0.25,  # bin size for the pore size distribution (A)
     "seed": 21908391,  # random number seed
     "visualisation": "none",
+    "percolation_labelling": "poreblazer",
 }
 VISUALISATION_OPTIONS = {"none": 0, "xyz": 1, "grd": 2, "both": 3}
+LABELLING_OPTIONS = {"poreblazer": 0, "exact": 1}
 
 DEFAULTS_DAT_TEMPLATE = """UFF.atoms
 {sigma_he}, {eps_he}, {sigma_n}, {temperature}
@@ -65,7 +72,7 @@ DEFAULTS_DAT_TEMPLATE = """UFF.atoms
 {cubelet_size}
 {largest_pore}, {psd_bin}
 {seed}
-{vis_option}
+{vis_line}
 
 ! Default forcefield: UFF
 ! Helium atom sigma (A), helium atom epsilon (K), nitrogen atom sigma (A), temperature (K)
@@ -93,13 +100,22 @@ def settings(**overrides):
         raise ValueError(
             "visualisation must be one of {0}".format(sorted(VISUALISATION_OPTIONS))
         )
+    if result["percolation_labelling"] not in LABELLING_OPTIONS:
+        raise ValueError(
+            "percolation_labelling must be one of {0}".format(sorted(LABELLING_OPTIONS))
+        )
     return result
 
 
 def defaults_dat(**overrides):
     """Return the text of Poreblazer's defaults.dat for the given settings"""
     values = settings(**overrides)
-    values["vis_option"] = VISUALISATION_OPTIONS[values["visualisation"]]
+    # The fork reads an optional labelling after the visualisation option; the default
+    # leaves it out, so the file is the one upstream reads
+    values["vis_line"] = str(VISUALISATION_OPTIONS[values["visualisation"]])
+    labelling = LABELLING_OPTIONS[values["percolation_labelling"]]
+    if labelling:
+        values["vis_line"] += ", {0}".format(labelling)
     return DEFAULTS_DAT_TEMPLATE.format(**values)
 
 
@@ -171,6 +187,9 @@ def parse_log(text):
     results["percolated_dimensions"] = int(m.group(1)) if m else None
     m = re.search(r"Poreblazer_v([0-9][0-9.]*[0-9])", text)
     results["version"] = m.group(1) if m else None
+    # Printed by Ambuild's fork only; None means a build that does not report it
+    m = re.search(r"Percolation labelling:\s*(\w+)", text)
+    results["percolation_labelling"] = m.group(1) if m else None
     return results
 
 

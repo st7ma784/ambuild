@@ -156,7 +156,7 @@ in parallel as Slurm array tasks.
 ## Poreblazer: Ambuild's OpenMP fork
 
 [st7ma784/poreblazer](https://github.com/st7ma784/poreblazer) (branch `ambuild`,
-commit `3ce6695`, described in its `FORK.md`) changes upstream 3.0.5 in two rounds:
+commit `24d884e`, described in its `FORK.md`) changes upstream 3.0.5 in three rounds:
 
 1. **OpenMP made correct** (commit `618d0c0`): private temporaries and cubelet lists
    built after the lattice loop, and the 10,000 PSD sample sites drawn up front in the
@@ -173,6 +173,8 @@ commit `3ce6695`, described in its `FORK.md`) changes upstream 3.0.5 in two roun
      of searching every label so far for every site.
    - `nitrogen_network.grd` written a plane per statement, ~30% faster. What remains
      is gfortran's number formatting, which libgfortran serialises across threads.
+3. **Opt-in exact percolation labelling** (commit `24d884e`), off by default; see
+   "Upstream's cluster labelling splits connected clusters" below.
 
 `benchmarks/compare_poreblazer.py` runs each build on the same saved structures, in
 a container limited to 8 CPUs (`benchmarks/results/compare_*.json`). The first four
@@ -222,9 +224,14 @@ of the six cells:
 | 30 Å | 576 | 7.83 Å | 7.83 Å | differs (larger nitrogen network) |
 | 40 Å | 24 | 42.96 Å | 42.97 Å | same |
 
-The fork keeps upstream's labelling so that its results match; fixing it is a
-decision about results (TODO.md §4). Exact labelling would also let the percolation
-analysis run in parallel.
+The fork keeps upstream's labelling by default, so its results match. Exact labelling
+is opt-in (commit `24d884e`): `Cell.poreblazer(exe, percolation_labelling="exact")`
+adds the labelling after the visualisation option in `defaults.dat` (`0, 1`), the fork logs
+`Percolation labelling: exact`, and Ambuild raises if the executable does not confirm
+it (upstream Poreblazer ignores the value). With the default, the fork still matches
+upstream in all 12 runs checked (six cells, 1 and 8 threads). With exact labelling it
+matches the experimental build above in all 12, and costs the same time. Exact
+labelling would also let the percolation analysis run in parallel.
 
 The full study is in `benchmarks/percolation_study/`, with its code and raw data. It
 includes an 8-site counterexample traced step by step and statistics on random
@@ -277,7 +284,7 @@ value and the hashes of the PSD files and `nitrogen_network.grd`):
 docker build -f benchmarks/poreblazer-flags.Dockerfile -t ambuild-bench-pb:upstream .
 docker build -f benchmarks/poreblazer-flags.Dockerfile \
   --build-arg POREBLAZER_REPO=https://github.com/st7ma784/poreblazer.git \
-  --build-arg POREBLAZER_COMMIT=3ce66957b23428ecfbaa11904bf67139aaa4d9c7 \
+  --build-arg POREBLAZER_COMMIT=24d884e3a5b0f7d674faf9256e809844ad58aab1 \
   --build-arg OFLAGS="-O2 -unshared -fopenmp" --build-arg LINKERFLAGS=-fopenmp -t ambuild-bench-pb:fork .
 docker run --rm -v "$PWD/cases":/cases ambuild-bench-pb:fork \
   python3 /ambuild/benchmarks/compare_poreblazer.py prepare /cases
