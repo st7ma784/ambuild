@@ -1,0 +1,34 @@
+{
+ "hoomd": "2.9.3",
+ "cases": {
+  "all_atom": {
+   "pickle": "cell_plain.pkl.gz",
+   "kwargs": {
+    "rigidBody": false
+   },
+   "potential_energy": 757.791497064246
+  },
+  "all_atom_dihedrals": {
+   "pickle": "cell_plain.pkl.gz",
+   "kwargs": {
+    "rigidBody": false,
+    "doDihedral": true
+   },
+   "potential_energy": 814.6006005353861
+  },
+  "rigid": {
+   "pickle": "cell_plain.pkl.gz",
+   "kwargs": {
+    "rigidBody": true
+   },
+   "potential_energy": 38.38103666835184
+  },
+  "all_atom_walls": {
+   "pickle": "cell_walls.pkl.gz",
+   "kwargs": {
+    "rigidBody": false
+   },
+   "potential_energy": 20197.455841158902
+  }
+ }
+}

@@ -1,0 +1,20 @@
+name: Test Ambuild HOOMD-blue 7
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  hoomd7:
+    # The full test suite, including the HOOMD engine parity test, with HOOMD-blue 7
+    # from conda-forge (tests/docker/hoomd7.Dockerfile)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the HOOMD-blue 7 image
+      run: docker build -f tests/docker/hoomd7.Dockerfile -t ambuild-hoomd7 .
+    - name: Run the test suite
+      run: |
+        docker run --rm --user "$(id -u)" -v "$PWD:/ambuild" -w /ambuild/tests \
+          -e PYTHONPATH=/ambuild -e PYTHONHASHSEED=0 ambuild-hoomd7 python run_tests.py
