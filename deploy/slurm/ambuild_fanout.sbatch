@@ -27,7 +27,11 @@ fi
 
 mem="${AMBUILD_ARRAY_MEM:-}"
 if [ -z "$mem" ]; then
-    mem=$(python "$here/poreblazer_memory.py" "$(head -n 1 "$list")" "$AMBUILD_RUN_DIR/inputs/params")
+    # the estimate is the last line (restoring the cell logs to stdout)
+    mem=$(python "$here/poreblazer_memory.py" "$(head -n 1 "$list")" "$AMBUILD_RUN_DIR/inputs/params" | tail -n 1)
+    case "$mem" in
+        ''|*[!0-9]*) echo "No Poreblazer memory estimate ($mem); using the site default" >&2; mem=none ;;
+    esac
 fi
 [ "$mem" = none ] && mem=""
 array=$(sbatch --parsable --array="0-$((count - 1))%${AMBUILD_ARRAY_MAX:-20}" \
