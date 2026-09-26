@@ -21,9 +21,10 @@ runtime rather than on the current developer machines.
 - [ ] Document optional dependencies separately: NumPy, HOOMD-Blue, and
   Poreblazer should not be required for the basic package or CPU test suite.
   - After the HOOMD 7 port (§5): review each dependency and image. NumPy is the
-    only hard dependency; HOOMD-blue now comes from conda-forge only (not
-    PyPI); Poreblazer is compiled from source; the 2020 glotzerlab images
-    (7–13 GB) can go once HOOMD 2 is dropped.
+    only hard dependency; HOOMD-blue comes from conda-forge only (not PyPI;
+    the broken `hoomd` pip extra is removed); Poreblazer is compiled from
+    source; the 2020 glotzerlab images (7–13 GB) can go once HOOMD 2 is
+    dropped.
 
 ## 2. Reproducible tests and CI/CD
 
@@ -128,22 +129,26 @@ runtime rather than on the current developer machines.
   `os.chdir` in `Cell.poreblazer()`.
 - [ ] Port the MD engine to HOOMD-blue 7 (conda-forge 7.2.0; HOOMD 2 is
   end-of-life and pinned to a 2020 container). In order:
-  - [ ] Define the MD engine interface the rest of Ambuild uses:
+  - [x] Define the MD engine interface the rest of Ambuild uses:
     `optimiseGeometry`, `runMD`, `snapshotResult`, `updateCell` (the
     launcher's `applyResult` already works from plain arrays), and drop
-    `hoomd1.py`.
-  - [ ] `hoomd7.py` behind that interface: `hoomd.Simulation` from a
+    `hoomd1.py` (`ambuild/ab_mdengine.py`).
+  - [x] `hoomd4.py` (HOOMD-blue 4.0 and later) behind that interface: `hoomd.Simulation` from a
     snapshot, `md.constrain.Rigid` for rigid bodies, `md.minimize.FIRE`,
     `md.methods.ConstantVolume`/`ConstantPressure` with thermostats, LJ pairs,
     harmonic bonds and angles, periodic dihedrals, charges, walls, and logging
     through `hoomd.logging` writers. Select it by HOOMD version, as today.
-  - [ ] Parity tests: the same cell gives the same static energy under HOOMD 2
-    and 7, and the HOOMD suite passes on both.
-  - [ ] Container and CI job with HOOMD 7 from conda-forge (micromamba);
-    re-test rigid bodies under MPI, which HOOMD 2 cannot decompose (§7).
+  - [x] Parity tests: the same cell gives the same static energy under HOOMD 2
+    and 7, and the HOOMD suite passes on both (`testHoomdParity`: within 3e-6).
+  - [x] Container and CI job with HOOMD 7 from conda-forge (micromamba)
+    (`tests/docker/hoomd7.Dockerfile`, `test-hoomd7.yml`).
+  - [ ] Re-test rigid bodies under MPI, which HOOMD 2 cannot decompose (§7).
+    conda-forge publishes no MPI build of HOOMD-blue, so this needs HOOMD-blue
+    built from source (or Spack); decide whether MPI is worth it first
+    (`docs/benchmarks.md`).
   - [ ] Then remove `hoomd2.py`, the 2020 images and `test-hoomd2.yml`.
     HOOMD 3+ no longer parses the command line, which also fixes the in-process
-    argument problem below.
+    argument problem below. Moving CI and `deploy/slurm` to HOOMD 7 comes first.
 - [ ] Split `ab_cell.py` (~3,100 lines) along existing seams: building
   (seed/grow/join/zip), simulation adapters, I/O (`write*`, pickles), analysis.
 - [ ] Add a versioned, non-pickle serialisation of a cell (JSON or HDF5) for
