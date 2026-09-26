@@ -28,7 +28,7 @@ pip install ./ambuild
 Use `"hoomd=7.2=gpu*"` for the CUDA build. conda-forge does not publish MPI builds, so running HOOMD-blue across MPI ranks (`AMBUILD_HOOMD_LAUNCHER`) needs HOOMD-blue built from source. `tests/docker/hoomd7.Dockerfile` builds a container with this environment.
 
 #### Docker
-The repository's `Dockerfile` builds the Ambuild runtime image (~590 MB): HOOMD-blue 7 from conda-forge, Poreblazer and Ambuild installed, running as a non-root user:
+The repository's `Dockerfile` builds the Ambuild runtime image (~590 MB): HOOMD-blue 7 from conda-forge, [Ambuild's Poreblazer fork](https://github.com/st7ma784/poreblazer) (OpenMP; set the threads with `OMP_NUM_THREADS` or `Cell.poreblazer(exe, threads=N)`) and Ambuild installed, running as a non-root user:
 ```
 docker build -t ambuild .
 docker run --rm -v "$PWD:/work" -w /work --user "$(id -u):$(id -g)" ambuild python build.py
@@ -260,12 +260,12 @@ Tests that need HOOMD-Blue are skipped unless it is installed; `tests/run_tests_
 
 ## Installation of optional dependencies
 ### Poreblazer
-To install [poreblazer](https://github.com/richardjgowers/poreblazer) for use by Ambuild, the following steps are required.
+Ambuild uses [its fork of Poreblazer](https://github.com/st7ma784/poreblazer), which is upstream [poreblazer](https://github.com/richardjgowers/poreblazer) 3.0.5 with its OpenMP code fixed and enabled: the output is identical to upstream's, and larger cells run several times faster on several threads (`docs/benchmarks.md`). The runtime image already contains it. To build it yourself:
 
-1. Checkout or download poreblazer from GitHub:
-```git clone https://github.com/richardjgowers/poreblazer.git```
+1. Check out the fork's `ambuild` branch:
+```git clone -b ambuild https://github.com/st7ma784/poreblazer.git```
 
 2. Install the [gfortran](https://gcc.gnu.org/wiki/GFortran) compiler. On Ubuntu/Debian, this should just be a case of running:
 ```sudo apt-get install gfortran```
 
-3. Compile the poreblazer executable. This is done in the ```src``` directory of the poreblazer directory, so cd into this directory and then run the command: ```make``` This should create the ```poreblazer.exe``` executable in this directory.
+3. Compile the poreblazer executable. This is done in the ```src``` directory of the poreblazer directory, so cd into this directory and then run the command: ```make``` This should create the ```poreblazer.exe``` executable in this directory. Set `OMP_NUM_THREADS` (or pass `threads=` to `Cell.poreblazer`) to choose how many threads it uses.
