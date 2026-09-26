@@ -1,0 +1,47 @@
+[
+ {
+  "returncode": 0,
+  "wall_seconds": 982.2893085479736,
+  "steps": {
+   "initialise": 0.7861278057098389,
+   "lattice": 700.8901581764221,
+   "helium_lattice": 0.5854840278625488,
+   "nitrogen_lattice": 0.44487833976745605,
+   "helium_volume": 0.1671748161315918,
+   "surface_area": 7.367719888687134,
+   "pore_distribution": 259.8923673629761,
+   "limiting_diameter": 12.149191856384277
+  },
+  "user_seconds": 979.84,
+  "system_seconds": 1.9,
+  "max_rss_mb": 1042.53515625,
+  "results": {
+   "system_volume_A3": 125000.0,
+   "system_mass_g_mol": 11700.0,
+   "system_density_g_cm3": 0.155,
+   "helium_volume_A3": 108289.212,
+   "helium_volume_cm3_g": 5.574,
+   "geometric_volume_A3": 110901.416,
+   "geometric_volume_cm3_g": 5.708,
+   "surface_area_A2": 29091.06,
+   "surface_area_m2_cm3": 2327.29,
+   "surface_area_m2_g": 14973.55,
+   "pore_limiting_diameter_A": 10.45,
+   "maximum_pore_diameter_A": 16.35,
+   "percolated_dimensions": 1,
+   "version": "3.0.5",
+   "percolation_labelling": null
+  },
+  "box": 50,
+  "blocks": 150,
+  "atoms": 1800,
+  "label": "upstream-big",
+  "threads": 1,
+  "case": "box50_blocks150",
+  "psd_sha256": "9201cdf03d388b690d10f685d679bbc88bbd8556aeb832d25be50bfdc6d81bec",
+  "psd_cumulative_sha256": "9467753195307e7a24445f6f54e8ae17d2d72d4b67b9b167e3dd0ee56ecd6855",
+  "nitrogen_grd_sha256": null,
+  "visualisation": "none",
+  "labelling": "poreblazer"
+ }
+]

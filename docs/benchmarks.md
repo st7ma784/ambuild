@@ -156,7 +156,7 @@ in parallel as Slurm array tasks.
 ## Poreblazer: Ambuild's OpenMP fork
 
 [st7ma784/poreblazer](https://github.com/st7ma784/poreblazer) (branch `ambuild`,
-commit `24d884e`, described in its `FORK.md`) changes upstream 3.0.5 in three rounds:
+commit `ac451fb`, described in its `FORK.md`) changes upstream 3.0.5 in four rounds:
 
 1. **OpenMP made correct** (commit `618d0c0`): private temporaries and cubelet lists
    built after the lattice loop, and the 10,000 PSD sample sites drawn up front in the
@@ -175,6 +175,18 @@ commit `24d884e`, described in its `FORK.md`) changes upstream 3.0.5 in three ro
      is gfortran's number formatting, which libgfortran serialises across threads.
 3. **Opt-in exact percolation labelling** (commit `24d884e`), off by default; see
    "Upstream's cluster labelling splits connected clusters" below.
+4. **Round 4** (commit `ac451fb`), each change still bit-identical:
+   - *Pore size distribution by blocks.* Each sample's answer is the largest sphere
+     containing its point. Cubes are grouped into blocks, visited from the largest radius
+     they hold down, stopping when no block left can beat the best sphere so far, and
+     skipping blocks out of reach. Same containment test, so same sphere.
+   - *Spanning test in one pass* over the grid, instead of up to three passes per
+     candidate cluster.
+   - *Surface area in parallel*: random numbers drawn first in upstream's order, atoms in
+     parallel, areas summed in atom order; the overlap test uses a cell list.
+   - *Vectorised lattice distances*: a separate loop over contiguous arrays with an exact,
+     vectorisable `anint`. The Makefile adds `-ffp-contract=off` (no fused multiply-adds)
+     and `-fvect-cost-model=dynamic`.
 
 `benchmarks/compare_poreblazer.py` runs each build on the same saved structures, in
 a container limited to 8 CPUs (`benchmarks/results/compare_*.json`). The first four
@@ -201,11 +213,50 @@ where nearly every cube falls back to checking every atom (which costs little th
 `psd.txt`, `psd_cumulative.txt` and `nitrogen_network.grd` files (the grid holds
 every cube's nearest-surface distance), at 1, 2, 4 and 8 threads (24 of 24 runs).
 
-What remains serial: writing `nitrogen_network.grd` when asked for (2–20 s, growing
-with the grid), and the percolation analysis in the helium lattice, nitrogen lattice
-and limiting diameter steps. Those cost 0.1–0.4 s each for the dense cells, and about
-7 s in all at 60 Å (27 million grid cubes). The biggest parallel cost left is the PSD
-search, which scans the sorted cubes for every sample (a spatial index would cut it).
+What remained serial after round 2: writing `nitrogen_network.grd` when asked for
+(2–20 s, growing with the grid), and the percolation analysis in the helium lattice,
+nitrogen lattice and limiting diameter steps. Those cost 0.1–0.4 s each for the dense
+cells, and about 7 s in all at 60 Å (27 million grid cubes). The biggest parallel cost
+left was the PSD search, which scanned the sorted cubes for every sample. Round 4 below
+deals with it.
+
+### Round 4: where the time went next
+
+A denser, larger cell (50 Å, 150 benzene blocks, 1,800 atoms; 15.6 million grid cubes,
+1 GB) shows where the time went after the cell list, without the grid file. Upstream
+takes 982 s on one thread for this cell (`compare_upstream_50A.json`): the fork is 18x
+faster on one thread and 84x faster on 8.
+
+| Step | Before round 4, 1 thread | After | Before, 8 threads | After |
+| --- | ---: | ---: | ---: | ---: |
+| Lattice | 95.2 s | 46.3 s | 12.9 s | 6.3 s |
+| Surface area | 7.1 s | 0.4 s | 7.1 s | 0.1 s |
+| Pore size distribution | 247.2 s | 3.8 s | 29.3 s | 1.5 s |
+| Limiting diameter | 15.9 s | 1.7 s | 15.7 s | 1.6 s |
+| **Total** | **367.6 s** | **54.4 s** | **67.3 s** | **11.7 s** |
+
+Every step that dominated is now small. The lattice step is left: its cost is inherent
+(each cube against the atoms within 12.8 Å), and it scales with threads.
+
+Across the benchmark cells (`compare_round4*.json`, grid file written):
+
+| Cell | Atoms | Upstream | Round 2, 8 threads | Now, 1 thread | 8 threads | Speed-up |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 20 Å | 24 | 2.4 s | 1.3 | 1.6 | 1.2 | 2.0x |
+| 30 Å | 72 | 20.1 s | 5.0 | 6.2 | 3.4 | 6.0x |
+| 40 Å | 168 | 112.6 s | 15.8 | 15.0 | 8.1 | 13.9x |
+| 30 Å | 576 | 84.4 s | 11.4 | 17.7 | 4.9 | 17.3x |
+| 40 Å, near-empty | 24 | 19.5 s | 10.3 | 13.1 | 9.3 | 2.1x |
+| 60 Å, near-empty | 48 | 70.5 s | 34.7 | 49.9 | 31.1 | 2.3x |
+
+**Output is still identical**:
+- the default labelling matches upstream in 12 of 12 runs (all 14 results and the
+  three file hashes);
+- exact labelling matches its reference in 6 of 6;
+- the 50 Å cell matches upstream at 1 and 8 threads (all 14 results and both PSD hashes).
+
+For the near-empty cells, most of what is left is writing `nitrogen_network.grd`
+(20 s at 60 Å), which Ambuild does not ask for by default.
 
 ### Upstream's cluster labelling splits connected clusters
 
@@ -284,8 +335,8 @@ value and the hashes of the PSD files and `nitrogen_network.grd`):
 docker build -f benchmarks/poreblazer-flags.Dockerfile -t ambuild-bench-pb:upstream .
 docker build -f benchmarks/poreblazer-flags.Dockerfile \
   --build-arg POREBLAZER_REPO=https://github.com/st7ma784/poreblazer.git \
-  --build-arg POREBLAZER_COMMIT=24d884e3a5b0f7d674faf9256e809844ad58aab1 \
-  --build-arg OFLAGS="-O2 -unshared -fopenmp" --build-arg LINKERFLAGS=-fopenmp -t ambuild-bench-pb:fork .
+  --build-arg POREBLAZER_COMMIT=ac451fbc9ad906e706c9552c3b857a1db587b40f \
+  -t ambuild-bench-pb:fork .   # the fork's Makefile flags
 docker run --rm -v "$PWD/cases":/cases ambuild-bench-pb:fork \
   python3 /ambuild/benchmarks/compare_poreblazer.py prepare /cases
 docker run --rm --cpus=1 -v "$PWD/cases":/cases -v "$PWD/benchmarks/results":/results ambuild-bench-pb:upstream \
