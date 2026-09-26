@@ -80,35 +80,55 @@ runtime rather than on the current developer machines.
 
 ## 4. Poreblazer investigation
 
-- [ ] Record the exact Poreblazer version, source revision, compiler flags, and
+- [x] Record the exact Poreblazer version, source revision, compiler flags, and
   input/output contract used by Ambuild.
   - Tested: v3.0.5, commit `a753c72` (2018-02-28), gfortran 14.2 with the
     upstream Makefile, which compiles with `-O2 -unshared` (its `OFLAGS`).
     Output contract: `ab_poreblazer.parse_output()`.
-  - Each run writes a ~13 MB `nitrogen_network.grd` (20 Å cell); decide
-    whether run storage keeps, compresses or drops it.
-- [ ] Profile representative workloads before changing Fortran code. Measure
+  - Each run wrote a ~13 MB `nitrogen_network.grd` (20 Å cell). Resolved:
+    Poreblazer's visualisation output now defaults to none; ask for it with
+    `Cell.poreblazer(exe, visualisation="grd")`.
+- [x] Profile representative workloads before changing Fortran code. Measure
   wall time, CPU time, memory, trial counts, and scaling with atom count and
   number of pores.
-- [ ] Identify hotspots in the Poreblazer source and classify them as serial,
+  - `benchmarks/profile_poreblazer.py`, `docs/benchmarks.md` ("where the time
+    goes"): the lattice step (cubes × atoms) and the pore size distribution take
+    ~90%; memory grows with grid volume (549 MB at 40 Å).
+- [x] Identify hotspots in the Poreblazer source and classify them as serial,
   OpenMP-parallel, MPI-parallel, or suitable for accelerator work.
+  - Both hotspots are independent per grid cube or per sample (OpenMP), with
+    algorithmic gains available (cell lists; a spatial index for the PSD).
+    Table in `docs/benchmarks.md`.
 - [ ] Confirm whether the target Poreblazer version supports MPI or can be
   cleanly extended to do so, then benchmark strong and weak scaling on the
   available Slurm cluster.
+  - No MPI support. OpenMP and the algorithmic changes come first; many cells
+    already run in parallel as Slurm array tasks.
 - [ ] Try low-risk improvements first: compiler optimization flags, I/O
   reduction, better batching, OpenMP where independence is proven, and a
   modern Fortran compiler/runtime.
   - Compiler flags ruled out (`docs/benchmarks.md`): upstream `-O2` is the
     fastest build; `-O3 -march=native` is 3–14% slower and `-O0` ~1.8x
-    slower, with identical results. Runtime grows ~5–10x per 10 Å of cell
-    edge, so OpenMP over the grid or splitting the work is the lever.
+    slower, with identical results. `-flto` gives nothing, and enabling the
+    existing OpenMP directives is slower (147 s vs 81 s on 4 threads) and racy.
+  - Rerun the flags comparison on scc-hdd-02 (older Westmere CPU, no AVX) once
+    that host's storage fault is fixed.
+- [ ] Fork Poreblazer and parallelise its two hotspots properly: private loop
+  temporaries and per-thread cube lists in `lattice_calculations`, per-thread
+  random streams for the 10,000 PSD samples; check results against
+  `tests/test_data/poreblazer` and the profile cells.
+- [ ] Algorithmic changes in the same fork: a cell list so each grid cube checks
+  only atoms within the cutoff, and a spatial index for the PSD search.
+- [ ] Let recipes and the dispatcher (§8) choose `cubelet_size`: 0.3 Å is 3.6x
+  faster than 0.2 Å with small changes in diameters, and sizes memory requests.
 - [ ] Compare a CPU-optimized build against any GPU prototype; retain a GPU
   path only if it improves the target workloads after data-transfer overhead.
-- [ ] Wrap Poreblazer configuration and executable discovery so it is not tied
+- [x] Wrap Poreblazer configuration and executable discovery so it is not tied
   to `/opt/poreblazer/src/poreblazer.exe`.
-  - Partly done: callers pass the executable to `Cell.poreblazer(exe)` and the
-    scripts and tests read `POREBLAZER_EXE`. `defaults.dat` and `UFF.atoms`
-    are still constants in `ab_poreblazer.py`.
+  - Callers pass the executable to `Cell.poreblazer(exe)`, the scripts, tests
+    and runtime image use `POREBLAZER_EXE`, and `Cell.poreblazer(exe,
+    **settings)` sets every `defaults.dat` value (`ab_poreblazer.DEFAULT_SETTINGS`).
+    `UFF.atoms` is still a constant.
 - [x] Add a small deterministic benchmark/regression fixture before adopting
   performance changes (`tests/test_data/poreblazer`,
   `benchmarks/bench_poreblazer.py`).
@@ -230,8 +250,8 @@ runtime rather than on the current developer machines.
     removed with HOOMD 2. conda-forge publishes no MPI build.
 - [ ] Try the Slurm scripts on the real cluster: partitions, GPU `--gres`,
   module loads and the shared filesystem path.
-- [ ] Retention for object storage and the `.ambuild-uploaded` markers;
-  decide whether Poreblazer grids are ever kept.
+- [ ] Retention for object storage and the `.ambuild-uploaded` markers.
+  (Poreblazer no longer writes its grid unless asked.)
 
 ## 8. Scaling many runs
 
