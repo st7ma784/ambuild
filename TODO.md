@@ -20,6 +20,10 @@ runtime rather than on the current developer machines.
   dependency metadata. Keep `setup.py` only if compatibility requires it.
 - [ ] Document optional dependencies separately: NumPy, HOOMD-Blue, and
   Poreblazer should not be required for the basic package or CPU test suite.
+  - After the HOOMD 7 port (§5): review each dependency and image. NumPy is the
+    only hard dependency; HOOMD-blue now comes from conda-forge only (not
+    PyPI); Poreblazer is compiled from source; the 2020 glotzerlab images
+    (7–13 GB) can go once HOOMD 2 is dropped.
 
 ## 2. Reproducible tests and CI/CD
 
@@ -34,9 +38,11 @@ runtime rather than on the current developer machines.
   runtime; pin its Python, HOOMD/CUDA, and system dependencies.
 - [ ] Make randomised tests deterministic individually (seed per test or
   inject an RNG) rather than relying on the suite-wide seed in `run_tests.py`.
-- [ ] Move HOOMD integration tests into a separate, explicitly optional job.
+- [x] Move HOOMD integration tests into a separate, explicitly optional job.
   Validate whether a self-hosted GPU runner is required before making this a
   required check.
+  - `test-hoomd2.yml` runs the HOOMD suite (`build`) and the MPI launcher
+    tests (`mpi`) on CPU. A GPU runner has not been evaluated.
 - [ ] Add release automation to build sdist/wheels and publish on version tags.
 - [ ] Add dependency and container scanning, test artifacts, and a documented
   release/versioning policy.
@@ -58,6 +64,9 @@ runtime rather than on the current developer machines.
 - [ ] If the Rancher-managed cluster exposes Slurm and MPI, design a separate
   distributed worker path for workloads that scale across nodes; do not assume
   that Kubernetes placement alone provides MPI semantics.
+  - Slurm path in place (`deploy/slurm`, §7): builds, uploads and Poreblazer
+    arrays as Slurm jobs, and HOOMD across a job's MPI tasks. Still to decide:
+    how the web API hands jobs to Slurm (§8 dispatcher).
 - [ ] Define how jobs request CPU, GPU, memory, node count, and MPI ranks, and
   map those requirements to Slurm partitions or Kubernetes node pools.
 
@@ -89,8 +98,12 @@ runtime rather than on the current developer machines.
   path only if it improves the target workloads after data-transfer overhead.
 - [ ] Wrap Poreblazer configuration and executable discovery so it is not tied
   to `/opt/poreblazer/src/poreblazer.exe`.
-- [ ] Add a small deterministic benchmark/regression fixture before adopting
-  performance changes.
+  - Partly done: callers pass the executable to `Cell.poreblazer(exe)` and the
+    scripts and tests read `POREBLAZER_EXE`. `defaults.dat` and `UFF.atoms`
+    are still constants in `ab_poreblazer.py`.
+- [x] Add a small deterministic benchmark/regression fixture before adopting
+  performance changes (`tests/test_data/poreblazer`,
+  `benchmarks/bench_poreblazer.py`).
 
 ## 5. Engine streamlining
 
@@ -113,16 +126,32 @@ runtime rather than on the current developer machines.
   Today Ambuild runs it and leaves the files unread.
 - [x] Pass `directory=` to `ab_util.run_command` rather than calling
   `os.chdir` in `Cell.poreblazer()`.
-- [ ] Define an MD engine interface (`optimiseGeometry`, `runMD`,
-  `fragMaxEnergy`, `updateCell`) and drop `hoomd1.py`. That makes a HOOMD 4
-  (or OpenMM) backend an addition rather than a rewrite; HOOMD 2 is end-of-life
-  and pinned to a 2020 container.
+- [ ] Port the MD engine to HOOMD-blue 7 (conda-forge 7.2.0; HOOMD 2 is
+  end-of-life and pinned to a 2020 container). In order:
+  - [ ] Define the MD engine interface the rest of Ambuild uses:
+    `optimiseGeometry`, `runMD`, `snapshotResult`, `updateCell` (the
+    launcher's `applyResult` already works from plain arrays), and drop
+    `hoomd1.py`.
+  - [ ] `hoomd7.py` behind that interface: `hoomd.Simulation` from a
+    snapshot, `md.constrain.Rigid` for rigid bodies, `md.minimize.FIRE`,
+    `md.methods.ConstantVolume`/`ConstantPressure` with thermostats, LJ pairs,
+    harmonic bonds and angles, periodic dihedrals, charges, walls, and logging
+    through `hoomd.logging` writers. Select it by HOOMD version, as today.
+  - [ ] Parity tests: the same cell gives the same static energy under HOOMD 2
+    and 7, and the HOOMD suite passes on both.
+  - [ ] Container and CI job with HOOMD 7 from conda-forge (micromamba);
+    re-test rigid bodies under MPI, which HOOMD 2 cannot decompose (§7).
+  - [ ] Then remove `hoomd2.py`, the 2020 images and `test-hoomd2.yml`.
+    HOOMD 3+ no longer parses the command line, which also fixes the in-process
+    argument problem below.
 - [ ] Split `ab_cell.py` (~3,100 lines) along existing seams: building
   (seed/grow/join/zip), simulation adapters, I/O (`write*`, pickles), analysis.
 - [ ] Add a versioned, non-pickle serialisation of a cell (JSON or HDF5) for
   stored results. Keep pickles only as trusted, same-version restart files.
 - [ ] Profile the per-call `cellData()` -> snapshot -> `updateCell()` round
   trip before optimising it.
+  - A one-step in-process calculation costs 0.5–1.1 s for 72–4,608 atoms
+    (`docs/benchmarks.md`), mostly this round trip and context set-up.
 
 ## 6. Run recording and results database
 

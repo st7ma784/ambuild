@@ -10,7 +10,9 @@ Entries move from *Unreleased* into a version section when it is tagged.
 
 ## [Unreleased]
 
-Work in progress towards run recording (see
+Everything since 2.0.1: run output directories, Poreblazer results, build
+events and run recording, uploads to PostgreSQL and object storage from
+Slurm or K3s, HOOMD-blue across MPI tasks, and benchmarks (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
@@ -87,13 +89,6 @@ Work in progress towards run recording (see
 - `tests/docker/poreblazer.Dockerfile` builds Poreblazer at a pinned commit;
   `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
 
-### Fixed
-- Docs said the upstream Poreblazer Makefile compiles without optimisation;
-  it uses `-O2 -unshared` (its `OFLAGS`).
-- `Hoomd2.createSnapshot()` filled the snapshot on every MPI rank (only rank 0
-  holds its arrays) and ordered particle, bond, angle and dihedral types by
-  set iteration, which differs between processes; types are now sorted.
-
 ### Changed
 - `Hoomd2.updateCell()` is split into `snapshotResult()` (collective under MPI)
   and `ab_hoomdlauncher.applyResult()`, which needs no HOOMD import.
@@ -118,10 +113,18 @@ Work in progress towards run recording (see
 - The test suite needs Ambuild installed (`pip install -e .`); nothing adds
   the checkout to `sys.path` any more. `tests/test.py`, which ran the suite a
   second time, is removed.
+- `.gitattributes` keeps shell scripts, Slurm scripts, `.conf` files and
+  Dockerfiles LF in Windows checkouts, so images built on Windows run.
+- CI runs the HOOMD launcher tests on one process and two MPI ranks
+  (`mpi` job in `test-hoomd2.yml`).
 
 ### Fixed
-- The CSV step log had doubled line endings (`
-`) on Windows; it is
+- Docs said the upstream Poreblazer Makefile compiles without optimisation;
+  it uses `-O2 -unshared` (its `OFLAGS`).
+- `Hoomd2.createSnapshot()` filled the snapshot on every MPI rank (only rank 0
+  holds its arrays) and ordered particle, bond, angle and dihedral types by
+  set iteration, which differs between processes; types are now sorted.
+- The CSV step log had doubled line endings (`\r\r\n`) on Windows; it is
   now opened with `newline=""` as the `csv` module requires. Output on Linux
   is unchanged.
 
@@ -146,6 +149,11 @@ Work in progress towards run recording (see
   is recorded as a `defaultdict` repr.
 - `Cell.writeCar()` fails when called without `data` (`CellData` is not
   subscriptable). Present before 2.0.1.
+- In-process HOOMD-blue 2 parses the build script's own command-line
+  arguments in `hoomd.context.initialize()`, so scripts that take
+  arguments fail with "no such option".
+- Under MPI, only all-atom HOOMD calculations are decomposed; rigid-body
+  calculations (the default) run on one process.
 
 ## [2.0.1]
 
