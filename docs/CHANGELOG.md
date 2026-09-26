@@ -152,6 +152,14 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
 
 ### Changed
+- The images take Poreblazer from the fork's published image,
+  `ghcr.io/st7ma784/poreblazer:sha-<commit>` (build argument `POREBLAZER_IMAGE`),
+  instead of compiling it. The fork's CI builds that image only after its tests
+  pass: upstream's example frameworks (one hexagonal) and three Ambuild cells must
+  give byte-identical output to upstream Poreblazer 3.0.5 at 1 and 4 threads, and
+  exact labelling must match its reference. `scripts/update_poreblazer.sh` moves the
+  pin to the fork's newest build, and the Update Poreblazer workflow opens a pull
+  request for it weekly.
 - Poreblazer no longer writes `nitrogen_network.grd` (~13 MB for a 20 Å cell,
   growing with volume) unless asked: `visualisation` defaults to `"none"`;
   pass `visualisation="grd"` (or `"xyz"`, `"both"`) to keep it.

@@ -1,11 +1,8 @@
 # Single-node Slurm cluster for testing the deploy/slurm scripts end to end.
 # Built and run by deploy/docker-compose.yml (profile slurm-test).
-FROM python:3.11-slim-bookworm AS poreblazer
-RUN apt-get update && apt-get install -y --no-install-recommends gfortran make git ca-certificates \
- && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/st7ma784/poreblazer.git /src/poreblazer \
- && cd /src/poreblazer && git checkout 8ed0c7035de32e4737f4aa701ac98507ab5404e9 \
- && cd src && make
+# Ambuild's Poreblazer fork, as built and tested by its CI
+ARG POREBLAZER_IMAGE=ghcr.io/st7ma784/poreblazer:sha-9d4cbcc
+FROM ${POREBLAZER_IMAGE} AS poreblazer
 
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -13,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 RUN python3 -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
-COPY --from=poreblazer /src/poreblazer/src/poreblazer.exe /opt/poreblazer/poreblazer.exe
+COPY --from=poreblazer /opt/poreblazer/poreblazer.exe /opt/poreblazer/poreblazer.exe
 COPY pyproject.toml setup.py README.md LICENSE /ambuild/
 COPY ambuild /ambuild/ambuild
 COPY tests /ambuild/tests

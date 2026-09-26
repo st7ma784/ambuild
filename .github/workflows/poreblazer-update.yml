@@ -1,0 +1,52 @@
+# Keep Ambuild on the newest image of its Poreblazer fork: weekly (or on demand), point
+# the Dockerfiles at the fork's last successful build (scripts/update_poreblazer.sh) and,
+# if that changes anything, open a pull request. The fork's CI has already checked the
+# image against upstream Poreblazer; this repository's checks then build and test it.
+#
+# Opening the pull request needs "Allow GitHub Actions to create and approve pull
+# requests" (Settings > Actions > General). Pull requests opened with the workflow token
+# do not start other workflows, so start the checks from the pull request (or close and
+# reopen it).
+name: Update Poreblazer
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Point the images at the fork's newest build
+        id: update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          image=$(scripts/update_poreblazer.sh)
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          if git diff --quiet; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+          echo "Newest fork image: $image"
+      - name: Open a pull request
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ steps.update.outputs.image }}
+        run: |
+          tag="${IMAGE##*:}"
+          branch="poreblazer-$tag"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "Branch $branch already exists"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "Use Poreblazer image $tag"
+          git push origin "$branch"
+          gh pr create --base master --head "$branch" --title "Use Poreblazer image $tag" \
+            --body "Points the Dockerfiles at \`$IMAGE\`, the newest image published by [the fork's CI](https://github.com/st7ma784/poreblazer/actions/workflows/ci.yml), which checked it against upstream Poreblazer 3.0.5. Opened by the Update Poreblazer workflow."

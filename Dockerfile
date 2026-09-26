@@ -17,9 +17,9 @@
 
 ARG HOOMD_VERSION=7.2.0
 ARG HOOMD_VARIANT=cpu
-# Ambuild's fork of Poreblazer: upstream 3.0.5 with correct, enabled OpenMP (FORK.md there)
-ARG POREBLAZER_REPO=https://github.com/st7ma784/poreblazer.git
-ARG POREBLAZER_COMMIT=8ed0c7035de32e4737f4aa701ac98507ab5404e9
+# Ambuild's fork of Poreblazer (FORK.md there), as built and tested by the fork's CI and
+# published to GHCR; a sha- tag pins one commit. scripts/update_poreblazer.sh moves the pin.
+ARG POREBLAZER_IMAGE=ghcr.io/st7ma784/poreblazer:sha-9d4cbcc
 
 # --- conda-forge environment, pruned of headers, static libraries and caches
 FROM mambaorg/micromamba:2.3.2 AS hoomd-env
@@ -33,17 +33,8 @@ RUN micromamba create -y -p /opt/env -c conda-forge \
  && rm -rf /opt/env/include /opt/env/share/doc /opt/env/share/man /opt/env/conda-meta \
            /opt/env/lib/python3.12/site-packages/hoomd/pytest /opt/env/lib/python3.12/test
 
-# --- Poreblazer (Ambuild's fork), compiled with its Makefile: gfortran -O2 -fopenmp
-# (-O2 was the fastest build measured in docs/benchmarks.md)
-FROM debian:bookworm-slim AS poreblazer-build
-ARG POREBLAZER_REPO
-ARG POREBLAZER_COMMIT
-RUN apt-get update \
- && apt-get install -y --no-install-recommends gfortran make git ca-certificates \
- && rm -rf /var/lib/apt/lists/*
-RUN git clone "$POREBLAZER_REPO" /src/poreblazer \
- && cd /src/poreblazer && git checkout "$POREBLAZER_COMMIT" \
- && cd src && make && strip poreblazer.exe
+# --- Poreblazer: the fork's published image (built on Debian bookworm with its Makefile)
+FROM ${POREBLAZER_IMAGE} AS poreblazer-build
 
 # --- Ambuild
 FROM debian:bookworm-slim AS ambuild
@@ -69,6 +60,6 @@ USER root
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libgfortran5 libgomp1 \
  && rm -rf /var/lib/apt/lists/*
-COPY --from=poreblazer-build /src/poreblazer/src/poreblazer.exe /opt/poreblazer/poreblazer.exe
+COPY --from=poreblazer-build /opt/poreblazer/poreblazer.exe /opt/poreblazer/poreblazer.exe
 ENV POREBLAZER_EXE=/opt/poreblazer/poreblazer.exe
 USER ambuild

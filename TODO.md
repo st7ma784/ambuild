@@ -137,6 +137,14 @@ runtime rather than on the current developer machines.
     the defect and fix upstream.
   - [ ] Offer the race fix upstream (richardjgowers/poreblazer is unchanged since
     2018, so it may not be picked up).
+  - [x] Test the fork in CI against upstream and publish its image (fork
+    `.github/workflows/ci.yml`, `ghcr.io/st7ma784/poreblazer`); Ambuild's images copy
+    the executable from a pinned `sha-` tag.
+  - [ ] Let the Update Poreblazer workflow open pull requests (repository setting
+    "Allow GitHub Actions to create and approve pull requests"), or trigger it from
+    the fork's publish step (needs a token with access to this repository).
+  - [ ] Extend the cell list and the PSD's distance pruning to non-orthorhombic cells;
+    triclinic cells (e.g. hexagonal MOF-180) still check every atom.
 - [x] Algorithmic changes in the same fork: a cell list so each grid cube checks
   only atoms within the cutoff (`3ce6695`: lattice step 3.4x faster at 40 Å,
   output bit-identical to upstream in 24 of 24 runs, `docs/benchmarks.md`).

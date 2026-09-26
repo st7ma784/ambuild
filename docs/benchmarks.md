@@ -381,7 +381,7 @@ value and the hashes of the PSD files and `nitrogen_network.grd`):
 docker build -f benchmarks/poreblazer-flags.Dockerfile -t ambuild-bench-pb:upstream .
 docker build -f benchmarks/poreblazer-flags.Dockerfile \
   --build-arg POREBLAZER_REPO=https://github.com/st7ma784/poreblazer.git \
-  --build-arg POREBLAZER_COMMIT=8ed0c7035de32e4737f4aa701ac98507ab5404e9 \
+  --build-arg POREBLAZER_COMMIT=9d4cbccbd0def671d4007099203e8e4b935c3cd3 \
   -t ambuild-bench-pb:fork .   # the fork's Makefile flags
 docker run --rm -v "$PWD/cases":/cases ambuild-bench-pb:fork \
   python3 /ambuild/benchmarks/compare_poreblazer.py prepare /cases
