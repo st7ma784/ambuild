@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ambuild-web"
+version = "0.1.0"
+description = "Web interface for Ambuild: queue builds, browse recorded runs, structures and Poreblazer results."
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.10"
+# Independent of the ambuild package, like ambuild-ingest: it reads the database and object storage
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "psycopg[binary]>=3.1",
+    "boto3>=1.28",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "httpx>=0.27"]
+
+[project.scripts]
+ambuild-web = "ambuild_web.__main__:main"
+
+[tool.setuptools]
+packages = ["ambuild_web"]
+
+[tool.setuptools.package-data]
+ambuild_web = ["templates/*.html", "static/*"]

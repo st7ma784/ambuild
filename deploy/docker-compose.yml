@@ -4,6 +4,8 @@
 #   docker compose -f deploy/docker-compose.yml up -d            # postgres, seaweedfs, init
 #   docker compose -f deploy/docker-compose.yml run --rm uploader --scan /runs
 #   docker compose -f deploy/docker-compose.yml --profile test run --rm ingest-test
+#   docker compose -f deploy/docker-compose.yml --profile web up     # web GUI demo on http://127.0.0.1:8080
+#   docker compose -f deploy/docker-compose.yml --profile web-test run --rm --build web-test
 name: ambuild
 
 x-ingest-env: &ingest-env
@@ -73,6 +75,47 @@ services:
       init: {condition: service_completed_successfully}
     profiles: ["test"]
 
+  web:
+    # The web GUI (services/web; docs/web-gui.md)
+    build: {context: .., dockerfile: services/web/Dockerfile, target: web}
+    image: ambuild-web
+    environment: *ingest-env
+    ports: ["127.0.0.1:${AMBUILD_WEB_PORT:-8080}:8000"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+    profiles: ["web"]
+
+  demo-runs:
+    # A few small recorded builds with Poreblazer results, for the demo (built once;
+    # kept in the demo-runs volume). Root, so it can write the fresh named volume.
+    build: {context: .., dockerfile: Dockerfile, target: ambuild-poreblazer}
+    image: ambuild
+    user: "0:0"
+    volumes: ["demo-runs:/runs", "./demo:/demo:ro"]
+    command: ["python", "/demo/make_runs.py", "/runs"]
+    profiles: ["web"]
+
+  demo-upload:
+    # Uploads the demo runs, like the Slurm upload jobs do
+    build: {context: .., dockerfile: services/ingest/Dockerfile, target: uploader}
+    image: ambuild-ingest
+    user: "0:0"
+    environment: *ingest-env
+    volumes: ["demo-runs:/runs"]
+    command: ["--scan", "/runs", "--stale-after", "86400"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+      demo-runs: {condition: service_completed_successfully}
+    profiles: ["web"]
+
+  web-test:
+    build: {context: .., dockerfile: services/web/Dockerfile, target: test}
+    image: ambuild-web-test
+    environment: *ingest-env
+    depends_on:
+      init: {condition: service_completed_successfully}
+    profiles: ["web-test"]
+
   slurm-test:
     # Single-node Slurm cluster that runs deploy/slurm end to end against this stack
     build: {context: .., dockerfile: deploy/slurm/test/Dockerfile}
@@ -90,6 +133,7 @@ services:
 volumes:
   pgdata:
   s3data:
+  demo-runs:
 
 configs:
   s3-identities:
