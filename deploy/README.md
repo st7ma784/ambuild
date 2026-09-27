@@ -127,6 +127,34 @@ calculations, Ambuild's default, run on one task: HOOMD-blue 2 could not decompo
 Ambuild's bonded rigid bodies, and this is untested with HOOMD-blue 4+. Small cells are often faster on one task
 anyway; benchmark before scaling up.
 
+A recipe (`python -m ambuild.recipe`) is submitted the same way:
+`submit_build.sh --recipe recipe.json` (with `AMBUILD_BLOBS` for recipes that
+reference files by sha256, and `AMBUILD_SEED` to override the seed).
+
+### Slurm agent for the web GUI
+
+To run what users submit in the web GUI on the cluster, run the agent on a login node,
+in the same environment (with `services/agent` installed too) and the same
+`upload.env`. Add the agent on the web GUI's Agents page, which shows its token once:
+
+```sh
+export AMBUILD_API_URL=https://ambuild.lab.internal AMBUILD_AGENT_TOKEN=...
+export AMBUILD_AGENT_BACKEND=slurm AMBUILD_RUNS_ROOT=/shared/ambuild/runs
+export AMBUILD_SLURM_DIR=$PWD/deploy/slurm
+export AMBUILD_SLURM_PARTITION=cpu AMBUILD_SLURM_OPTIONS="--account=chem"   # optional
+ambuild-agent          # in tmux, or as a systemd user service
+```
+
+The agent does the following:
+- claims queued submissions and stages each recipe and its inputs under `AMBUILD_RUNS_ROOT`;
+- submits them with `submit_build.sh --recipe`; the recipe's `resources` become `--cpus-per-task`, `--gpus`, `--mem` and `--time`;
+- follows the jobs, and uploads running runs every minute so their pages update live;
+- stops a job with `scancel` when a user cancels it;
+- reports to the status page, including the partitions' nodes from `sinfo`.
+
+It can be stopped and started at any time: it takes up its Slurm jobs again. It never
+connects to the database; its token lets it take and report work only.
+
 ## K3s fallback
 
 ```sh

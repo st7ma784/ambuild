@@ -27,7 +27,7 @@
 <p class="empty">Nothing has been submitted yet.</p>
 {% endif %}
 
-<h2>Agents</h2>
+<h2>Agents <a class="note" href="/agents">manage</a></h2>
 {% if agents %}
 <div class="table-wrap">
   <table class="data">
@@ -48,7 +48,7 @@
   </table>
 </div>
 {% else %}
-<p class="empty">No agents registered. Register one with <code>ambuild-web init --agent NAME:local</code>
+<p class="empty">No agents registered. <a href="/agents">Add one</a>, or use <code>ambuild-web init --agent NAME:local</code>
   and start it with its token (see services/agent).</p>
 {% endif %}
 </div>

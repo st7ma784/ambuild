@@ -300,3 +300,87 @@ def test_recipe_text_is_readable_and_unchanged():
     assert text.index('"recipe_version"') < text.index('"name"') < text.index('"cell"') < text.index('"stages"')
     assert '"box": [20, 20, 20]' in text and '"point": [1.5, -2, 3e-05]' in text
     assert text.index('"op"') < text.index('"count"')
+
+
+# --- milestone 4: managing agents, resuming, status cards
+
+def test_agents_are_added_and_revoked_through_the_api(client, blobs, conn):
+    conn.execute("UPDATE submissions SET state = 'cancelled' WHERE backend = 'test' AND state = 'queued'")
+    name = "api-{0}".format(TOKEN)
+    created = client.post("/api/agents", json={"name": name, "backend": "test"})
+    assert created.status_code == 201, created.text
+    headers = {"Authorization": "Bearer " + created.json()["token"]}
+    assert client.post("/api/agents", json={"name": name, "backend": "test"}).status_code == 409
+    assert client.post("/api/agents", json={"name": "x", "backend": "moon"}).status_code == 409
+    assert client.post("/api/agents", json={"name": "  ", "backend": "test"}).status_code == 422
+
+    sub = submit(client, blobs)
+    assert claimed(client, headers)["submission_id"] == sub["submission_id"]
+    mine = client.get("/api/agent/submissions", headers=headers).json()["submissions"]
+    assert [(s["submission_id"], s["state"]) for s in mine] == [(sub["submission_id"], "claimed")]
+    assert mine[0]["recipe"]["name"] == sub["recipe"]["name"]
+
+    revoked = client.post("/api/agents/{0}/revoke".format(created.json()["agent_id"])).json()
+    assert revoked == {"name": name, "revoked": True}
+    assert state(client, sub["submission_id"]) == "queued"  # its unstarted claim is released
+    assert client.post("/api/agent/claim", headers=headers).status_code == 401
+    again = client.post("/api/agents", json={"name": name, "backend": "test"})
+    assert again.status_code == 201  # a revoked name can be used again, with a new token
+    client.post("/api/submissions/{0}/cancel".format(sub["submission_id"]))
+
+
+def test_resuming_sees_external_ids(client, blobs, conn):
+    headers = agent(conn, "resumer")
+    sub = submit(client, blobs)
+    claimed(client, headers)
+    path = "/api/agent/submissions/{0}".format(sub["submission_id"])
+    client.patch(path, json={"state": "submitted", "external_id": "slurm:101/102"}, headers=headers)
+    mine = client.get("/api/agent/submissions", headers=headers).json()["submissions"]
+    assert [(s["state"], s["external_id"]) for s in mine] == [("submitted", "slurm:101/102")]
+    page = client.get("/submissions/{0}".format(sub["submission_id"])).text
+    assert "build 101, upload 102" in page
+    client.patch(path, json={"state": "running"}, headers=headers)
+    client.patch(path, json={"state": "finished"}, headers=headers)
+    assert client.get("/api/agent/submissions", headers=headers).json()["submissions"] == []
+
+
+def test_status_page_has_a_card_per_agent(client, conn):
+    headers = agent(conn, "carded")
+    client.post("/api/agent/heartbeat", headers=headers, json={
+        "host": "login1", "version": "9.9", "summary": {
+            "partitions": {"debug": {"default": True, "available": "up", "nodes": {"idle": 3, "allocated": 1}}},
+            "last_error": "nothing much"}, "active": []})
+    cards = {c["name"]: c for c in client.get("/api/status").json()["checks"]}
+    card = cards["Agent carded-{0}".format(TOKEN)]
+    assert card["state"] == "ok" and card["summary"].startswith("Heard from")
+    assert card["facts"]["host"] == "login1" and card["facts"]["last error"] == "nothing much"
+    assert card["facts"]["partition debug (default)"] == "up; 1 allocated, 3 idle"
+    conn.execute("UPDATE agents SET last_heartbeat = now() - interval '2 hours' WHERE name = %s",
+                 ("carded-" + TOKEN,))
+    card = {c["name"]: c for c in client.get("/api/status").json()["checks"]}["Agent carded-{0}".format(TOKEN)]
+    assert card["state"] == "fail" and "Not heard from for 2.0 h" in card["summary"]
+
+
+def test_agents_page(client, conn):
+    name = "page-{0}".format(TOKEN)
+    html = client.post("/agents", data={"name": name, "backend": "test"}).text
+    assert "Token for {0}".format(name) in html and "AMBUILD_AGENT_TOKEN=" in html
+    token = re.search(r"AMBUILD_AGENT_TOKEN=(\S+)", html).group(1)
+    assert queue.agentForToken(conn, token)["name"] == name
+    listing = client.get("/agents").text
+    assert name in listing and "AMBUILD_AGENT_TOKEN=" not in listing  # shown once only
+    dup = client.post("/agents", data={"name": name, "backend": "test"})
+    assert dup.status_code == 409 and "revoke it first" in dup.text
+    agentId = queue.agentForToken(conn, token)["agent_id"]
+    r = client.post("/agents/{0}/revoke".format(agentId), follow_redirects=False)
+    assert r.status_code == 303 and queue.agentForToken(conn, token) is None
+
+
+def test_new_run_page_says_which_backends_have_agents(client, conn):
+    headers = agent(conn, "online")
+    client.post("/api/agent/heartbeat", headers=headers, json={"active": []})
+    html = client.get("/submit").text
+    assert re.search(r'<option value="test"[^>]*>test</option>', html)  # the "test" agent is online
+    conn.execute("UPDATE agents SET last_heartbeat = NULL WHERE backend = 'test'")
+    html = client.get("/submit").text
+    assert '>test (no agent online)</option>' in html

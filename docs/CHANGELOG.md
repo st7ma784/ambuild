@@ -16,6 +16,13 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Web GUI, milestone 4: the Slurm agent.
+  - **Slurm backend:** `ambuild-agent` with `AMBUILD_AGENT_BACKEND=slurm` submits queued recipes from a login node through `deploy/slurm/submit_build.sh`. The recipe's resources become sbatch options. It follows the jobs through `squeue`, `scontrol` or `sacct`, cancels with `scancel`, and after a restart takes up the jobs it had.
+  - **Slurm scripts:** `submit_build.sh --recipe RECIPE.json` builds a recipe, and takes `AMBUILD_RUN_ID`, `AMBUILD_BLOBS` and `AMBUILD_SEED`.
+  - **Live progress:** running runs are uploaded as they go, and their pages refresh themselves.
+  - **Status and agents:** the status page has a card per agent (partitions and nodes for Slurm). The Agents page adds agents, showing each token once, and revokes them.
+  - **CI:** the Slurm test checks it end to end: submission, live upload, an agent restart mid-run, results, and cancelling.
+- Planned: goal-directed campaigns (docs/web-gui.md, milestone 6). They search recipe parameters with Bayesian optimisation (Optuna TPE or GP) for structures that meet constraints on their results, such as a pore limiting diameter above a threshold, queuing each round on Slurm.
 - Recipes (`ambuild/recipe.py`): a build described as JSON rather than as a script.
   - A recipe gives the cell, the fragments (files by sha256 reference or, on the command line, by path), the bond types and the stages. Stages are operations (`seed`, `grow`, `join`, `zip`, `optimise`, `md`, `md_optimise`, `delete_blocks`, `cap`, `poreblazer`) and nested repeats.
   - `python -m ambuild.recipe run` builds it as a recorded run, with the recipe among its inputs, and writes a checkpoint after each top-level stage and each pass of a top-level repeat. `validate`, `describe` and `hash` are the other commands.

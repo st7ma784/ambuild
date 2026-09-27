@@ -178,3 +178,6 @@ pre.code-block { background: var(--panel); border: 1px solid var(--rule); border
 details.op { margin: 6px 0; }
 details.op summary { cursor: pointer; padding: 4px 0; }
 tr.just-added td { background: var(--highlight); }
+.token-box { background: var(--panel); border: 1px solid var(--accent); border-left-width: 4px; border-radius: 6px; padding: 4px 16px 10px; margin: 0 0 16px; }
+.token-box h2 { margin-top: 12px; }
+.live-note { color: var(--run); font-size: 12px; font-weight: 600; }

@@ -105,11 +105,75 @@ def checkS3(settings):
         return Check("Object storage", FAIL, _s3Reason(exc, settings), facts, time.monotonic() - start)
 
 
+STALE_SECONDS = 600  # an agent quiet for longer than a lease but less than this is "needs attention"
+
+
+def checkAgents(settings):
+    """One card per agent (not revoked): is it heart-beating, and what does it report?"""
+    start = time.monotonic()
+    if not settings.database_url:
+        return []
+    import psycopg
+    from psycopg.rows import dict_row
+
+    from ambuild_web import queue
+
+    try:
+        with psycopg.connect(settings.database_url, connect_timeout=max(1, int(settings.check_timeout)),
+                             row_factory=dict_row) as conn:
+            queue.ensureSchema(conn)
+            agents = [a for a in queue.listAgents(conn) if not a["revoked"]]
+            queued = dict((r["backend"], r["n"]) for r in conn.execute(
+                "SELECT backend, count(*) AS n FROM submissions WHERE state = 'queued' GROUP BY backend").fetchall())
+    except Exception:
+        return []  # the PostgreSQL card says why
+    if not agents:
+        return [Check("Agents", WARN, "No agents registered: runs can be queued, but nothing will run them "
+                      "(add one on the Agents page)", {}, time.monotonic() - start)]
+    cards = []
+    for a in agents:
+        facts = {"runs on": a["backend"], "host": a["host"] or "–", "version": a["version"] or "–",
+                 "running": a["active"], "queued for {0}".format(a["backend"]): queued.get(a["backend"], 0)}
+        summary = a["summary"] or {}
+        for name, p in sorted((summary.get("partitions") or {}).items()):
+            nodes = ", ".join("{0} {1}".format(n, s) for s, n in sorted(p.get("nodes", {}).items()))
+            facts["partition " + name + (" (default)" if p.get("default") else "")] = "{0}; {1}".format(
+                p.get("available", "?"), nodes or "no nodes")
+        if summary.get("cpus"):
+            facts["CPUs"] = summary["cpus"]
+        if summary.get("load"):
+            facts["load"] = " ".join("{0:.2f}".format(x) for x in summary["load"])
+        if summary.get("disk_free_gb") is not None:
+            facts["disk free"] = "{0} GB".format(summary["disk_free_gb"])
+        if summary.get("last_error"):
+            facts["last error"] = summary["last_error"]
+        ago = a["seconds_since"]
+        if a["live"]:
+            state, text = OK, "Heard from {0:.0f} s ago".format(ago)
+        elif ago is None:
+            state, text = FAIL, "Never connected: start it with its token"
+        elif ago < STALE_SECONDS:
+            state, text = WARN, "Last heard from {0:.0f} s ago".format(ago)
+        else:
+            state, text = FAIL, "Not heard from for {0}".format(_duration(ago))
+        cards.append(Check("Agent " + a["name"], state, text, facts, time.monotonic() - start))
+    return cards
+
+
+def _duration(seconds):
+    if seconds < 3600:
+        return "{0:.0f} min".format(seconds / 60)
+    if seconds < 172800:
+        return "{0:.1f} h".format(seconds / 3600)
+    return "{0:.0f} days".format(seconds / 86400)
+
+
 def runChecks(settings):
     """All the checks, run at the same time"""
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    with ThreadPoolExecutor(max_workers=3) as pool:
         futures = [pool.submit(checkPostgres, settings), pool.submit(checkS3, settings)]
-        return [f.result() for f in futures]
+        agents = pool.submit(checkAgents, settings)
+        return [f.result() for f in futures] + agents.result()
 
 
 def overall(checks):

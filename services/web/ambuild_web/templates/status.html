@@ -2,7 +2,8 @@
 {% block title %}Status · {{ title }}{% endblock %}
 {% block content %}
 <h1>Status</h1>
-<p class="lede">Whether this service can reach the database and object storage it records runs in.
+<p class="lede">Whether this service can reach the database and object storage it records runs in,
+  and whether the agents that run submissions are online (<a href="/agents">manage agents</a>).
   The cards refresh every {{ refresh }} seconds.</p>
 {% include "_status_cards.html" %}
 {% endblock %}

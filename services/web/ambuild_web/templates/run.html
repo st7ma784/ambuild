@@ -10,7 +10,9 @@
 {% set cell = run_json.get("cell", {}) %}
 {% set rnd = run_json.get("random", {}) %}
 <p class="crumbs"><a href="/runs">Runs</a> / <code>{{ s.run_id[:8] }}</code></p>
-<h1>{{ s.label }} {{ m.status(s.status) }}</h1>
+{% set live = s.status == "running" %}
+<div id="run-head" {% if live %}hx-get="/runs/{{ s.run_id }}" hx-trigger="every 15s" hx-select="#run-head" hx-select-oob="#run-steps,#run-pore" hx-swap="outerHTML"{% endif %}>
+<h1>{{ s.label }} {{ m.status(s.status) }}{% if live %} <span class="live-note">live: refreshed every 15 s</span>{% endif %}</h1>
 <p class="lede"><code>{{ s.run_id }}</code>{% if submission %} · from <a href="/submissions/{{ submission.submission_id }}">submission {{ submission.submission_id }}</a> · <a href="/submit?submission={{ submission.submission_id }}">Run again…</a>{% endif %}</p>
 {% if s.error %}<p class="error-box"><strong>Error:</strong> {{ s.error }}</p>{% endif %}
 
@@ -28,6 +30,7 @@
   <div><dt>Host</dt><dd>{{ s.host or "–" }}</dd></div>
   <div><dt>Slurm job</dt><dd>{{ s.slurm_job_id or "–" }}</dd></div>
 </dl>
+</div>
 {% if run_json.command %}<p class="command"><span class="note">Command</span> <code>{{ run_json.command | join(" ") }}</code></p>{% endif %}
 
 <section>
@@ -80,7 +83,7 @@
 </section>
 {% endif %}
 
-<section>
+<section id="run-steps">
   <h2>Build steps</h2>
   {% if r.steps %}
   <div class="charts">{% for c in step_charts %}{{ m.chart(c) }}{% endfor %}</div>
@@ -107,7 +110,7 @@
   {% else %}<p class="empty">No steps recorded.</p>{% endif %}
 </section>
 
-<section>
+<section id="run-pore">
   <h2>Poreblazer</h2>
   {% if r.pore_results %}
   <div class="table-wrap">

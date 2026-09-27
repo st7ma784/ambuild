@@ -1,11 +1,12 @@
 """The API agents use to take and report work (services/agent). Every call carries the
-agent's token (Authorization: Bearer <token>); tokens are stored hashed and made with
+agent's token (Authorization: Bearer <token>); tokens are stored hashed and made on the Agents page (/agents) or with
 `ambuild-web init --agent NAME:BACKEND`. An agent sees only its backend's queue and its
 own submissions, and never connects to the database itself."""
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.encoders import jsonable_encoder
 
-from ambuild_web import queue
+from ambuild_web import identity, queue
 from ambuild_web.submissions import _connect
 
 router = APIRouter(prefix="/api/agent", tags=["agents"])
@@ -41,6 +42,14 @@ def heartbeat(request: Request, payload: dict = Body(default={}), agent=Depends(
     return {"agent": agent["name"], "cancel": cancel, "lease_seconds": queue.LEASE_SECONDS}
 
 
+@router.get("/submissions")
+def mySubmissions(request: Request, agent=Depends(currentAgent)):
+    """This agent's unfinished submissions (to take up again after a restart)"""
+    with _connect(request) as conn:
+        rows = queue.agentSubmissions(conn, agent)
+    return {"submissions": [jsonable_encoder(r) for r in rows]}
+
+
 @router.post("/claim")
 def claim(request: Request, agent=Depends(currentAgent)):
     """The next queued submission for this agent's backend, or {"submission": null}"""
@@ -63,3 +72,72 @@ def update(request: Request, submissionId: int, payload: dict = Body(...), agent
         except queue.Conflict as exc:
             raise HTTPException(409, str(exc))
     return {"submission_id": row["submission_id"], "state": row["state"]}
+
+
+# --- managing agents (pages and API). No sign-in yet: anyone on the lab network can add
+# or revoke an agent, as they can submit; a token only lets an agent take and report work.
+manage = APIRouter()
+
+
+def _createAgent(request, name, backend):
+    name = identity.cleanName(name).replace(" ", "-")
+    if not name:
+        raise HTTPException(422, "Give the agent a name")
+    with _connect(request) as conn:
+        try:
+            row, token = queue.createAgent(conn, name, backend)
+        except queue.Conflict as exc:
+            raise HTTPException(409, str(exc))
+    return row, token
+
+
+def _revokeAgent(request, agentId):
+    with _connect(request) as conn:
+        try:
+            return queue.revokeAgent(conn, agentId)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc))
+
+
+@manage.post("/api/agents", tags=["agents"], status_code=201)
+def apiCreateAgent(request: Request, payload: dict = Body(...)):
+    """Add an agent: {"name": ..., "backend": "local" | "slurm"}. The token is returned
+    once, here; only its hash is kept."""
+    row, token = _createAgent(request, payload.get("name", ""), payload.get("backend", ""))
+    return {"agent_id": row["agent_id"], "name": row["name"], "backend": row["backend"], "token": token}
+
+
+@manage.post("/api/agents/{agentId}/revoke", tags=["agents"])
+def apiRevokeAgent(request: Request, agentId: int):
+    """Revoke an agent's token; work it claimed but had not started is queued again"""
+    return {"name": _revokeAgent(request, agentId), "revoked": True}
+
+
+def _agentsPage(request, created=None, token=None, error=None, status_code=200):
+    with _connect(request) as conn:
+        agents = queue.listAgents(conn)
+    page = request.app.state.render(request, "agents.html", agents=agents, backends=queue.BACKENDS,
+                                    created=created, token=token, error=error,
+                                    api_url=str(request.base_url).rstrip("/"))
+    page.status_code = status_code
+    return page
+
+
+@manage.get("/agents", response_class=HTMLResponse, include_in_schema=False)
+def agentsPage(request: Request):
+    return _agentsPage(request)
+
+
+@manage.post("/agents", response_class=HTMLResponse, include_in_schema=False)
+def agentsCreate(request: Request, name: str = Form(""), backend: str = Form("")):
+    try:
+        row, token = _createAgent(request, name, backend)
+    except HTTPException as exc:
+        return _agentsPage(request, error=exc.detail, status_code=exc.status_code)
+    return _agentsPage(request, created=row, token=token)
+
+
+@manage.post("/agents/{agentId}/revoke", include_in_schema=False)
+def agentsRevoke(request: Request, agentId: int):
+    _revokeAgent(request, agentId)
+    return RedirectResponse("/agents", status_code=303)

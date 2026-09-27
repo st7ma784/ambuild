@@ -1,19 +1,36 @@
-"""ambuild-agent: run submissions queued in the Ambuild web GUI (local backend).
+"""ambuild-agent: run submissions queued in the Ambuild web GUI.
 
     AMBUILD_API_URL=http://ambuild-web:8000 AMBUILD_AGENT_TOKEN=... ambuild-agent
 
+Backends (AMBUILD_AGENT_BACKEND):
+    local  (default) each submission runs here, as a process, and is uploaded by the agent
+    slurm  each submission is submitted with deploy/slurm/submit_build.sh from this login
+           node; its upload job uploads it. The agent can stop and start again: it takes
+           up its Slurm jobs where it left them.
+
 Environment:
     AMBUILD_API_URL             the web GUI
-    AMBUILD_AGENT_TOKEN         this agent's token (ambuild-web init --agent NAME:local)
-    AMBUILD_AGENT_DIR           working directory: blobs/, runs/, work/ (default ./agent)
-    AMBUILD_AGENT_SLOTS         runs at once (default 1)
-    AMBUILD_AGENT_POLL          seconds between passes (default 5)
+    AMBUILD_AGENT_TOKEN         this agent's token (the web GUI's Agents page, or
+                                ambuild-web init --agent NAME:BACKEND)
+    AMBUILD_AGENT_BACKEND       local or slurm
+    AMBUILD_AGENT_SLOTS         submissions at once (default 1 local, 50 slurm)
+    AMBUILD_AGENT_POLL          seconds between passes (default 5 local, 15 slurm)
     AMBUILD_AGENT_HEARTBEAT     seconds between heartbeats (default 30)
     AMBUILD_AGENT_UPLOAD        upload command (default ambuild-upload; empty: none)
-    AMBUILD_AGENT_UPLOAD_EVERY  seconds between uploads of a running run (default 60; 0: at the end)
+    AMBUILD_AGENT_UPLOAD_EVERY  seconds between uploads of a running run, for live
+                                progress (default 60; 0: none)
+    AMBUILD_UPLOAD_ENV          file of upload settings for those uploads (slurm default:
+                                ~/.config/ambuild/upload.env, as the upload jobs use)
+  local:
+    AMBUILD_AGENT_DIR           working directory: blobs/, runs/, work/ (default ./agent)
     AMBUILD_AGENT_KEEP_RUNS     1: keep run directories after they are uploaded
-plus what ambuild-upload needs (DATABASE_URL, AMBUILD_S3_BUCKET, S3_ENDPOINT_URL, AWS_*),
-which is not passed on to the builds, and POREBLAZER_EXE for recipes that run Poreblazer.
+  slurm:
+    AMBUILD_RUNS_ROOT           shared directory for run directories (and staged inputs)
+    AMBUILD_SLURM_DIR           deploy/slurm (submit_build.sh and the job scripts)
+    AMBUILD_SLURM_PARTITION     partition for build jobs (default: the cluster's)
+    AMBUILD_SLURM_OPTIONS       more sbatch options for build jobs, e.g. "--account=chem"
+A recipe's "resources" (cpus, gpus, memory_mb, time) become sbatch options. Database and
+storage credentials are never passed on to builds.
 """
 import argparse
 import logging

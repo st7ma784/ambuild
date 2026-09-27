@@ -105,8 +105,8 @@ def test_status_page_renders_without_javascript():
 @services
 def test_all_green(settings):
     data = client(settings).get("/api/status").json()
-    assert data["state"] == "ok", data
-    postgres, storage = data["checks"]
+    postgres, storage = data["checks"][:2]  # then a card per agent, which may be offline here
+    assert postgres["state"] == storage["state"] == "ok", data
     assert postgres["facts"]["server"] and "runs" in postgres["facts"]
     assert storage["facts"]["bucket"] == settings.s3_bucket
 

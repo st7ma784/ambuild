@@ -15,8 +15,10 @@ COPY pyproject.toml setup.py README.md LICENSE /ambuild/
 COPY ambuild /ambuild/ambuild
 COPY tests /ambuild/tests
 COPY services/ingest /src/ingest
-RUN pip install --no-cache-dir /ambuild /src/ingest
+COPY services/agent /src/agent
+RUN pip install --no-cache-dir /ambuild /src/ingest /src/agent
 COPY deploy/slurm /opt/ambuild-slurm
+COPY deploy/demo /opt/ambuild-demo
 COPY deploy/slurm/test/slurm.conf deploy/slurm/test/cgroup.conf /etc/slurm/
 RUN mkdir -p /var/spool/slurmctld /var/spool/slurmd /var/log/slurm /run/munge /shared/runs \
  && chown -R munge:munge /run/munge /etc/munge \

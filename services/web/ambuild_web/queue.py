@@ -14,7 +14,7 @@ from ambuild import recipe as ab_recipe
 SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
 LEASE_SECONDS = 120  # a claimed submission returns to the queue if its agent goes quiet this long
 MAX_BLOB_BYTES = 20 * 1024 * 1024
-BACKENDS = ["local"]  # "slurm" arrives with the Slurm agent (milestone 4)
+BACKENDS = ["local", "slurm"]
 
 ACTIVE = ("queued", "claimed", "submitted", "running", "cancelling")
 FINAL = ("finished", "failed", "cancelled")
@@ -183,6 +183,36 @@ def registerAgent(conn, name, backend, token):
         "INSERT INTO agents (name, backend, token_sha256) VALUES (%s, %s, %s) "
         "ON CONFLICT (name) DO UPDATE SET backend = excluded.backend, token_sha256 = excluded.token_sha256, "
         "revoked = false RETURNING agent_id, name, backend", (name, backend, hashToken(token))).fetchone()
+
+
+def createAgent(conn, name, backend):
+    """A new agent and its token (returned once; stored hashed). A revoked agent's name can
+    be used again, with a new token; a current agent's cannot."""
+    if backend not in BACKENDS:
+        raise Conflict("backend must be one of {0}".format(", ".join(BACKENDS)))
+    existing = conn.execute("SELECT revoked FROM agents WHERE name = %s", (name,)).fetchone()
+    if existing is not None and not existing["revoked"]:
+        raise Conflict("An agent called {0} exists; revoke it first to replace its token".format(name))
+    token = newToken()
+    return registerAgent(conn, name, backend, token), token
+
+
+def revokeAgent(conn, agentId):
+    """Revoke the agent's token; its claimed but unstarted work returns to the queue"""
+    row = conn.execute("UPDATE agents SET revoked = true WHERE agent_id = %s RETURNING name", (agentId,)).fetchone()
+    if row is None:
+        raise LookupError("No such agent")
+    conn.execute("UPDATE submissions SET state = 'queued', agent_id = NULL, claimed = NULL, lease_expires = NULL, "
+                 "updated = now() WHERE agent_id = %s AND state = 'claimed'", (agentId,))
+    return row["name"]
+
+
+def agentSubmissions(conn, agent):
+    """The agent's unfinished submissions, for taking them up again after it restarts"""
+    return conn.execute(
+        "SELECT submission_id, name, state, external_id, run_id, seed, recipe, resources, attempts, owner "
+        "FROM submissions WHERE agent_id = %s AND state IN ('claimed', 'submitted', 'running', 'cancelling') "
+        "ORDER BY submission_id", (agent["agent_id"],)).fetchall()
 
 
 def agentForToken(conn, token):

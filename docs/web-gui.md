@@ -141,7 +141,7 @@ available on the command line).
 - The runner checkpoints after each top-level stage (and each repeat), writing the
   pickle, an extended XYZ with the cell lattice (for the viewer) and a `step` event.
 - A recipe plus its inputs, seed and Ambuild version identifies a build exactly; that
-  hash is the key for the checkpoint cache (milestone 6).
+  hash is the key for the checkpoint cache (milestone 7).
 
 ## Data model
 
@@ -249,6 +249,79 @@ submitted) work back to the queue.
 - **Later**: the nitrogen-accessible grid as an isosurface in the viewer (the `.grd`
   files are large; generate a downsampled mesh in the Poreblazer task when asked).
 
+## Campaigns: goal-directed sweeps
+
+A sweep (milestone 5) runs a fixed set of points. A *campaign* instead searches for
+structures that meet a goal: it queues a few runs, looks at their results, and chooses
+the next runs to get closer, until the goal is met or the budget is spent. An example
+goal is a pore limiting diameter big enough for a lithium ion, while keeping the
+surface area high. The user chooses the threshold: a bare Li⁺ is about 1.5 Å across,
+and a solvated one several times that.
+
+```json
+{
+  "name": "Li-ion channels",
+  "recipe_id": 12,
+  "parameters": [
+    {"name": "box", "path": "/cell/box", "type": "float", "low": 20, "high": 40, "all": true},
+    {"name": "grow_per_pass", "path": "/stages/1/stages/0/count", "type": "int", "low": 2, "high": 20},
+    {"name": "zip_margin", "path": "/stages/1/stages/1/bond_margin", "type": "float", "low": 0.5, "high": 2.0},
+    {"name": "linker", "path": "/fragments/1", "type": "choice", "choices": [{"...": "fragment A"}, {"...": "fragment B"}]}
+  ],
+  "constraints": [
+    {"metric": "pore_limiting_diameter_a", "min": 3.0},
+    {"metric": "percolated_dimensions", "min": 1}
+  ],
+  "objective": {"maximise": "surface_area_m2_g"},
+  "replicates": 3,
+  "method": "tpe",
+  "initial_points": 8,
+  "batch_size": 6,
+  "budget": {"runs": 150},
+  "stop": {"feasible_points": 3, "no_improvement_rounds": 4},
+  "backend": "slurm"
+}
+```
+
+- **Parameters** are JSON pointers into the recipe (the checked-in recipe format is the
+  one search space): numbers with bounds (optionally log-scaled), integers, or a choice
+  among values. `"all": true` sets every element of a list (a cubic box). Every point is
+  validated as a recipe before it is queued.
+- **Goal**: constraints and an objective over any recorded result:
+  - Poreblazer results, e.g. pore limiting diameter, surface area, helium volume, percolated dimensions;
+  - the final step's metrics, e.g. density, atoms, free end groups.
+
+  The objective either maximises or minimises a metric, or aims at a target value (minimising the distance to it). With constraints only, the goal is simply "find points that satisfy them".
+- **Replicates**: builds are stochastic, so each point is run with several seeds. A point's
+  objective is the mean over its replicates, and a constraint holds when a set fraction of
+  them meet it (default one half). The spread is shown, so a lucky seed is not mistaken for
+  a good point.
+- **Methods**, through Optuna's ask-and-tell interface (the study is rebuilt from the
+  database each round, so it keeps no state of its own):
+  - `random` and `grid` (baselines, and the sweep equivalent);
+  - `qmc` (Sobol points, for the initial design);
+  - `tpe`, the default: Bayesian optimisation with a tree-structured Parzen estimator. It handles constraints and choices, and needs only NumPy and SciPy;
+  - `gp`, Gaussian-process Bayesian optimisation with constraints. It needs PyTorch, so it runs in the controller image only.
+
+  Each round asks for `batch_size` points at once (Optuna treats pending points as "constant liars"), so a round fills Slurm in parallel.
+- **Controller**: a small service (`ambuild-campaigns`) that uses only the web API, with an
+  agent-style token. Each pass, for each active campaign, it:
+  - scores trials whose replicate runs have all ended (a failed build counts as infeasible);
+  - checks whether to stop;
+  - asks the method for new points and queues their runs.
+
+  Runs go through the normal queue to whichever backend is chosen, so a campaign on Slurm is just more Slurm submissions (each round becomes one array job with milestone 5). Keeping Optuna, and optionally PyTorch, out of the web image keeps that image small.
+- **Data**: `campaigns` (spec, state, owner, best trial) and `trials` (campaign, number,
+  parameters, state, objective and constraint values, replicate submissions).
+  `submissions.trial_id` links each run to its trial.
+- **Pages**:
+  - campaign list;
+  - a campaign page with the best-so-far curve, each parameter against the objective (coloured by feasibility), the trials table with its replicate runs, and the best structures in the viewer;
+  - pause, resume, stop, and "extend the budget".
+- **API**: `POST /api/campaigns` (validate, and preview the first points),
+  `GET /api/campaigns[/{id}]`, `POST /api/campaigns/{id}/{pause,resume,stop}`, and the
+  controller endpoints.
+
 ## Other features, in scope
 
 - **Sign-in, in stages**: none at first (an internal tool on the lab network; the
@@ -259,7 +332,7 @@ submitted) work back to the queue.
   the only seam.
 - **Live progress**: while a run is running, the agent uploads it every minute or so
   (`ambuild-upload` is idempotent), so the run page's charts and viewer update live.
-- **Checkpoint cache** (milestone 6): when a submitted recipe shares a prefix, seed,
+- **Checkpoint cache** (milestone 7): when a submitted recipe shares a prefix, seed,
   inputs and Ambuild version with an earlier run, start from that run's checkpoint;
   the queue shows "resumed from cache". Builds are reproducible from a seed, so a hit
   is the same answer, not just a similar sample.
@@ -342,6 +415,7 @@ bundle (~1 MB) rather than full Plotly (~3.5 MB).
 | `GET /api/runs/{id}/files/{path}` | the file, streamed from object storage (only files the run recorded) |
 | `GET /api/runs/{id}/structures` | the viewable structures, by step |
 | `GET /api/sweeps/{id}` | a sweep and its runs' results |
+| `POST /api/campaigns`, `GET /api/campaigns[/{id}]`, `POST /api/campaigns/{id}/{pause,resume,stop}` | goal-directed campaigns: define, follow and control |
 | `GET /api/status` | the connectivity cards |
 | `POST /api/agent/heartbeat`, `POST /api/agent/claim`, `PATCH /api/agent/submissions/{id}` | agent endpoints: bearer token, identifying the agent |
 
@@ -355,14 +429,15 @@ Each milestone is deployable on its own and has a check that says it is done.
 | 1 ✅ | **Run browser (b)** over the existing tables: list with filters, run page with provenance, steps charts, events, files streamed from storage, lineage, Poreblazer table and PSD plots (d, partly), compare two runs | every run uploaded by the Slurm end-to-end test is browsable, and downloads match their sha256 |
 | 2 ✅ | **Structure viewer (d)**: `Cell.dump()` also writes an extended XYZ with the lattice; 3Dmol.js viewer with the step slider and colouring; Poreblazer results over checkpoints | the viewer shows every checkpoint of a recorded build; the XYZ round-trips to the same coordinates |
 | 3 ✅ | **Recipes and the runner**: recipe schema and validation, `python -m ambuild.recipe run`, content-addressed blobs; queue tables; **submit (a)** one run to a **local/K3s agent** | a recipe submitted from the browser runs, uploads, and reproduces the structure of the same recipe run from the command line with the same seed |
-| 4 | **Slurm agent**: token API for agents; claims, stages inputs, submits through the sbatch scripts, tracks state, cancels, heartbeats; agent cards and token management on the status page (c); live progress | a run queued in the browser runs on Slurm (the `slurm-test` container in CI) and its page updates while it runs; cancelling scancels it |
+| 4 ✅ | **Slurm agent**: token API for agents; claims, stages inputs, submits through the sbatch scripts, tracks state, cancels, heartbeats; agent cards and token management on the status page (c); live progress | a run queued in the browser runs on Slurm (the `slurm-test` container in CI) and its page updates while it runs; cancelling scancels it |
 | 5 | **Batches and sweeps (a, b)**: seed lists, parameter grids, CSV; one array job per sweep; sweep page with scatter plots | a 3×3 grid sweep runs as one array, and its page plots a result against both parameters |
-| 6 | **Checkpoint cache, resume and fork**: cache keyed by recipe prefix, seed, inputs and version; resume failed runs; run again / fork | resubmitting a finished recipe with the same seed starts from its final checkpoint and finishes in seconds with the same structure |
-| 7 | **Hardening**: audit, notifications, retention, metrics, the Python client, the Helm chart deployed through Fleet to Rancher | the chart deploys from Git through Fleet; a sweep's owner gets an email when it finishes |
-| 8 | **Accounts**: local accounts, sessions and roles; existing owner names mapped to accounts; then the lab's SSO (OIDC) | a user signs in locally; later, with SSO, the same user keeps their runs |
+| 6 | **Campaigns (goal-directed sweeps)**: constraints and an objective over results, parameters as recipe pointers, replicates; Optuna ask-and-tell (random, QMC, TPE, GP) in the `ambuild-campaigns` controller; each round queued as a batch; campaign page with best-so-far and parameter plots | in the Slurm test container, a campaign aiming at a target density over box size and grow count meets it in fewer runs than the equivalent grid, and every trial links to its runs |
+| 7 | **Checkpoint cache, resume and fork**: cache keyed by recipe prefix, seed, inputs and version; resume failed runs; run again / fork | resubmitting a finished recipe with the same seed starts from its final checkpoint and finishes in seconds with the same structure |
+| 8 | **Hardening**: audit, notifications, retention, metrics, the Python client, the Helm chart deployed through Fleet to Rancher | the chart deploys from Git through Fleet; a sweep's owner gets an email when it finishes |
+| 9 | **Accounts**: local accounts, sessions and roles; existing owner names mapped to accounts; then the lab's SSO (OIDC) | a user signs in locally; later, with SSO, the same user keeps their runs |
 
 Milestones 0–2 need no queue and no changes to how builds run, so they deliver the run
-and results browser early; 3–4 are the submission path; 5–7 build on it.
+and results browser early; 3–4 are the submission path; 5–8 build on it, 6 (campaigns) on 4 and 5.
 
 **As built in milestone 3.**
 
@@ -393,6 +468,30 @@ and results browser early; 3–4 are the submission path; 5–7 build on it.
   - submits the demo recipe through the API, waits for it to finish, and checks the run and its Poreblazer result;
   - builds the same recipe from the command line and compares the final structure, which must be identical;
   - cancels a running MD build.
+
+**As built in milestone 4.**
+
+- **Slurm backend** (`services/agent`, `AMBUILD_AGENT_BACKEND=slurm`), run from a login node:
+  - It stages each recipe and its inputs on the shared filesystem (`$AMBUILD_RUNS_ROOT/.ambuild-work`, `.ambuild-blobs`).
+  - It submits with `submit_build.sh --recipe`, which now accepts a recipe and the agent's run id. The recipe's `resources` become `--cpus-per-task`, `--gpus`, `--mem` and `--time`; `AMBUILD_SLURM_PARTITION` and `AMBUILD_SLURM_OPTIONS` add more.
+  - A submission is `submitted` while its build job is pending and `running` while it runs. It ends when the upload job has uploaded it, with the state taken from the run's `run.json` and the Slurm state.
+  - Job states come from `squeue`, then `scontrol` (recently ended jobs), then `sacct`, so clusters without accounting work.
+  - Cancelling runs `scancel` on the build job. The build script `exec`s the runner, so it receives the SIGTERM and records the run as cancelled, and the upload job still uploads it.
+- **Restarts**: Slurm jobs outlive the agent. A restarted agent asks for its unfinished submissions (`GET /api/agent/submissions`) and takes them up again from their external ids (`slurm:<build>/<upload>`). Claims it never started go back to the queue.
+- **Live progress**: while a run is running, the agent uploads it every `AMBUILD_AGENT_UPLOAD_EVERY` seconds. The Slurm agent uses the same upload settings file as the upload jobs. The run page refreshes itself every 15 s while the run is `running` (header, step charts and Poreblazer results, in one request). New structures appear on reload.
+- **Status page**: a card per agent shows whether it is online, its host, version, running and queued counts, and its last error. For Slurm the card lists each partition's nodes by state (from `sinfo`); for local, CPUs, load and free disk. Agents feed the overall state, and "no agents" needs attention.
+- **Agents page** (`/agents`, and `POST /api/agents`, `POST /api/agents/{id}/revoke`):
+  - add an agent: its token is shown once, with the command to start it;
+  - revoke an agent: work it claimed but never started returns to the queue.
+
+  With no sign-in, anyone on the lab network can do this, as they can submit. A token lets an agent take and report work, nothing more.
+- **Check**: `run_test.sh` in the `slurm-test` container (CI job `slurm`) runs `check_agent.py`, which:
+  - adds an agent through the API and starts it;
+  - submits a recipe for Slurm;
+  - sees it in the database and its page live while it runs;
+  - kills the agent mid-run and starts it again;
+  - checks the finished run (its Slurm job id, three Poreblazer results, four structures);
+  - cancels a second run and checks that it was scancelled and uploaded.
 
 ## Decisions
 

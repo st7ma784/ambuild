@@ -40,3 +40,5 @@ python3 "$slurm/test/check_db.py" "$(run_id_of "$ok")" "$(run_id_of "$failed")" 
 echo "--- web GUI"
 python3 "$slurm/test/check_web.py" "$(run_id_of "$ok")" "$(run_id_of "$failed")" "$(run_id_of "$cancelled")" \
     "$(run_id_of "$multitask")"
+echo "--- web GUI's Slurm agent"
+AMBUILD_API_URL="${AMBUILD_WEB_URL:-http://web:8000}" python3 "$slurm/test/check_agent.py"

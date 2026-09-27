@@ -28,6 +28,13 @@ runtime rather than on the current developer machines.
     source. The 2020 glotzerlab images (7.5–13 GB) are replaced by
     `tests/docker/hoomd7.Dockerfile` (~580 MB: micromamba environment copied
     into debian-slim).
+- [ ] Rewrite the README as a proper summary and how-to: what Ambuild is and
+  what it builds; installing it (pip, the runtime image, HOOMD-blue and
+  Poreblazer); a first build as a script and as a recipe; recording runs and
+  reproducing them from a seed; Poreblazer analysis; the web GUI (demo, New
+  run, queue, agents) and running on Slurm; where the detailed docs are
+  (docs/, deploy/README.md). It has grown section by section and now reads as a
+  changelog of features rather than a guide.
 
 ## 2. Reproducible tests and CI/CD
 
@@ -60,7 +67,8 @@ runtime rather than on the current developer machines.
 ## 3. Service suitable for Rancher
 
 The web GUI and its API are planned in [docs/web-gui.md](docs/web-gui.md): milestones
-0–8, from the status page and run browser to submission through a Slurm agent, sweeps,
+0–9, from the status page and run browser to submission through a Slurm agent, sweeps,
+goal-directed campaigns (Bayesian search for structures meeting a target),
 the checkpoint cache, a Fleet-deployed Helm chart and, last, accounts. The items below
 are covered there.
 
@@ -76,8 +84,8 @@ are covered there.
   cancellation handling, and an explicit execution status model.
   - Done in web GUI milestone 3: the queue (`submissions`, claimed by agents as
     leases), content-addressed inputs in object storage, cancelling, and the
-    submission states. Still to do: resource limits and time limits per run
-    (Slurm's, with the Slurm agent in milestone 4).
+    submission states. Milestone 4: per-run CPUs, GPUs, memory and time limits on
+    Slurm, from the recipe's "resources" (none yet for the local backend).
 - [ ] Provide health/readiness endpoints, structured logs, metrics, and an
   authentication/authorization boundary before exposing the service.
 - [ ] Deploy first as a Rancher-managed Kubernetes workload with CPU workers.
@@ -88,6 +96,9 @@ are covered there.
   - Slurm path in place (`deploy/slurm`, §7): builds, uploads and Poreblazer
     arrays as Slurm jobs, and HOOMD across a job's MPI tasks. Still to decide:
     how the web API hands jobs to Slurm (§8 dispatcher).
+  - Web GUI milestone 4: the Slurm agent on a login node claims queued recipes and
+    submits them with `submit_build.sh --recipe`, one build and upload job each;
+    packing many small builds per job is still the dispatcher's job (§8).
 - [ ] Define how jobs request CPU, GPU, memory, node count, and MPI ranks, and
   map those requirements to Slurm partitions or Kubernetes node pools.
 
@@ -345,6 +356,10 @@ In order:
   start from the longest matching cached prefix. Builds are stochastic, so a
   hit is a previous sample, not the same answer: ensembles and sweeps opt out
   or include the replicate in the key until builds are reproducible (§6).
+- [ ] Goal-directed campaigns (web GUI milestone 6): search recipe parameters
+  with Bayesian optimisation (Optuna TPE or GP, ask-and-tell, replicates per
+  point for noise) for structures meeting constraints on their results, e.g. a
+  pore limiting diameter above an ion's size, each round queued on Slurm.
 - [ ] Sweeps and ensembles: one recipe over many seeds or parameters as an
   array job, each run tagged with a `sweep_id` in `run.json` and the database.
 - [ ] Dispatcher behind the web API: turns queued recipes into jobs, packing

@@ -3,6 +3,8 @@
 #   AMBUILD_SCRIPT   the build script; it must create its Cell with
 #                    outputDir=os.environ["AMBUILD_RUN_DIR"], recordRun=True,
 #                    runId=os.environ["AMBUILD_RUN_ID"] (see example_build.py)
+#   AMBUILD_RECIPE   instead of AMBUILD_SCRIPT, a recipe (ambuild.recipe), built with
+#                    AMBUILD_BLOBS (its input files) and AMBUILD_SEED if set
 #   AMBUILD_RUN_DIR  the run directory, on a filesystem shared with the upload job
 #   AMBUILD_RUN_ID   the run id, also the name of the run directory
 #
@@ -15,11 +17,16 @@
 #SBATCH --ntasks=1
 #SBATCH --output=%x-%j.out
 set -euo pipefail
-: "${AMBUILD_SCRIPT:?}" "${AMBUILD_RUN_DIR:?}" "${AMBUILD_RUN_ID:?}"
+: "${AMBUILD_RUN_DIR:?}" "${AMBUILD_RUN_ID:?}"
 
 if [ "${SLURM_NTASKS:-1}" -gt 1 ] && [ -z "${AMBUILD_HOOMD_LAUNCHER+set}" ]; then
     export AMBUILD_HOOMD_LAUNCHER="srun --ntasks=$SLURM_NTASKS${AMBUILD_SRUN_MPI:+ --mpi=$AMBUILD_SRUN_MPI}"
 fi
 echo "HOOMD-blue launcher: ${AMBUILD_HOOMD_LAUNCHER-in-process}"
 
-python "$AMBUILD_SCRIPT"
+if [ -n "${AMBUILD_RECIPE:-}" ]; then
+    # exec, so scancel's SIGTERM reaches the runner, which records the run as cancelled
+    exec python -m ambuild.recipe run "$AMBUILD_RECIPE" --output "$AMBUILD_RUN_DIR" --run-id "$AMBUILD_RUN_ID" \
+        ${AMBUILD_BLOBS:+--blobs "$AMBUILD_BLOBS"} ${AMBUILD_SEED:+--seed "$AMBUILD_SEED"}
+fi
+python "${AMBUILD_SCRIPT:?set AMBUILD_SCRIPT or AMBUILD_RECIPE}"
