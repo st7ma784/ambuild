@@ -59,6 +59,11 @@ runtime rather than on the current developer machines.
 
 ## 3. Service suitable for Rancher
 
+The web GUI and its API are planned in [docs/web-gui.md](docs/web-gui.md): milestones
+0–8, from the status page and run browser to submission through a Slurm agent, sweeps,
+the checkpoint cache, a Fleet-deployed Helm chart and, last, accounts. The items below
+are covered there.
+
 - [ ] Define the first web API around a small set of jobs: submit a build,
   validate inputs, inspect status/logs, and retrieve generated artifacts.
 - [ ] Keep the scientific engine separate from HTTP concerns so the same
