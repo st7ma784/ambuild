@@ -41,7 +41,8 @@ Python script, a queue, something that hands queued work to Slurm, and the pages
 4. **PostgreSQL is the queue.** Submissions are rows claimed with
    `SELECT … FOR UPDATE SKIP LOCKED`; no Redis or message broker to run.
 5. **Reuse the existing pieces.** The runner is Ambuild itself; results arrive through
-   `ambuild-upload`; files are served from object storage by presigned URL.
+   `ambuild-upload`; files are streamed from object storage through the web service
+   (the storage's address is internal to the cluster, so browsers cannot reach it).
 6. **Maintainable over clever.** About 20 users need no caching layer, no worker pool
    and no front-end build: one Python service, one database, plain templates.
 7. **Identity-ready without sign-in.** Every action already goes through one
@@ -71,7 +72,7 @@ flowchart LR
     fs[("shared runs<br/>filesystem")]
   end
   ui -- "lab network only" --> api
-  viewer -. "presigned URLs" .-> s3
+  viewer -. "files, via the web service" .-> api
   api --> pg
   api --> s3
   agent -- "HTTPS + token:<br/>claim work, report state,<br/>heartbeat" --> api
@@ -232,7 +233,7 @@ submitted) work back to the queue.
 - **Structure viewer** (3Dmol.js, in the run page and full screen): the final structure
   and every checkpoint, with a step slider; periodic box drawn; colour by element,
   fragment type or block; hide/show fragment types; measure distances; screenshot.
-  Loads the extended XYZ files straight from object storage by presigned URL, never a
+  Loads the extended XYZ files from object storage through the web service, never a
   pickle. Large cells (~10,000+ atoms) fall back to NGL or to line rendering.
 - **Poreblazer panel**: the 14 results with units; PSD and cumulative PSD plots; the
   settings used (grid, labelling, threads) and the Poreblazer version; results over the
@@ -330,7 +331,7 @@ bundle (~1 MB) rather than full Plotly (~3.5 MB).
 | `POST /api/submissions/{id}/cancel`, `/retry` | cancel, retry |
 | `GET /api/runs?…` | search runs by status, owner, recipe, tag and result ranges |
 | `GET /api/runs/{id}` | run with provenance, steps, Poreblazer results, lineage |
-| `GET /api/runs/{id}/files/{path}` | redirect to a presigned URL |
+| `GET /api/runs/{id}/files/{path}` | the file, streamed from object storage (only files the run recorded) |
 | `GET /api/runs/{id}/structures` | the viewable structures, by step |
 | `GET /api/sweeps/{id}` | a sweep and its runs' results |
 | `GET /api/status` | the connectivity cards |
@@ -343,7 +344,7 @@ Each milestone is deployable on its own and has a check that says it is done.
 | # | Milestone | Done when |
 | --- | --- | --- |
 | 0 ✅ | **Skeleton**: `services/web` (FastAPI, Jinja, htmx, vendored assets), config from the environment, `/healthz`, the owner-name cookie, **status page (c)** for PostgreSQL and S3; the Compose `web` profile with demo data; the Helm chart skeleton, its `fleet.yaml`, and the CI size budget | `docker compose --profile web up` shows both green, and red with the reason when either is stopped; `helm lint` passes and the size check reports the chart well under budget |
-| 1 | **Run browser (b)** over the existing tables: list with filters, run page with provenance, steps charts, events, files by presigned URL, lineage, Poreblazer table and PSD plots (d, partly), compare two runs | every run uploaded by the Slurm end-to-end test is browsable, and downloads match their sha256 |
+| 1 ✅ | **Run browser (b)** over the existing tables: list with filters, run page with provenance, steps charts, events, files streamed from storage, lineage, Poreblazer table and PSD plots (d, partly), compare two runs | every run uploaded by the Slurm end-to-end test is browsable, and downloads match their sha256 |
 | 2 | **Structure viewer (d)**: `Cell.dump()` also writes an extended XYZ with the lattice; 3Dmol.js viewer with the step slider and colouring; Poreblazer results over checkpoints | the viewer shows every checkpoint of a recorded build; the XYZ round-trips to the same coordinates |
 | 3 | **Recipes and the runner**: recipe schema and validation, `python -m ambuild.recipe run`, content-addressed blobs; queue tables; **submit (a)** one run to a **local/K3s agent** | a recipe submitted from the browser runs, uploads, and reproduces the structure of the same recipe run from the command line with the same seed |
 | 4 | **Slurm agent**: token API for agents; claims, stages inputs, submits through the sbatch scripts, tracks state, cancels, heartbeats; agent cards and token management on the status page (c); live progress | a run queued in the browser runs on Slurm (the `slurm-test` container in CI) and its page updates while it runs; cancelling scancels it |

@@ -83,7 +83,7 @@ services:
     ports: ["127.0.0.1:${AMBUILD_WEB_PORT:-8080}:8000"]
     depends_on:
       init: {condition: service_completed_successfully}
-    profiles: ["web"]
+    profiles: ["web", "slurm-test"]  # the Slurm test checks runs through it
 
   demo-runs:
     # A few small recorded builds with Poreblazer results, for the demo (built once;
@@ -128,6 +128,7 @@ services:
     environment: *ingest-env
     depends_on:
       init: {condition: service_completed_successfully}
+      web: {condition: service_started}
     profiles: ["slurm-test"]
 
 volumes:

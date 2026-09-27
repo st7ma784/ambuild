@@ -13,7 +13,9 @@ ENTRYPOINT ["ambuild-web"]
 
 FROM web AS test
 USER root
-RUN pip install --no-cache-dir "/src/web[test]"
+# The tests upload runs with ambuild-upload's own code, so the web app reads what it writes
+COPY services/ingest /src/ingest
+RUN pip install --no-cache-dir "/src/web[test]" /src/ingest
 WORKDIR /src/web
 USER ambuild
 ENTRYPOINT []

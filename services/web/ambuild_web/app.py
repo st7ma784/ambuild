@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from ambuild_web import __version__, checks, identity
+from ambuild_web import __version__, checks, formatting, identity, runs
 from ambuild_web.config import Settings
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -21,11 +21,15 @@ def createApp(settings=None):
     app.state.settings = settings
     app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
     templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
+    formatting.install(templates.env)
 
     def page(request, template, **context):
         context.update(request=request, title=settings.title, owner=identity.currentUser(request),
                        version=__version__, path=request.url.path)
         return templates.TemplateResponse(request, template, context)
+
+    app.state.render = page
+    app.include_router(runs.router)
 
     def statusData():
         results = checks.runChecks(settings)
@@ -38,7 +42,7 @@ def createApp(settings=None):
     # --- pages
     @app.get("/", include_in_schema=False)
     def home():
-        return RedirectResponse("/status", status_code=307)
+        return RedirectResponse("/runs", status_code=307)
 
     @app.get("/status", response_class=HTMLResponse, include_in_schema=False)
     def statusPage(request: Request):
