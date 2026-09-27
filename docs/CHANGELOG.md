@@ -308,6 +308,10 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   install. Install HOOMD-blue from conda-forge.
 
 ### Fixed
+- `xyz_core.vectorAngle` returned 180° for *parallel* vectors whenever rounding put their unit vectors' dot product just above 1. It returned π for every NaN from `arccos`, and whether the rounding happens can depend on how NumPy vectorises the sum, so it varied between runs.
+  - It is used when a grown block is aligned (`alignAtoms`) and when bonds are checked, so a block could occasionally be flipped or a good bond rejected. Regular geometry (exactly 180° junctions) made this frequent: `testCell.testBond` failed in some CI runs.
+  - The dot product is now clipped to [−1, 1] (`tests/testXyzCore.py`).
+- `Cell._checkMove` compared `b2Block == b2Block` (always true) when excusing a clash between a new bond's end group and the atoms bonded to the other end group. A clash with an unrelated block could be excused if its atom index matched.
 - The bundled benzene blocks (`tests/blocks/benzene.car`, `benzene2.car`, `benzene6.car`) had ring bonds of 1.539 Å and C–H bonds of 1.03–1.14 Å. They are now regular benzene (C–C 1.397 Å, C–H 1.084 Å), in the same place and orientation, with their atoms, types and end groups unchanged. `nh4.car` had methane's C–H length; it now has N–H 1.03 Å.
   - Structures built from these blocks change accordingly: seven para-linked rings now span 30.3 Å where six did 27.7 Å.
   - Tests that stored the old geometry now check geometry (spans, bond lengths, dihedrals) or have regenerated references.

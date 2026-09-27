@@ -944,19 +944,16 @@ def vectorAngle(v1, v2):
     Stolen from: http://stackoverflow.com/questions/2827393/angles-between-two-n-dimensional-vectors-in-python
     """
 
-    # print "v1: {}".format(v1)
-    # print "v1 norm: {}".format(np.linalg.norm(v1))
-    v1_u = v1 / np.linalg.norm(v1)
-    # print "v1_u: {}".format(v1_u)
-    v2_u = v2 / np.linalg.norm(v2)
+    n1, n2 = np.linalg.norm(v1), np.linalg.norm(v2)
+    if n1 == 0 or n2 == 0:
+        return np.pi  # undefined; pi, as Ambuild always returned (tests/testXyzCore.py)
+    v1_u = np.asarray(v1) / n1
+    v2_u = np.asarray(v2) / n2
 
-    angle = np.arccos(np.dot(v1_u, v2_u))
-    if math.isnan(angle):
-        if (v1_u == v2_u).all():
-            return 0.0
-        else:
-            return np.pi
-    return angle
+    # Clip: for (anti)parallel vectors rounding can put the dot product just outside [-1, 1]
+    # (whether it does can depend on how NumPy vectorises the sum), where arccos gives NaN.
+    # (Returning pi for every NaN turned parallel vectors, angle 0, into antiparallel ones.)
+    return float(np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)))
 
 
 def unWrapCoord3(coord, image, ldim, centered=False, inplace=False):
