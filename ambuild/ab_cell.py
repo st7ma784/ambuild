@@ -1547,13 +1547,42 @@ class Cell:
         """
         return xyz_core.distance(v1, v2, dim=self.dim, pbc=self.pbc)
 
-    def dump(self, prefix="step", addCount=True):
-        """Write out our current state"""
+    def dump(self, prefix="step", addCount=True, structure=True):
+        """Write out our current state: a pickle (to restore the cell) and, unless structure
+        is False, the same name with .xyz: the structure in extended XYZ (writeStructure),
+        for viewers such as the web GUI's"""
         if addCount:
             self._fileCount += 1
             prefix = prefix + "_{0}".format(self._fileCount)
         pklFile = self.writePickle(prefix)
+        if structure:
+            self.writeStructure(prefix + ".xyz")
         return pklFile
+
+    def writeStructure(self, ofile):
+        """Write the cell's atoms as extended XYZ (readable by ASE, OVITO and the web GUI):
+        the cell as the lattice, and for each atom its element, its position wrapped into the
+        cell, its fragment type and the serial number of its block. Recorded as a
+        "structure" artifact. Returns the path."""
+        A, B, C = (float(d) for d in self.dim[:3])
+        dim = np.array([A, B, C])
+        lines = []
+        for block in self.blocks.values():
+            for i, coord in enumerate(block.iterCoord()):
+                coord, _ = xyz_core.wrapCoord3(coord, dim, center=False)
+                lines.append("{0} {1:.6f} {2:.6f} {3:.6f} {4} {5}".format(
+                    block.symbol(i), coord[0], coord[1], coord[2], block.fragmentType(i), block.id))
+        header = ('Lattice="{0:.6f} 0.0 0.0 0.0 {1:.6f} 0.0 0.0 0.0 {2:.6f}" '
+                  "Properties=species:S:1:pos:R:3:fragment:S:1:block:I:1 "
+                  'pbc="T T T" step={3}').format(A, B, C, self.analyse.step)
+        path = self.outputPath(ofile)
+        with open(path, "w") as f:
+            f.write("{0}\n{1}\n".format(len(lines), header))
+            f.write("\n".join(lines))
+            f.write("\n")
+        logger.info("Wrote structure file: {0}".format(path))
+        self._recordArtifact(path, "structure")
+        return path
 
     def endGroupConfig(self, fragmentType):
         """Return the name of the last pkl file and the endGroupConfig (number of bonded endGroups) for

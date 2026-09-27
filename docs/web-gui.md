@@ -235,6 +235,12 @@ submitted) work back to the queue.
   fragment type or block; hide/show fragment types; measure distances; screenshot.
   Loads the extended XYZ files from object storage through the web service, never a
   pickle. Large cells (~10,000+ atoms) fall back to NGL or to line rendering.
+  *Built in milestone 2:* `Cell.dump()` writes `step_N.xyz` next to each pickle
+  (extended XYZ: `Lattice`, `pbc`, `step`, and per atom the species, position wrapped
+  into the cell, fragment type and block id; ASE reads it). Runs recorded before that
+  fall back to their `writeXyz` output. Above 10,000 atoms the viewer draws lines.
+  View options can go in the address (`?colour=fragment&style=sphere`). Measuring
+  distances is not built yet.
 - **Poreblazer panel**: the 14 results with units; PSD and cumulative PSD plots; the
   settings used (grid, labelling, threads) and the Poreblazer version; results over the
   checkpoints of one build (how porosity develops as it grows).
@@ -345,7 +351,7 @@ Each milestone is deployable on its own and has a check that says it is done.
 | --- | --- | --- |
 | 0 ✅ | **Skeleton**: `services/web` (FastAPI, Jinja, htmx, vendored assets), config from the environment, `/healthz`, the owner-name cookie, **status page (c)** for PostgreSQL and S3; the Compose `web` profile with demo data; the Helm chart skeleton, its `fleet.yaml`, and the CI size budget | `docker compose --profile web up` shows both green, and red with the reason when either is stopped; `helm lint` passes and the size check reports the chart well under budget |
 | 1 ✅ | **Run browser (b)** over the existing tables: list with filters, run page with provenance, steps charts, events, files streamed from storage, lineage, Poreblazer table and PSD plots (d, partly), compare two runs | every run uploaded by the Slurm end-to-end test is browsable, and downloads match their sha256 |
-| 2 | **Structure viewer (d)**: `Cell.dump()` also writes an extended XYZ with the lattice; 3Dmol.js viewer with the step slider and colouring; Poreblazer results over checkpoints | the viewer shows every checkpoint of a recorded build; the XYZ round-trips to the same coordinates |
+| 2 ✅ | **Structure viewer (d)**: `Cell.dump()` also writes an extended XYZ with the lattice; 3Dmol.js viewer with the step slider and colouring; Poreblazer results over checkpoints | the viewer shows every checkpoint of a recorded build; the XYZ round-trips to the same coordinates |
 | 3 | **Recipes and the runner**: recipe schema and validation, `python -m ambuild.recipe run`, content-addressed blobs; queue tables; **submit (a)** one run to a **local/K3s agent** | a recipe submitted from the browser runs, uploads, and reproduces the structure of the same recipe run from the command line with the same seed |
 | 4 | **Slurm agent**: token API for agents; claims, stages inputs, submits through the sbatch scripts, tracks state, cancels, heartbeats; agent cards and token management on the status page (c); live progress | a run queued in the browser runs on Slurm (the `slurm-test` container in CI) and its page updates while it runs; cancelling scancels it |
 | 5 | **Batches and sweeps (a, b)**: seed lists, parameter grids, CSV; one array job per sweep; sweep page with scatter plots | a 3×3 grid sweep runs as one array, and its page plots a result against both parameters |

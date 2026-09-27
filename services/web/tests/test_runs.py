@@ -159,3 +159,40 @@ def test_compare(client, recorded):
 def test_compare_needs_two_runs(client, recorded):
     assert client.get("/compare", params={"run": recorded["a"]}).status_code == 422
     assert client.get("/compare", params=[("run", recorded["a"]), ("run", recorded["a"])]).status_code == 422
+
+
+# --- structures (milestone 2)
+
+def test_structures_api_lists_checkpoints_in_step_order(client, recorded):
+    data = client.get("/api/runs/{0}/structures".format(recorded["a"])).json()
+    assert data["box"] == [25.0, 25.0, 25.0]
+    assert [f["step"] for f in data["frames"]] == [1, 2, 3]
+    assert all(f["kind"] == "structure" for f in data["frames"])
+    frame = client.get(data["frames"][2]["url"])
+    assert frame.status_code == 200 and frame.headers["content-type"].startswith("text/plain")
+    lines = frame.text.splitlines()
+    assert lines[0] == "6" and 'Lattice="25.000000' in lines[1] and "step=3" in lines[1]
+    assert lines[2].split()[4:] == ["A", "1"]
+
+
+def test_run_page_has_the_viewer(client, recorded):
+    html = client.get("/runs/" + recorded["a"]).text
+    assert 'id="structure-viewer"' in html and "/static/3Dmol-min.js" in html and "/static/viewer.js" in html
+    spec = json.loads(re.search(r'id="structure-data">(.*?)</script>', html, re.S).group(1))
+    assert [f["step"] for f in spec["frames"]] == [1, 2, 3]
+
+
+def test_older_runs_fall_back_to_xyz_artifacts(client, recorded):
+    frames = client.get("/api/runs/{0}/structures".format(recorded["b"])).json()["frames"]
+    assert [(f["path"], f["kind"]) for f in frames] == [("final.xyz", "xyz")]
+
+
+def test_runs_without_structures_skip_the_viewer(client, recorded):
+    html = client.get("/runs/" + recorded["c"]).text
+    assert "No structure files" in html and "3Dmol-min.js" not in html
+
+
+def test_poreblazer_over_the_build(client, recorded):
+    html = client.get("/runs/" + recorded["a"]).text  # results at steps 2 (child) and 3 (own)
+    assert "Over the build" in html and 'id="pore-surface_area_m2_g-data"' in html
+    assert "Over the build" not in client.get("/runs/" + recorded["c"]).text  # one result only

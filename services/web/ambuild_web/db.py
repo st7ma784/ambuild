@@ -140,6 +140,7 @@ def getRun(conn, runId):
         "steps": steps(conn, runId),
         "pore_results": poreResults(conn, runId),
         "files": files(conn, runId),
+        "structures": structures(conn, runId),
         "event_counts": dict(
             (r["type"], r["n"]) for r in conn.execute(
                 "SELECT type, count(*) AS n FROM events WHERE run_id = %s GROUP BY type ORDER BY type",
@@ -163,6 +164,19 @@ def poreResults(conn, runId, withChildren=True):
 def files(conn, runId):
     return conn.execute("SELECT path, kind, step, size, sha256 FROM files WHERE run_id = %s ORDER BY path",
                         (runId,)).fetchall()
+
+
+def structures(conn, runId):
+    """The run's viewable structures, by step: the extended XYZ files dump() writes
+    ("structure" artifacts); for runs recorded before those, its XYZ artifacts"""
+    rows = conn.execute(
+        "SELECT path, kind, step, size FROM files WHERE run_id = %s AND kind = 'structure' "
+        "ORDER BY step NULLS LAST, path", (runId,)).fetchall()
+    if not rows:
+        rows = conn.execute(
+            "SELECT path, kind, step, size FROM files WHERE run_id = %s AND kind = 'xyz' "
+            "AND path NOT LIKE 'inputs/%%' ORDER BY step NULLS LAST, path", (runId,)).fetchall()
+    return rows
 
 
 def fileRow(conn, runId, path):
