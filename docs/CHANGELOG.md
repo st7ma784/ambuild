@@ -22,6 +22,10 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   fragment order). A recorded run saves the seed and the random number
   generator's state (`run.json` `"random"`, `inputs/random/random_state.json`), and
   `Cell(randomState=<run directory>)` replays any recorded run.
+- Pickles save the random number generator's state, and `ab_util.cellFromPickle()`
+  restores it (`restoreRandomState=False` to leave the generator alone;
+  `Cell.restoreRandomState()` for cells unpickled otherwise): a build resumed from a
+  checkpoint, in any process, ends as the uninterrupted build would.
 - Ambuild's Poreblazer fork, [st7ma784/poreblazer](https://github.com/st7ma784/poreblazer)
   (`ambuild` branch): upstream 3.0.5 with its OpenMP races fixed and both
   hotspots parallelised, built with `-fopenmp`. Output is identical to upstream

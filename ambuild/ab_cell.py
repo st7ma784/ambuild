@@ -3354,11 +3354,25 @@ class Cell:
         del d["analyse"]
         d.pop("_logFileHandler", None)
         d["_runRecorder"] = None  # Recording is not resumed after unpickling
+        # The random number generator's state when the cell was pickled, so a build resumed
+        # from the pickle continues the same random sequence (restoreRandomState)
+        d["_randomState"] = _random.getstate()
         if "mdEngineCls" in d:
             del d[
                 "mdEngineCls"
             ]  # Contains a reference to the hoomd-blue module and logger
         return d
+
+    def restoreRandomState(self):
+        """Set the random number generator to its state when this cell was pickled, so the
+        build continues exactly as if it had not stopped (ab_util.cellFromPickle does this by
+        default). Returns False, changing nothing, for a cell that was not unpickled or was
+        pickled before the state was saved."""
+        state = getattr(self, "_randomState", None)
+        if state is None:
+            return False
+        _random.setstate(state)
+        return True
 
     # Directory that __setstate__ moves output to; only set while ab_util.cellFromPickle runs
     _restoreOutputDir = None
