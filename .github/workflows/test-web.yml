@@ -20,6 +20,21 @@ jobs:
       if: always()
       run: docker compose -f deploy/docker-compose.yml down -v
 
+  agent:
+    # Submission end to end: API -> queue -> local agent -> upload -> run page; the same
+    # structure from the command line; cancelling (deploy/demo/check_submit.py)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Submit, build, compare and cancel
+      run: docker compose -f deploy/docker-compose.yml --profile agent-test run --rm --build agent-test
+    - name: Service logs
+      if: failure()
+      run: docker compose -f deploy/docker-compose.yml --profile agent-test logs
+    - name: Stop services
+      if: always()
+      run: docker compose -f deploy/docker-compose.yml --profile agent-test down -v
+
   chart:
     # The Helm chart: strict lint, size budget (Fleet and Helm cap bundles and releases at
     # ~1 MiB), and the rendered manifests validated against the Kubernetes schemas
@@ -33,5 +48,8 @@ jobs:
       run: sh scripts/check_chart_size.sh deploy/helm/ambuild
     - name: Validate manifests
       run: |
-        helm template ci deploy/helm/ambuild --set ingress.enabled=true --set ingress.tlsSecret=tls > rendered.yaml
-        docker run --rm -v "$PWD:/w" ghcr.io/yannh/kubeconform:v0.6.7-alpine -strict -summary /w/rendered.yaml
+        for agent in false true; do
+          helm template ci deploy/helm/ambuild --set ingress.enabled=true --set ingress.tlsSecret=tls \
+            --set agent.enabled=$agent > rendered.yaml
+          docker run --rm -v "$PWD:/w" ghcr.io/yannh/kubeconform:v0.6.7-alpine -strict -summary /w/rendered.yaml
+        done

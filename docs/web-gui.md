@@ -329,7 +329,9 @@ bundle (~1 MB) rather than full Plotly (~3.5 MB).
 
 | Method and path | Purpose |
 | --- | --- |
-| `POST /api/blobs` | upload a building block or parameter file (returns its sha256; deduplicated) |
+| `POST /api/blobs`, `GET /api/blobs`, `GET /api/blobs/{sha256}` | upload a building block or parameter file (returns its sha256; deduplicated), list them, read one |
+| `GET /api/recipe-format` | the operations and their arguments |
+| `GET /api/agents` | the agents, their heartbeats and work |
 | `GET/POST /api/recipes`, `GET /api/recipes/{id}` | list, save and read recipes |
 | `POST /api/recipes/validate` | validate a recipe, return estimates |
 | `POST /api/submissions` | queue one run, or a sweep (`{"recipe": …, "sweep": {"seeds": […]} }`) |
@@ -352,7 +354,7 @@ Each milestone is deployable on its own and has a check that says it is done.
 | 0 ✅ | **Skeleton**: `services/web` (FastAPI, Jinja, htmx, vendored assets), config from the environment, `/healthz`, the owner-name cookie, **status page (c)** for PostgreSQL and S3; the Compose `web` profile with demo data; the Helm chart skeleton, its `fleet.yaml`, and the CI size budget | `docker compose --profile web up` shows both green, and red with the reason when either is stopped; `helm lint` passes and the size check reports the chart well under budget |
 | 1 ✅ | **Run browser (b)** over the existing tables: list with filters, run page with provenance, steps charts, events, files streamed from storage, lineage, Poreblazer table and PSD plots (d, partly), compare two runs | every run uploaded by the Slurm end-to-end test is browsable, and downloads match their sha256 |
 | 2 ✅ | **Structure viewer (d)**: `Cell.dump()` also writes an extended XYZ with the lattice; 3Dmol.js viewer with the step slider and colouring; Poreblazer results over checkpoints | the viewer shows every checkpoint of a recorded build; the XYZ round-trips to the same coordinates |
-| 3 | **Recipes and the runner**: recipe schema and validation, `python -m ambuild.recipe run`, content-addressed blobs; queue tables; **submit (a)** one run to a **local/K3s agent** | a recipe submitted from the browser runs, uploads, and reproduces the structure of the same recipe run from the command line with the same seed |
+| 3 ✅ | **Recipes and the runner**: recipe schema and validation, `python -m ambuild.recipe run`, content-addressed blobs; queue tables; **submit (a)** one run to a **local/K3s agent** | a recipe submitted from the browser runs, uploads, and reproduces the structure of the same recipe run from the command line with the same seed |
 | 4 | **Slurm agent**: token API for agents; claims, stages inputs, submits through the sbatch scripts, tracks state, cancels, heartbeats; agent cards and token management on the status page (c); live progress | a run queued in the browser runs on Slurm (the `slurm-test` container in CI) and its page updates while it runs; cancelling scancels it |
 | 5 | **Batches and sweeps (a, b)**: seed lists, parameter grids, CSV; one array job per sweep; sweep page with scatter plots | a 3×3 grid sweep runs as one array, and its page plots a result against both parameters |
 | 6 | **Checkpoint cache, resume and fork**: cache keyed by recipe prefix, seed, inputs and version; resume failed runs; run again / fork | resubmitting a finished recipe with the same seed starts from its final checkpoint and finishes in seconds with the same structure |
@@ -361,6 +363,36 @@ Each milestone is deployable on its own and has a check that says it is done.
 
 Milestones 0–2 need no queue and no changes to how builds run, so they deliver the run
 and results browser early; 3–4 are the submission path; 5–7 build on it.
+
+**As built in milestone 3.**
+
+- **Recipes** (`ambuild/recipe.py`, the format above):
+  - Operations: `seed`, `grow`, `join`, `zip`, `optimise`, `md`, `md_optimise`, `delete_blocks`, `cap` and `poreblazer`. Checkpoints are automatic, so there is no `dump` operation.
+  - A fragment names its `.car` and `.csv` (and optional `.ambody`) files. `params: null` uses the parameter files of the installation doing the build.
+  - The module imports only the standard library, so the web image installs it without NumPy.
+  - A Poreblazer failure fails a recipe's run (a script carries on).
+- **Queue tables** (`services/web/ambuild_web/schema.sql`): `blobs`, `recipes`, `agents` and `submissions`. They are created when the site starts using them, or by `ambuild-web init`.
+  - `sweeps`, `run_notes` and `audit` come with the milestones that use them.
+  - Each attempt at a submission is a new run id, so the run page links back to its submission.
+- **New run page**:
+  - a JSON editor with a Check button (validation, plus files never uploaded);
+  - saved recipes, as versions of a name;
+  - an upload list with Insert buttons for references;
+  - the operations reference, generated from `ambuild.recipe.describe()`.
+
+  A form built from the operation schemas is still to come.
+- **Agents**:
+  - Tokens are registered with `ambuild-web init --agent NAME:BACKEND[:TOKEN]`. The chart's init container does this from the Secret. Token management in the browser comes in milestone 4.
+  - The heartbeat carries the submissions an agent still holds. Others it had started are marked failed, as lost when it restarted.
+- **Local backend** (`services/agent`, image target `ambuild-agent`):
+  - Runs each submission in its own container or pod, uploads it every minute while it runs, and again when it ends.
+  - Cancelling sends SIGTERM; the runner records the run as failed ("Cancelled"), and it is uploaded.
+  - The builds get no database or storage credentials.
+  - A Kubernetes Job per run is deferred: the K3s agent is a Deployment that builds in its own pod, which is enough for small runs.
+- **Check**: `docker compose --profile agent-test run agent-test` (CI job `agent`) does the following:
+  - submits the demo recipe through the API, waits for it to finish, and checks the run and its Poreblazer result;
+  - builds the same recipe from the command line and compares the final structure, which must be identical;
+  - cancels a running MD build.
 
 ## Decisions
 

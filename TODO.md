@@ -68,10 +68,16 @@ are covered there.
   validate inputs, inspect status/logs, and retrieve generated artifacts.
 - [ ] Keep the scientific engine separate from HTTP concerns so the same
   package remains usable from Python and the command line.
-- [ ] Containerise the API and worker separately; keep long-running molecular
+- [x] Containerise the API and worker separately; keep long-running molecular
   builds out of the request process.
+  - `ambuild-web` and the `ambuild-agent` image (Dockerfile target), which runs
+    submissions in its own container or pod.
 - [ ] Add a job queue, persistent artifact storage, resource limits, timeout/
   cancellation handling, and an explicit execution status model.
+  - Done in web GUI milestone 3: the queue (`submissions`, claimed by agents as
+    leases), content-addressed inputs in object storage, cancelling, and the
+    submission states. Still to do: resource limits and time limits per run
+    (Slurm's, with the Slurm agent in milestone 4).
 - [ ] Provide health/readiness endpoints, structured logs, metrics, and an
   authentication/authorization boundary before exposing the service.
 - [ ] Deploy first as a Rancher-managed Kubernetes workload with CPU workers.
@@ -318,9 +324,13 @@ Queued builds from a web interface are a throughput problem: most builds are
 small, so scale across runs and checkpoints before scaling one build over MPI.
 In order:
 
-- [ ] Recipes: a declarative build description (e.g. seed 10, then 20 x (grow
+- [x] Recipes: a declarative build description (e.g. seed 10, then 20 x (grow
   5, zip, optimise)) that the web API accepts instead of Python scripts, and a
   runner that executes it step by step with a checkpoint after each step.
+  - `ambuild/recipe.py` (`python -m ambuild.recipe run|validate|describe|hash`):
+    checkpoints after each top-level stage and each pass of a top-level repeat;
+    the same recipe and seed give the same structure from the command line or
+    the web GUI (checked end to end in CI).
 - [ ] Checkpoint/resume: the runner resumes a recipe from its last checkpoint
   as a child run; on SIGTERM it dumps and exits so Slurm `--requeue` (and
   preemptible partitions) resume rather than restart.

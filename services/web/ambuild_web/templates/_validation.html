@@ -1,0 +1,8 @@
+{% if errors %}
+<div class="error-box">
+  <strong>{{ errors | length }} problem{{ "" if errors | length == 1 else "s" }}:</strong>
+  <ul class="errors">{% for e in errors %}<li><code>{{ e }}</code></li>{% endfor %}</ul>
+</div>
+{% else %}
+<p class="ok-box">The recipe is valid: {{ operations }} operation{{ "" if operations == 1 else "s" }} to run.</p>
+{% endif %}

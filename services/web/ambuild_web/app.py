@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from ambuild_web import __version__, checks, formatting, identity, runs
+from ambuild_web import __version__, agents, checks, formatting, identity, runs, submissions
 from ambuild_web.config import Settings
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,6 +30,8 @@ def createApp(settings=None):
 
     app.state.render = page
     app.include_router(runs.router)
+    app.include_router(submissions.router)
+    app.include_router(agents.router)
 
     def statusData():
         results = checks.runChecks(settings)

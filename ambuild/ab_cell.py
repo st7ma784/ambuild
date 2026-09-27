@@ -189,11 +189,12 @@ class Cell:
                 self._runRecorder.addInput(filePath, "static")
         return
 
-    def startRecording(self, runId=None, parentRunId=None):
+    def startRecording(self, runId=None, parentRunId=None, recordScript=True):
         """Start recording this cell's outputDir as a run (see ab_run and the recordRun argument).
 
         For a cell restored from a pickle, parentRunId defaults to the run the pickle came from,
-        so the new run records where it started.
+        so the new run records where it started. recordScript=False leaves out the running
+        script (for builds defined otherwise, such as recipes).
         """
         from ambuild import ab_run
 
@@ -201,7 +202,7 @@ class Cell:
             raise RuntimeError("Run {0} is already being recorded".format(self.runId))
         if parentRunId is None:
             parentRunId = self.runId
-        self._runRecorder = ab_run.RunRecorder(self, runId=runId, parentRunId=parentRunId)
+        self._runRecorder = ab_run.RunRecorder(self, runId=runId, parentRunId=parentRunId, recordScript=recordScript)
         self.runId = self._runRecorder.runId
         return self.runId
 

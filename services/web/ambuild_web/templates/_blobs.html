@@ -1,0 +1,20 @@
+{% if blobs %}
+<div class="table-wrap">
+  <table class="data blobs">
+    <thead><tr><th scope="col">file</th><th scope="col" class="num">size</th><th scope="col">reference</th><th scope="col">uploaded</th><th scope="col"></th></tr></thead>
+    <tbody>
+      {% for b in blobs %}
+      <tr {% if b.sha256 in highlight %}class="just-added"{% endif %}>
+        <td>{{ b.name }}</td>
+        <td class="num">{{ b.size | filesize }}</td>
+        <td><code class="id" title="sha256:{{ b.sha256 }}">{{ b.sha256[:12] }}…</code></td>
+        <td>{{ b.created | when }}{% if b.owner %} · {{ b.owner }}{% endif %}</td>
+        <td><button type="button" class="insert-ref" data-ref="sha256:{{ b.sha256 }}" aria-label="Insert the reference to {{ b.name }}">Insert</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty">No files uploaded yet.</p>
+{% endif %}

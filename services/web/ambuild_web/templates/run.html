@@ -11,7 +11,7 @@
 {% set rnd = run_json.get("random", {}) %}
 <p class="crumbs"><a href="/runs">Runs</a> / <code>{{ s.run_id[:8] }}</code></p>
 <h1>{{ s.label }} {{ m.status(s.status) }}</h1>
-<p class="lede"><code>{{ s.run_id }}</code></p>
+<p class="lede"><code>{{ s.run_id }}</code>{% if submission %} · from <a href="/submissions/{{ submission.submission_id }}">submission {{ submission.submission_id }}</a> · <a href="/submit?submission={{ submission.submission_id }}">Run again…</a>{% endif %}</p>
 {% if s.error %}<p class="error-box"><strong>Error:</strong> {{ s.error }}</p>{% endif %}
 
 <dl class="facts">

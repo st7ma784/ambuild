@@ -127,7 +127,9 @@ def checkRunDirectory(outputDir):
 class RunRecorder:
     """Keep run.json, events.jsonl and inputs/ for a cell with an outputDir"""
 
-    def __init__(self, cell, runId=None, parentRunId=None):
+    def __init__(self, cell, runId=None, parentRunId=None, recordScript=True):
+        """recordScript: copy the running script (sys.argv[0]) into inputs/script; off for
+        builds defined otherwise, such as recipes (ambuild.recipe)"""
         checkRunDirectory(cell.outputDir)
         self.cell = cell
         self.directory = cell.outputDir
@@ -175,7 +177,7 @@ class RunRecorder:
         cell.analyse.emit(RUN_STARTED, {"run_id": self.runId})
 
         script = sys.argv[0] if sys.argv else ""
-        if script.endswith(".py") and os.path.isfile(script):
+        if recordScript and script.endswith(".py") and os.path.isfile(script):
             self.addInput(script, "script")
         for name in sorted(os.listdir(cell.paramsDir)):
             path = os.path.join(cell.paramsDir, name)

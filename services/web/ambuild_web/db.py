@@ -68,6 +68,7 @@ def _summarySql():
                r.run_json->'random'->>'seed' AS seed,
                r.run_json->'cell'->'box_dim' AS box,
                jsonb_path_query_first(r.run_json, '$.inputs[*] ? (@.kind == "script").path') #>> '{{}}' AS script,
+               jsonb_path_query_first(r.run_json, '$.inputs[*] ? (@.kind == "recipe").name') #>> '{{}}' AS recipe,
                s.step AS last_step, s.num_particles, s.num_blocks, s.density,
                p.run_id AS pore_run_id, p.directory AS pore_directory, {pore},
                (SELECT count(*) FROM runs c WHERE c.parent_run_id = r.run_id) AS children
@@ -92,9 +93,9 @@ def listRuns(conn, f):
         where.append("status = ANY(%s)")
         args.append(list(f.status))
     if f.q:
-        where.append("(run_id::text LIKE %s OR command::text ILIKE %s OR host ILIKE %s OR script ILIKE %s)")
+        where.append("(run_id::text LIKE %s OR command::text ILIKE %s OR host ILIKE %s OR script ILIKE %s OR recipe ILIKE %s)")
         like = "%" + f.q + "%"
-        args += [f.q.lower() + "%", like, like, like]
+        args += [f.q.lower() + "%", like, like, like, like]
     for column, low, high in (("surface_area_m2_g", f.min_surface_area, f.max_surface_area),
                               ("pore_limiting_diameter_a", f.min_pld, f.max_pld)):
         if low is not None:
@@ -196,7 +197,7 @@ def events(conn, runId, etype=None, offset=0, limit=200):
 
 
 def _label(row):
-    """A short name for a run: its script, else its command"""
+    """A short name for a run: its script, else its recipe, else its command"""
     row = dict(row)
     row["run_id"] = str(row["run_id"])
     if row.get("parent_run_id"):
@@ -207,6 +208,8 @@ def _label(row):
     script = row.get("script")
     if script:
         row["label"] = posixpath.basename(script)
+    elif row.get("recipe"):
+        row["label"] = row["recipe"]
     elif command:
         row["label"] = posixpath.basename(str(command[0])) + (" " + " ".join(map(str, command[1:])) if len(command) > 1 else "")
     else:

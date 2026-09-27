@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Queue · {{ title }}{% endblock %}
+{% block content %}
+<h1>Queue</h1>
+<p class="lede">Everyone's submitted runs: waiting, running and recently finished, and the agents
+  that run them. <a href="/submit">Submit a new run</a>.</p>
+<div id="queue">{% include "_queue.html" %}</div>
+{% endblock %}
