@@ -1,0 +1,54 @@
+{% import "_macros.html" as m %}
+<div {% if active %}hx-get="/queue/rows" hx-trigger="every 5s" hx-swap="outerHTML" hx-target="this"{% endif %} id="queue-rows">
+{% if submissions %}
+<div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr><th scope="col">#</th><th scope="col">name</th><th scope="col">state</th><th scope="col">owner</th>
+        <th scope="col" class="num">seed</th><th scope="col">submitted</th><th scope="col">agent</th><th scope="col">run</th></tr>
+    </thead>
+    <tbody>
+      {% for s in submissions %}
+      <tr id="s-{{ s.submission_id }}">
+        <td><a href="/submissions/{{ s.submission_id }}">{{ s.submission_id }}</a></td>
+        <td><a href="/submissions/{{ s.submission_id }}">{{ s.name }}</a>{% if s.priority %} <span class="note">priority {{ s.priority }}</span>{% endif %}</td>
+        <td>{{ m.status(s.state) }}{% if s.error %} <span class="note" title="{{ s.error }}">{{ s.error | truncate(40) }}</span>{% endif %}</td>
+        <td>{{ s.owner or "–" }}</td>
+        <td class="num">{{ s.seed_used if s.seed_used is not none else "random" }}</td>
+        <td>{{ s.created | when }}</td>
+        <td>{{ s.agent or "–" }}</td>
+        <td>{% if s.uploaded %}<a href="/runs/{{ s.run_id }}"><code class="id">{{ (s.run_id | string)[:8] }}</code></a>{% else %}<span class="note">not uploaded</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty">Nothing has been submitted yet.</p>
+{% endif %}
+
+<h2>Agents</h2>
+{% if agents %}
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th scope="col">agent</th><th scope="col">runs on</th><th scope="col">state</th><th scope="col">last heartbeat</th>
+      <th scope="col">host</th><th scope="col" class="num">active</th></tr></thead>
+    <tbody>
+      {% for a in agents %}
+      <tr>
+        <td>{{ a.name }}</td>
+        <td>{{ a.backend }}</td>
+        <td>{% if a.revoked %}<span class="status state-fail">Revoked</span>{% elif a.live %}<span class="status state-ok">Online</span>{% else %}<span class="status state-warn">Offline</span>{% endif %}</td>
+        <td>{{ a.last_heartbeat | when }}</td>
+        <td>{{ a.host or "–" }}{% if a.version %} <span class="note">{{ a.version }}</span>{% endif %}</td>
+        <td class="num">{{ a.active }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty">No agents registered. Register one with <code>ambuild-web init --agent NAME:local</code>
+  and start it with its token (see services/agent).</p>
+{% endif %}
+</div>

@@ -1,4 +1,4 @@
-# ambuild chart: the web interface only. PostgreSQL and S3-compatible storage are
+# ambuild chart: the web interface, and optionally an agent. PostgreSQL and S3 storage are
 # external: point at them here. Keep this chart small (Fleet and Helm limit a bundle or
 # release to about 1 MiB; scripts/check_chart_size.sh enforces a budget far below that).
 
@@ -41,3 +41,16 @@ resources:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# The K3s agent: runs submitted recipes in a pod of its own (one at a time per slot) and
+# uploads them. Needs AMBUILD_AGENT_TOKEN in the Secret.
+agent:
+  enabled: false
+  image:
+    repository: ghcr.io/st7ma784/ambuild-agent
+    tag: ""  # default: the chart's appVersion
+  slots: 1
+  workSize: 10Gi  # run directories, until uploaded
+  resources:
+    requests: {cpu: "1", memory: 1Gi}
+    limits: {memory: 4Gi}

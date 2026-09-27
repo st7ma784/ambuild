@@ -50,11 +50,33 @@ docker compose -f deploy/docker-compose.yml --profile web-test run --rm --build 
 
 It has no sign-in yet: keep it on the lab network.
 
+The demo also runs a local agent (`services/agent`, the `ambuild-agent` image), which
+builds what is submitted on the New run page in its own container and uploads it; a
+demo recipe is saved on the first start. The agent's token is `AMBUILD_AGENT_TOKEN`
+(development default in the Compose file; set it in `deploy/.env`), registered by the
+`web-init` service. Submission end to end, as CI checks it:
+
+```sh
+docker compose -f deploy/docker-compose.yml --profile agent-test run --rm --build agent-test
+```
+
+To run an agent elsewhere, register it and give it the token:
+
+```sh
+ambuild-web init --agent lab-box:local        # prints a new token once
+AMBUILD_API_URL=http://ambuild-web:8000 AMBUILD_AGENT_TOKEN=... ambuild-agent
+```
+
+It needs Ambuild (and HOOMD-blue, and Poreblazer for recipes that use it) and
+`ambuild-upload` with its database and storage settings; builds do not get those.
+
 ### Helm chart and Fleet
 
-`helm/ambuild/` deploys the web GUI only; PostgreSQL and S3 are external, named in its
-values, and the credentials come from a Secret created outside Git
-(`helm/ambuild-secret.example.yaml`). Point a Fleet GitRepo's `paths` at
+`helm/ambuild/` deploys the web GUI and, with `agent.enabled`, a K3s agent that builds
+submissions in its own pod; PostgreSQL and S3 are external, named in its values, and the
+credentials (and the agent's token) come from a Secret created outside Git
+(`helm/ambuild-secret.example.yaml`). The web pod's init container applies the schema
+and registers the agent. Point a Fleet GitRepo's `paths` at
 `deploy/helm/ambuild`. Fleet bundles every file under that path and stores the bundle
 in etcd, and Helm stores each release in a Secret; both are capped at about 1 MiB, so
 the directory holds the chart and `fleet.yaml` only, and `scripts/check_chart_size.sh`

@@ -16,6 +16,19 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Recipes (`ambuild/recipe.py`): a build described as JSON rather than as a script.
+  - A recipe gives the cell, the fragments (files by sha256 reference or, on the command line, by path), the bond types and the stages. Stages are operations (`seed`, `grow`, `join`, `zip`, `optimise`, `md`, `md_optimise`, `delete_blocks`, `cap`, `poreblazer`) and nested repeats.
+  - `python -m ambuild.recipe run` builds it as a recorded run, with the recipe among its inputs, and writes a checkpoint after each top-level stage and each pass of a top-level repeat. `validate`, `describe` and `hash` are the other commands.
+  - The same recipe and seed give the same structure.
+- `Cell.startRecording(recordScript=False)` leaves the running script out of a run's inputs.
+- Web GUI, milestone 3: submitting builds.
+  - **Uploads:** building blocks and parameter files are stored once, by sha256.
+  - **New run page:** a recipe editor with validation, saved recipes as versions of a name, and the operations reference.
+  - **Queue:** a queue page with the agents' state, and a page per submission with cancel, retry and "Run again". Run pages link back to their submission.
+  - **Agents:** a token-authenticated agent API (claim, report, heartbeat, with claims as leases). Agents are registered with `ambuild-web init --agent`.
+  - **Local agent** (`services/agent`; image target `ambuild-agent`): runs submissions in its container or pod, uploads them while they run and when they end, and stops them when cancelled.
+  - **Compose and Helm:** the demo gains the agent and a saved demo recipe. The Helm chart gains an optional agent Deployment and an init container that applies the schema.
+  - **CI:** a new job checks the path end to end: submit, build, upload, the same structure from the command line, and cancelling.
 - Web GUI, milestone 2: the structure viewer. `Cell.dump()` also writes `step_N.xyz`,
   an extended XYZ with the cell lattice, the step, and each atom's fragment type and
   block id (positions wrapped into the cell), recorded as a `structure` artifact. Run

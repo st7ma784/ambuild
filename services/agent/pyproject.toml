@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ambuild-agent"
+version = "0.1.0"
+description = "Runs submissions queued in the Ambuild web GUI."
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.9"
+# Standard library only; it runs recipes with the ambuild package installed beside it
+# and uploads them with ambuild-upload (services/ingest)
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+ambuild-agent = "ambuild_agent.__main__:main"
+
+[tool.setuptools]
+packages = ["ambuild_agent"]

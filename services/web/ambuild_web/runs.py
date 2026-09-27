@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, StreamingResponse
 
-from ambuild_web import db, formatting, storage
+from ambuild_web import db, formatting, queue, storage
 
 router = APIRouter()
 
@@ -138,13 +138,15 @@ def runPage(request: Request, runId: str):
     with db.connect(request.app.state.settings) as conn:
         run = _runOr404(conn, runId)
         firstEvents = db.events(conn, run["summary"]["run_id"], limit=100)
+        queue.ensureSchema(conn)
+        submission = queue.submissionForRun(conn, run["summary"]["run_id"])
     summary = run["summary"]
     return request.app.state.render(
         request, "run.html", r=run, s=summary, run_json=run["run"]["run_json"],
         step_charts=_stepCharts(run["steps"]), psd_charts=_psdCharts(run["pore_results"]),
         pore_step_charts=_poreStepCharts(run["pore_results"]), structure=_structureSpec(run),
         events=firstEvents, next_offset=len(firstEvents) if len(firstEvents) == 100 else None,
-        run_json_text=json.dumps(run["run"]["run_json"], indent=2, default=str),
+        run_json_text=json.dumps(run["run"]["run_json"], indent=2, default=str), submission=submission,
         quote=quote)
 
 

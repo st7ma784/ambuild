@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ sub.name }} · Submission {{ sub.submission_id }} · {{ title }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/queue">Queue</a> / submission {{ sub.submission_id }}</p>
+<div id="submission" {% if active %}hx-get="/submissions/{{ sub.submission_id }}" hx-trigger="every 5s" hx-select="#submission" hx-swap="outerHTML"{% endif %}>
+<h1>{{ sub.name }} {{ m.status(sub.state) }}</h1>
+
+{% if sub.error %}<p class="error-box">{{ sub.error }}</p>{% endif %}
+
+<dl class="facts">
+  <div><dt>Run</dt><dd>{% if sub.uploaded %}<a href="/runs/{{ sub.run_id }}">{{ sub.run_id }}</a>{% else %}<code class="id">{{ sub.run_id }}</code> <span class="note">not uploaded yet</span>{% endif %}</dd></div>
+  <div><dt>Owner</dt><dd>{{ sub.owner or "–" }}</dd></div>
+  <div><dt>Seed</dt><dd>{{ sub.seed if sub.seed is not none else (sub.recipe.seed if sub.recipe.seed is not none else "random (recorded)") }}</dd></div>
+  <div><dt>Runs on</dt><dd>{{ sub.backend }}{% if sub.agent %} · {{ sub.agent }}{% endif %}{% if sub.external_id %} <code class="id">{{ sub.external_id }}</code>{% endif %}</dd></div>
+  <div><dt>Priority</dt><dd>{{ sub.priority }}</dd></div>
+  <div><dt>Attempts</dt><dd>{{ sub.attempts }}</dd></div>
+  <div><dt>Submitted</dt><dd>{{ sub.created | when }}</dd></div>
+  <div><dt>Started</dt><dd>{{ sub.started | when }}</dd></div>
+  <div><dt>Finished</dt><dd>{{ sub.finished | when }}</dd></div>
+  <div><dt>Recipe</dt><dd><code class="id" title="{{ sub.recipe_sha256 }}">{{ sub.recipe_sha256[:12] }}</code> · {{ operations }} operations</dd></div>
+</dl>
+
+<div class="button-row">
+  {% if sub.state in ("queued", "claimed", "submitted", "running") %}
+  <form method="post" action="/submissions/{{ sub.submission_id }}/cancel"><button type="submit" class="danger">Cancel</button></form>
+  {% endif %}
+  {% if sub.state in ("failed", "cancelled") %}
+  <form method="post" action="/submissions/{{ sub.submission_id }}/retry"><button type="submit">Retry</button></form>
+  {% endif %}
+  <a class="button" href="/submit?submission={{ sub.submission_id }}">Run again…</a>
+</div>
+</div>
+
+<h2>Recipe</h2>
+<pre class="code-block">{{ recipe_text }}</pre>
+{% endblock %}

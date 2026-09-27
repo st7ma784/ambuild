@@ -7,7 +7,9 @@ STATUS_LABELS = {
     "failed": "Failed",
     "incomplete": "Incomplete",
 }
-STATUS_STATES = {"finished": "ok", "running": "run", "failed": "fail", "incomplete": "warn"}
+STATUS_STATES = {"finished": "ok", "running": "run", "failed": "fail", "incomplete": "warn",
+                 # submissions (the queue)
+                 "queued": "warn", "claimed": "run", "submitted": "run", "cancelling": "warn", "cancelled": "warn"}
 
 
 def number(value, digits=2):

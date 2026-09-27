@@ -257,6 +257,26 @@ cell = ab_cell.Cell([30, 30, 30], paramsDir=params, outputDir="runs/replay", ran
 ```
 Pickles (`cell.dump()`) save the generator's state too, and `ab_util.cellFromPickle()` restores it (unless `restoreRandomState=False`), so a build resumed from a checkpoint ends exactly as the uninterrupted build would.
 
+## Recipes
+A build can also be described as data, a recipe, which is what the web GUI submits. A
+recipe names the cell, the building blocks (by path, or by sha256 for uploaded files),
+the bond types and the stages, each a cell operation or a repeated group of them:
+```json
+{"recipe_version": 1, "name": "benzene network", "cell": {"box": [30, 30, 30]},
+ "fragments": [{"type": "A", "car": "blocks/benzene.car", "csv": "blocks/benzene.csv"}],
+ "bond_types": ["A:a-A:a"],
+ "stages": [{"op": "seed", "count": 10},
+            {"repeat": 5, "stages": [{"op": "grow", "count": 5}, {"op": "zip", "bond_margin": 1.0}]}],
+ "seed": 42}
+```
+```
+python -m ambuild.recipe validate recipe.json
+python -m ambuild.recipe run recipe.json --output runs/benzene
+python -m ambuild.recipe describe      # every operation and its arguments
+```
+The run is recorded (with the recipe among its inputs) and checkpointed after each
+top-level stage and each pass of a top-level repeat. See `ambuild/recipe.py`.
+
 ## Running the tests
 With Ambuild installed, the CPU test suite runs without HOOMD-Blue:
 ```

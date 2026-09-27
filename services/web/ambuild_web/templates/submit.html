@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}New run · {{ title }}{% endblock %}
+{% block scripts %}<script src="/static/submit.js" defer></script>{% endblock %}
+{% block content %}
+<h1>New run</h1>
+<p class="lede">A build is described by a recipe: the cell, the building blocks, the bond types and
+  the stages to run. Upload the building blocks below, put their references in the recipe, then
+  submit. The same recipe and seed always give the same structure.</p>
+
+
+{% if not agents | selectattr("live") | list %}
+<p class="error-box" role="status">No agent has checked in during the last two minutes, so a new run
+  will wait in the queue until one does. See the <a href="/queue">queue</a> for the agents.</p>
+{% endif %}
+
+<form class="filters" method="get" action="/submit">
+  <div class="field grow">
+    <label for="saved">Start from a saved recipe</label>
+    <select id="saved" name="recipe">
+      {% if recipes and recipe_id is none %}<option value="" disabled selected>choose a recipe…</option>{% endif %}
+      {% for r in recipes %}
+      <option value="{{ r.recipe_id }}" {% if r.recipe_id == recipe_id %}selected{% endif %}>{{ r.name }} (v{{ r.version }}{% if r.owner %}, {{ r.owner }}{% endif %})</option>
+      {% else %}
+      <option value="" disabled selected>none saved yet</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="actions">
+    <button type="submit" {% if not recipes %}disabled{% endif %}>Load</button>
+    <a href="/submit">Blank template</a>
+  </div>
+</form>
+
+{% if errors %}
+<div class="error-box" role="alert">
+  <strong>The recipe cannot be submitted:</strong>
+  <ul class="errors">{% for e in errors %}<li><code>{{ e }}</code></li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" action="/submit" class="submit-form">
+  <input type="hidden" name="recipe_id" value="{{ recipe_id or '' }}">
+  <label for="recipe" class="field-label">Recipe (JSON)</label>
+  <textarea id="recipe" name="recipe" rows="26" spellcheck="false" autocomplete="off">{{ recipe_text }}</textarea>
+  <div id="validation" aria-live="polite"></div>
+  <div class="filters">
+    <div class="field grow">
+      <label for="name">Name</label>
+      <input id="name" name="name" value="{{ name }}" placeholder="default: the recipe's name" maxlength="200">
+    </div>
+    <div class="field">
+      <label for="seed">Seed</label>
+      <input id="seed" name="seed" value="{{ seed }}" inputmode="numeric" placeholder="the recipe's" size="12">
+    </div>
+    <div class="field">
+      <label for="priority">Priority</label>
+      <input id="priority" name="priority" value="{{ priority }}" inputmode="numeric" size="4">
+    </div>
+    <div class="field">
+      <label for="backend">Run on</label>
+      <select id="backend" name="backend">{% for b in backends %}<option value="{{ b }}">{{ b }}</option>{% endfor %}</select>
+    </div>
+    <div class="actions">
+      <button type="button" hx-post="/submit/validate" hx-include="closest form" hx-target="#validation">Check</button>
+      <button type="submit" name="action" value="save" class="secondary">Save recipe</button>
+      <button type="submit" name="action" value="submit">Submit</button>
+    </div>
+  </div>
+  <p class="note">With no seed here or in the recipe, the run starts from a random state, which
+    is recorded, so it can still be replayed. Saving stores the recipe as a new version of its name.</p>
+</form>
+
+<section aria-labelledby="files-h">
+  <h2 id="files-h">Building blocks and parameter files</h2>
+  <p class="note">Each fragment needs its <code>.car</code> file and the <code>.csv</code> that defines
+    its end groups. Files are stored once, by content. Select a placeholder in the recipe, then press
+    Insert to put a file's reference there.</p>
+  <form class="filters" hx-post="/blobs/upload" hx-encoding="multipart/form-data" hx-target="#blobs"
+        method="post" action="/blobs/upload" enctype="multipart/form-data">
+    <div class="field grow">
+      <label for="files">Upload files</label>
+      <input id="files" name="files" type="file" multiple accept=".car,.csv,.ambody">
+    </div>
+    <div class="actions"><button type="submit">Upload</button></div>
+  </form>
+  <div id="blobs">{% include "_blobs.html" %}</div>
+</section>
+
+<section aria-labelledby="ops-h">
+  <h2 id="ops-h">Recipe reference</h2>
+  <p class="note">Top level: <code>recipe_version</code> ({{ format.recipe_version }}), <code>name</code>,
+    <code>cell</code> (<code>box</code> in Å; <code>atom_margin</code>, <code>bond_margin</code>,
+    <code>bond_angle_margin</code>), <code>fragments</code> (<code>type</code>, <code>car</code>,
+    <code>csv</code>, optional <code>ambody</code>, <code>name</code>, <code>solvent</code>,
+    <code>catalyst</code>, <code>mark_bonded</code>), <code>params</code> (null for the standard files, or
+    references for {{ format.params_files | join(", ") }}), <code>bond_types</code>, <code>max_bonds</code>,
+    <code>stages</code>, <code>seed</code>. A stage is <code>{"op": …, arguments}</code> or
+    <code>{"repeat": n, "stages": […]}</code>; a checkpoint (pickle and structure) is written after each
+    top-level stage and each pass of a top-level repeat.</p>
+  {% for opname, op in format.operations.items() %}
+  <details class="op">
+    <summary><code>{{ opname }}</code> — {{ op.help }}</summary>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">argument</th><th scope="col">type</th><th scope="col">default</th><th scope="col"></th></tr></thead>
+        <tbody>
+          {% for a in op.args %}
+          <tr>
+            <th scope="row"><code>{{ a.name }}</code></th>
+            <td>{{ a.type }}{% if a.choices %}: {{ a.choices | join(" | ") }}{% endif %}{% if a.minimum is not none %} ≥ {{ a.minimum }}{% endif %}</td>
+            <td>{% if a.required %}<strong>required</strong>{% elif a.default is none %}–{% else %}<code>{{ a.default | tojson }}</code>{% endif %}</td>
+            <td>{{ a.help }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,8 +1,9 @@
 # Ambuild runtime image: Python 3.12, HOOMD-blue 7 and NumPy from conda-forge, with the
-# ambuild package installed, in debian-slim. Two targets:
+# ambuild package installed, in debian-slim. Three targets:
 #
 #   ambuild             Ambuild with HOOMD-blue
 #   ambuild-poreblazer  the same plus Poreblazer (the default target)
+#   ambuild-agent       that plus the web GUI's agent and ambuild-upload
 #
 #   docker build -t ambuild .
 #   docker build --target ambuild -t ambuild:no-poreblazer .
@@ -55,7 +56,7 @@ WORKDIR /home/ambuild
 CMD ["python"]
 
 # --- Ambuild with Poreblazer
-FROM ambuild AS ambuild-poreblazer
+FROM ambuild AS with-poreblazer
 USER root
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libgfortran5 libgomp1 \
@@ -63,3 +64,19 @@ RUN apt-get update \
 COPY --from=poreblazer-build /opt/poreblazer/poreblazer.exe /opt/poreblazer/poreblazer.exe
 ENV POREBLAZER_EXE=/opt/poreblazer/poreblazer.exe
 USER ambuild
+
+# --- The web GUI's agent (services/agent): runs queued recipes in this container and
+# uploads them with ambuild-upload
+FROM with-poreblazer AS ambuild-agent
+USER root
+COPY services/ingest /tmp/ingest
+COPY services/agent /tmp/agent
+RUN pip install --no-cache-dir /tmp/ingest /tmp/agent \
+ && rm -rf /tmp/ingest /tmp/agent \
+ && find /opt/env -name "__pycache__" -prune -exec rm -rf {} +
+USER ambuild
+ENV AMBUILD_AGENT_DIR=/home/ambuild/agent
+CMD ["ambuild-agent"]
+
+# --- Ambuild with Poreblazer (the last stage, so the default target)
+FROM with-poreblazer AS ambuild-poreblazer

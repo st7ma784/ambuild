@@ -6,6 +6,7 @@
 #   docker compose -f deploy/docker-compose.yml --profile test run --rm ingest-test
 #   docker compose -f deploy/docker-compose.yml --profile web up     # web GUI demo on http://127.0.0.1:8080
 #   docker compose -f deploy/docker-compose.yml --profile web-test run --rm --build web-test
+#   docker compose -f deploy/docker-compose.yml --profile agent-test run --rm --build agent-test
 name: ambuild
 
 x-ingest-env: &ingest-env
@@ -83,7 +84,55 @@ services:
     ports: ["127.0.0.1:${AMBUILD_WEB_PORT:-8080}:8000"]
     depends_on:
       init: {condition: service_completed_successfully}
-    profiles: ["web", "slurm-test"]  # the Slurm test checks runs through it
+    profiles: ["web", "slurm-test", "agent-test"]  # the Slurm test checks runs through it
+
+  web-init:
+    # The web GUI's tables, and the demo agent registered with its token
+    build: {context: .., dockerfile: services/web/Dockerfile, target: web}
+    image: ambuild-web
+    environment: *ingest-env
+    command: ["init", "--agent", "local-demo:local:${AMBUILD_AGENT_TOKEN:-ambuild-dev-agent-token}"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+    profiles: ["web", "agent-test"]
+
+  agent:
+    # Runs submitted recipes in this container (services/agent) and uploads them
+    build: {context: .., dockerfile: Dockerfile, target: ambuild-agent}
+    image: ambuild-agent
+    environment:
+      <<: *ingest-env
+      AMBUILD_API_URL: http://web:8000
+      AMBUILD_AGENT_TOKEN: ${AMBUILD_AGENT_TOKEN:-ambuild-dev-agent-token}
+      AMBUILD_AGENT_SLOTS: "2"
+    depends_on:
+      web-init: {condition: service_completed_successfully}
+      web: {condition: service_started}
+    profiles: ["web", "agent-test"]
+
+  demo-recipes:
+    # Saves the demo recipe, so the New run page has one to start from
+    build: {context: .., dockerfile: Dockerfile, target: ambuild-agent}
+    image: ambuild-agent
+    environment: {AMBUILD_API_URL: "http://web:8000"}
+    volumes: ["./demo:/demo:ro"]
+    command: ["python", "/demo/seed_recipes.py"]
+    depends_on:
+      web-init: {condition: service_completed_successfully}
+      web: {condition: service_started}
+    profiles: ["web"]
+
+  agent-test:
+    # Submission end to end: browser API -> queue -> agent -> upload -> run page, and the
+    # same structure from the command line
+    build: {context: .., dockerfile: Dockerfile, target: ambuild-agent}
+    image: ambuild-agent
+    environment: {AMBUILD_API_URL: "http://web:8000"}
+    volumes: ["./demo:/demo:ro"]
+    command: ["python", "/demo/check_submit.py"]
+    depends_on:
+      agent: {condition: service_started}
+    profiles: ["agent-test"]
 
   demo-runs:
     # A few small recorded builds with Poreblazer results, for the demo (built once;

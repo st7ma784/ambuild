@@ -3,8 +3,11 @@
 # The default target serves the site on port 8000; the "test" target runs the tests.
 FROM python:3.12-slim AS web
 RUN useradd --create-home --uid 1000 ambuild
+# ambuild.recipe (recipe validation) needs only the standard library: no NumPy or HOOMD-blue
+COPY pyproject.toml setup.py README.md LICENSE /src/ambuild/
+COPY ambuild /src/ambuild/ambuild
 COPY services/web /src/web
-RUN pip install --no-cache-dir /src/web
+RUN pip install --no-cache-dir --no-deps /src/ambuild && pip install --no-cache-dir /src/web
 USER ambuild
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s \

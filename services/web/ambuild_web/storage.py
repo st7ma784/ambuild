@@ -48,3 +48,9 @@ def contentType(path, inline):
         return "text/plain; charset=utf-8"
     guessed, _ = mimetypes.guess_type(path)
     return guessed or "application/octet-stream"
+
+
+def putObject(settings, key, data):
+    """Store data (bytes) at key in the configured bucket; returns its s3:// URI"""
+    client(settings).put_object(Bucket=settings.s3_bucket, Key=key, Body=data)
+    return "s3://{0}/{1}".format(settings.s3_bucket, key)
