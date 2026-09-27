@@ -5,7 +5,7 @@
 #   docker run --rm -v "$PWD:/ambuild" -w /ambuild/tests -e PYTHONPATH=/ambuild \
 #       -e PYTHONHASHSEED=0 ambuild-poreblazer python3 run_tests.py
 # Ambuild's fork, as built and tested by its CI (FORK.md there)
-ARG POREBLAZER_IMAGE=ghcr.io/st7ma784/poreblazer:sha-9d4cbcc
+ARG POREBLAZER_IMAGE=ghcr.io/st7ma784/poreblazer:sha-d70fa08
 FROM ${POREBLAZER_IMAGE} AS poreblazer
 
 FROM python:3.11-slim-bookworm

@@ -1,7 +1,7 @@
 # Single-node Slurm cluster for testing the deploy/slurm scripts end to end.
 # Built and run by deploy/docker-compose.yml (profile slurm-test).
 # Ambuild's Poreblazer fork, as built and tested by its CI
-ARG POREBLAZER_IMAGE=ghcr.io/st7ma784/poreblazer:sha-9d4cbcc
+ARG POREBLAZER_IMAGE=ghcr.io/st7ma784/poreblazer:sha-d70fa08
 FROM ${POREBLAZER_IMAGE} AS poreblazer
 
 FROM debian:trixie-slim

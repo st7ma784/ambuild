@@ -9,7 +9,7 @@ S3-compatible object storage by `ambuild-upload` (`services/ingest`).
 | `docker-compose.yml` | PostgreSQL 16, SeaweedFS (S3 API), the uploader, and test profiles |
 | `slurm/` | Job scripts: build, upload, Poreblazer fan-out |
 | `slurm/test/` | Single-node Slurm image that tests `slurm/` end to end |
-| `k8s/` | K3s fallback: uploader CronJob, init Job, runs PVC, Secret template |
+| `k8s/` | K3s fallback: init Job, on-demand upload scan Job, runs PVC, Secret template |
 
 ## Local stack
 
@@ -82,11 +82,13 @@ anyway; benchmark before scaling up.
 ```sh
 kubectl apply -f deploy/k8s/runs-pvc.yaml          # the shared runs filesystem
 kubectl apply -f my-secret.yaml                    # from k8s/secret.example.yaml
-kubectl apply -f deploy/k8s/uploader.yaml          # init Job + CronJob
+kubectl apply -f deploy/k8s/uploader.yaml          # init Job (creates the tables)
+kubectl create -f deploy/k8s/upload-scan.yaml      # a scan, whenever one is wanted
 ```
 
-The CronJob scans the runs volume every 15 minutes and uploads finished runs
-without a `.ambuild-uploaded` marker, plus runs untouched for a day as
-`incomplete`. Build the image with
+Nothing is scheduled. Each `upload-scan.yaml` Job scans the runs volume once and
+uploads finished runs without a `.ambuild-uploaded` marker, plus runs untouched for
+a day as `incomplete`; run one after an outage, or whenever uploads look behind.
+Build the image with
 `docker build -f services/ingest/Dockerfile -t <registry>/ambuild-ingest:0.1.0 .`
-and set it in `k8s/uploader.yaml`.
+and set it in `k8s/uploader.yaml` and `k8s/upload-scan.yaml`.

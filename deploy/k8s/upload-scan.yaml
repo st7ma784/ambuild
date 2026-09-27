@@ -1,0 +1,35 @@
+# On-demand scan for K3s: uploads runs the Slurm upload jobs missed (finished runs
+# without a .ambuild-uploaded marker, and runs untouched for a day as incomplete).
+# Nothing runs it on a schedule; start one when needed:
+#
+#   kubectl create -f deploy/k8s/upload-scan.yaml
+#
+# (create, not apply: each scan is a new Job, named ambuild-upload-scan-<random>).
+# Uploads are idempotent, so a scan can overlap the Slurm upload jobs safely.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: ambuild-upload-scan-
+  labels: {app.kubernetes.io/part-of: ambuild, app.kubernetes.io/component: uploader}
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000}
+      containers:
+        - name: upload
+          image: ghcr.io/st7ma784/ambuild-ingest:0.1.0
+          # Finished runs not yet uploaded, plus runs untouched for a day
+          # (their job died without its upload job) as incomplete
+          args: ["--scan", "/runs", "--stale-after", "86400"]
+          envFrom: [{secretRef: {name: ambuild-upload}}]
+          volumeMounts: [{name: runs, mountPath: /runs}]
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+      volumes:
+        - name: runs
+          persistentVolumeClaim: {claimName: ambuild-runs}

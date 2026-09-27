@@ -67,7 +67,7 @@ flowchart LR
     rec -- "input event" --> inputs
     cell -- "artifact event" --> files
 
-    rundir -. "after the job" .-> up["ambuild-upload<br/>(Slurm upload job / K3s CronJob)"]
+    rundir -. "after the job" .-> up["ambuild-upload<br/>(Slurm upload job / K3s scan Job)"]
     up --> pg[("PostgreSQL<br/>runs · events · steps · files · pore_results")]
     up --> s3[("S3-compatible storage<br/>SeaweedFS / MinIO / Ceph / S3")]
     api["Web API"] --> pg
@@ -109,16 +109,16 @@ flowchart LR
     array --> child
 
     subgraph k3s["K3s (fallback)"]
-        cron["CronJob<br/>ambuild-upload-scan<br/>--scan /runs<br/>--stale-after 1 day"]
+        scan["Job, on demand<br/>ambuild-upload-scan<br/>--scan /runs<br/>--stale-after 1 day"]
     end
-    shared -. "PVC (NFS)" .- cron
+    shared -. "PVC (NFS)" .- scan
 
     up1 --> pg[("PostgreSQL")]
     up2 --> pg
-    cron --> pg
+    scan --> pg
     up1 --> s3[("S3-compatible storage")]
     up2 --> s3
-    cron --> s3
+    scan --> s3
 ```
 
 - **Status.** A build that raises is recorded `failed` (the `with Cell(...)`
@@ -127,11 +127,12 @@ flowchart LR
   `incomplete`.
 - **Idempotency.** Objects are skipped when one with the same sha256 exists;
   rows are upserted on `run_id` and natural keys (`seq`, `step`, `path`,
-  Poreblazer directory). Any upload can be repeated, so the Slurm jobs and the
-  CronJob can overlap safely.
-- **Fallback.** The CronJob uploads finished runs that have no
-  `.ambuild-uploaded` marker, and runs untouched for a day as `incomplete`, which
-  covers upload jobs that never ran.
+  Poreblazer directory). Any upload can be repeated, so the Slurm jobs and a
+  scan can overlap safely.
+- **Fallback.** A scan Job, started by hand (`kubectl create -f
+  deploy/k8s/upload-scan.yaml`; nothing is scheduled), uploads finished runs that
+  have no `.ambuild-uploaded` marker, and runs untouched for a day as `incomplete`,
+  which covers upload jobs that never ran.
 - **MPI.** Ambuild's building steps make random choices that would differ
   between MPI ranks, so Ambuild itself runs as one process. A build job with
   `--ntasks=N` sets `AMBUILD_HOOMD_LAUNCHER="srun --ntasks=N"`, and each

@@ -1,6 +1,7 @@
-# Keep Ambuild on the newest image of its Poreblazer fork: weekly (or on demand), point
-# the Dockerfiles at the fork's last successful build (scripts/update_poreblazer.sh) and,
-# if that changes anything, open a pull request. The fork's CI has already checked the
+# Move Ambuild to the newest image of its Poreblazer fork, when run by hand (Actions >
+# Update Poreblazer > Run workflow; nothing is scheduled): point the Dockerfiles at the
+# fork's last successful build (scripts/update_poreblazer.sh) and, if that changes
+# anything, open a pull request. The fork's CI has already checked the
 # image against upstream Poreblazer; this repository's checks then build and test it.
 #
 # Opening the pull request needs "Allow GitHub Actions to create and approve pull
@@ -10,8 +11,6 @@
 name: Update Poreblazer
 
 on:
-  schedule:
-    - cron: "0 6 * * 1"
   workflow_dispatch:
 
 permissions:
