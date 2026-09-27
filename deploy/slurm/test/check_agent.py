@@ -8,7 +8,9 @@
    finishes, uploaded by its Slurm upload job, with its results;
 4. cancelling a running submission scancels it, and the run is uploaded as cancelled;
 5. a 3x3 grid sweep runs as one array job, and its page plots a result against both
-   parameters.
+   parameters;
+6. a campaign steered by the controller meets a density goal in fewer runs than the
+   equivalent grid, each round one array job, every trial linked to its runs.
 
 Only the standard library (and deploy/demo/webapi.py). AMBUILD_API_URL: the web GUI.
 """
@@ -30,9 +32,11 @@ FINAL = ("finished", "failed", "cancelled")
 
 def check(condition, message):
     if not condition:
-        print("--- agent log")
-        with open("/tmp/agent.log") as f:
-            print(f.read()[-6000:])
+        for name, path in (("agent", "/tmp/agent.log"), ("campaign controller", "/tmp/campaigns.log")):
+            if os.path.exists(path):
+                print("--- {0} log".format(name))
+                with open(path) as f:
+                    print(f.read()[-6000:])
         sys.exit("FAIL: " + message)
     print("ok:", message)
 
@@ -151,6 +155,57 @@ def main():
     page = webapi.get("/sweeps/{0}?metric=density".format(sweep["sweep_id"])).decode()
     check('id="sweep-box-data"' in page and 'id="sweep-grow-data"' in page,
           "the sweep page plots density against box and against grow")
+
+    # 6. a campaign steered by the controller (Optuna TPE) at a density band, over box size
+    #    and grow count: it must meet the goal in fewer runs than the equivalent grid (6 box
+    #    sizes x 6 grow counts x 2 seeds = 72 runs), each round one array job, and every
+    #    trial linked to its runs
+    controllerToken = webapi.call("POST", "/api/agents", {"name": "controller-" + name, "backend": "campaigns"})
+    env = dict(os.environ, AMBUILD_API_URL=webapi.API, AMBUILD_CAMPAIGNS_TOKEN=controllerToken["token"],
+               AMBUILD_CAMPAIGNS_POLL="3")
+    controller = subprocess.Popen(["ambuild-campaigns"], env=env, stdout=open("/tmp/campaigns.log", "a"),
+                                  stderr=subprocess.STDOUT)
+    spec = {
+        "parameters": [{"name": "box", "path": "/cell/box", "all": True, "type": "float", "low": 20, "high": 32},
+                       {"name": "grow", "path": "/stages/1/stages/0/count", "type": "int", "low": 1, "high": 6}],
+        "constraints": [{"metric": "density", "min": 0.068, "max": 0.072}],
+        "objective": {"target": {"metric": "density", "value": 0.07}},
+        "replicates": 2, "method": "tpe", "initial_points": 4, "batch_size": 3,
+        "budget": {"runs": 48}, "stop": {"feasible_points": 1}, "sampler_seed": 1,
+    }
+    campaign = webapi.call("POST", "/api/campaigns", {"recipe": base, "spec": spec, "backend": "slurm",
+                                                      "name": "slurm campaign " + name, "owner": "slurm test"})
+
+    def campaignDetail():
+        return webapi.call("GET", "/api/campaigns/{0}".format(campaign["campaign_id"]))
+
+    detail = waitFor(lambda: (lambda d: d if d["campaign"]["state"] != "active" else None)(campaignDetail()), 1200,
+                     "the campaign ends")
+    trials = detail["trials"]
+    check(detail["campaign"]["state"] == "finished" and detail["campaign"]["message"].startswith("goal met"),
+          "the campaign met its goal: {0} ({1} trials in {2} rounds)".format(
+              detail["campaign"]["message"], len(trials), max(t["round"] for t in trials)))
+    check(detail["runs_used"] < 72, "in {0} runs, fewer than the grid's 72".format(detail["runs_used"]))
+    best = next(t for t in trials if t["number"] == detail["best"])
+    inBand = [r for r in best["runs"] if 0.068 <= (r["results"]["density"] or 0) <= 0.072]
+    check(len(inBand) >= 1 and best["score"]["constraints"][0]["fraction"] >= 0.5,
+          "its best point {0} is in the band for {1} of its 2 seeds (densities {2})".format(
+              best["params"], len(inBand), ", ".join("{0:.4f}".format(r["results"]["density"]) for r in best["runs"])))
+    check(max(t["round"] for t in trials) >= 2, "after Bayesian rounds, not just the first (random) one")
+    check(all(r["uploaded"] and r["run_id"] for t in trials for r in t["runs"]) and
+          all(len(t["runs"]) == 2 for t in trials), "every trial links to its 2 runs")
+    for t in trials:
+        webapi.get("/runs/" + t["runs"][0]["run_id"])  # the links work
+    arrays = {}
+    for sweepId in {t["sweep_id"] for t in trials}:
+        rows = webapi.call("GET", "/api/sweeps/{0}".format(sweepId))["runs"]
+        arrays[sweepId] = {r["external_id"][6:].split("_")[0] for r in rows}
+    check(all(len(a) == 1 for a in arrays.values()),
+          "each of its {0} rounds ran as one array job".format(len(arrays)))
+    check("campaign-progress-data" in webapi.get("/campaigns/{0}".format(campaign["campaign_id"])).decode(),
+          "and its page plots its progress")
+    controller.terminate()
+    controller.wait(timeout=30)
 
     webapi.call("POST", "/api/agents/{0}/revoke".format(created["agent_id"]))
     agent.terminate()

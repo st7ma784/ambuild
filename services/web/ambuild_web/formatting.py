@@ -1,5 +1,6 @@
 """Jinja filters for showing numbers, sizes, times and statuses."""
 import datetime
+import json
 
 STATUS_LABELS = {
     "finished": "Finished",
@@ -73,6 +74,18 @@ def statusState(status):
     return STATUS_STATES.get(status, "warn")
 
 
+def short(value):
+    """A parameter value for a table: floats to 4 significant figures, other values as JSON"""
+    if isinstance(value, float):
+        return format(value, ".4g")
+    return json.dumps(value)
+
+
+def point(values):
+    """A point's parameter values, e.g. "box=20.55, grow=20" """
+    return ", ".join("{0}={1}".format(k, short(v)) for k, v in values.items())
+
+
 def install(env):
     env.filters.update(number=number, duration=duration, filesize=filesize, when=when,
-                       status_label=statusLabel, status_state=statusState)
+                       status_label=statusLabel, status_state=statusState, short=short, point=point)

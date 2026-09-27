@@ -24,9 +24,9 @@ def init(agents):
     parsed = []
     for spec in agents:
         parts = spec.split(":", 2)
-        if len(parts) < 2 or not parts[0] or parts[1] not in queue.BACKENDS:
+        if len(parts) < 2 or not parts[0] or parts[1] not in queue.agentKinds():
             sys.exit("--agent needs NAME:BACKEND[:TOKEN], BACKEND one of {0}: {1}".format(
-                ", ".join(queue.BACKENDS), spec))
+                ", ".join(queue.agentKinds()), spec))
         parsed.append((parts[0], parts[1], parts[2] if len(parts) == 3 and parts[2] else None))
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         queue.applySchema(conn)

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Campaigns · {{ title }}{% endblock %}
+{% block content %}
+<h1>Campaigns</h1>
+<p class="lede">A campaign searches a recipe's settings for structures that meet a goal: constraints on
+  their results (e.g. pores big enough for a lithium ion) and an objective (e.g. the highest density).
+  It runs in rounds, choosing each round's points from the results so far. <a href="/campaigns/new">Start a campaign</a>.</p>
+{% if campaigns %}
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th scope="col">#</th><th scope="col">name</th><th scope="col">state</th><th scope="col">method</th>
+      <th scope="col" class="num">trials</th><th scope="col" class="num">runs / budget</th><th scope="col">owner</th><th scope="col">started</th></tr></thead>
+    <tbody>
+      {% for c in campaigns %}
+      <tr>
+        <td><a href="/campaigns/{{ c.campaign_id }}">{{ c.campaign_id }}</a></td>
+        <td><a href="/campaigns/{{ c.campaign_id }}">{{ c.name }}</a>{% if c.message %} <span class="note">{{ c.message }}</span>{% endif %}</td>
+        <td>{{ m.status({"active": "running", "paused": "queued", "stopped": "cancelled", "finished": "finished"}[c.state]) }}</td>
+        <td>{{ c.method }}</td>
+        <td class="num">{{ c.trials }}</td>
+        <td class="num">{{ c.runs }} / {{ c.budget }}</td>
+        <td>{{ c.owner or "–" }}</td>
+        <td>{{ c.created | when }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty">No campaigns yet.</p>
+{% endif %}
+{% endblock %}

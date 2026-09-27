@@ -471,7 +471,7 @@ Each milestone is deployable on its own and has a check that says it is done.
 | 3 ✅ | **Recipes and the runner**: recipe schema and validation, `python -m ambuild.recipe run`, content-addressed blobs; queue tables; **submit (a)** one run to a **local/K3s agent** | a recipe submitted from the browser runs, uploads, and reproduces the structure of the same recipe run from the command line with the same seed |
 | 4 ✅ | **Slurm agent**: token API for agents; claims, stages inputs, submits through the sbatch scripts, tracks state, cancels, heartbeats; agent cards and token management on the status page (c); live progress | a run queued in the browser runs on Slurm (the `slurm-test` container in CI) and its page updates while it runs; cancelling scancels it |
 | 5 ✅ | **Batches and sweeps (a, b)**: seed lists, parameter grids, CSV; one array job per sweep; sweep page with scatter plots | a 3×3 grid sweep runs as one array, and its page plots a result against both parameters |
-| 6 | **Campaigns (goal-directed sweeps)**: constraints and an objective over results, parameters as recipe pointers, replicates; Optuna ask-and-tell (random, QMC, TPE, GP) in the `ambuild-campaigns` controller; each round queued as a batch; campaign page with best-so-far and parameter plots | in the Slurm test container, a campaign aiming at a target density over box size and grow count meets it in fewer runs than the equivalent grid, and every trial links to its runs |
+| 6 ✅ | **Campaigns (goal-directed sweeps)**: constraints and an objective over results, parameters as recipe pointers, replicates; Optuna ask-and-tell (random, QMC, TPE, GP) in the `ambuild-campaigns` controller; each round queued as a batch; campaign page with best-so-far and parameter plots | in the Slurm test container, a campaign aiming at a target density over box size and grow count meets it in fewer runs than the equivalent grid, and every trial links to its runs |
 | 7 | **Chat and MCP**: an MCP server (`ambuild-mcp`) over the web API with tools to search, compare and explain runs, read structures and results, validate recipes, and propose runs, sweeps and campaigns; a chat page in the web GUI using the same tools; write actions need the user's confirmation and are recorded | from an MCP client (e.g. Claude Code or Claude Desktop) and from the chat page, an engineer asks which runs have a pore limiting diameter above 1.52 Å and the highest surface area and gets the right runs with links; asks for a 3-seed sweep of box size on the Li-ion recipe, is shown the preview, confirms, and it runs; CI drives the tools with a scripted client |
 | 8 | **Checkpoint cache, resume and fork**: cache keyed by recipe prefix, seed, inputs and version; resume failed runs; run again / fork | resubmitting a finished recipe with the same seed starts from its final checkpoint and finishes in seconds with the same structure |
 | 9 | **Hardening**: audit, notifications, retention, metrics, the Python client, the Helm chart deployed through Fleet to Rancher | the chart deploys from Git through Fleet; a sweep's owner gets an email when it finishes |
@@ -555,6 +555,37 @@ and results browser early; 3–4 are the submission path; 5–9 build on it: 6 (
   - Its charts plot a chosen result (surface area, PLD, maximum pore diameter, helium volume, density, atoms, blocks) against each parameter: the mean over the seeds, one line for each value of the other parameters. The page refreshes while runs are active.
 - **API**: `POST /api/sweeps` (with `"preview": true` to only list the runs), `GET /api/sweeps[/{id}]` (runs with their results), and `POST /api/sweeps/{id}/{cancel,retry}`.
 - **Check**: `check_agent.py` in the Slurm test runs a 3×3 grid sweep (box × grow count). It checks the sweep ran as the 9 tasks of one array job, each with its density, and that the sweep page plots density against both parameters.
+
+**As built in milestone 6.**
+
+- **`ambuild/campaign.py`** (standard library only), shared by the web GUI and the controller:
+  - checks a spec, including each parameter's pointer and the recipes at the parameters' low and high corners;
+  - applies a point to the recipe;
+  - scores a trial from its replicate runs (`score`), and picks the best trial (`best`);
+  - decides the next step (`decide`): wait for the round; stop (goal met, budget spent, no improvement, or the round limit); or propose N points.
+  - Defaults: TPE, 3 seeds per point (the same seeds 1..N for every point, so points are compared on equal terms), a constraint holding when half of a point's seeds meet it, a first round of 8 points, then 6 per round, and a budget of 150 runs. A campaign with constraints but no objective stops at its first feasible point.
+- **Web GUI**:
+  - Data: `campaigns` and `trials` tables. Each round is queued as a sweep, so on Slurm it is one array job, and `submissions.trial_id` links each run to its trial. Scores are computed from the runs when read, not stored.
+  - Pages: a campaign list; a New campaign page (starting from the Li-ion showcase spec) with Check; a campaign page. The campaign page shows the goal, runs used against the budget, the next step, the best trial with links to its runs, a progress chart (each trial's value and the best feasible so far), each parameter against the objective (feasible and not), and the trials table. It has pause, resume, stop (cancelling unfinished runs), "Add runs to the budget", and "Propose points yourself".
+  - API: `POST /api/campaigns` (with `preview`), `GET /api/campaigns[/{id}]`, `POST /api/campaigns/{id}/rounds` (points from the controller or from outside), `/finish`, `/budget`, and `/{pause,resume,stop}`.
+- **`external` is built already**: the rounds endpoint is open to any client, so a person or an LLM agent (e.g. Jev) can steer a campaign now. The controller only ends such campaigns. The MCP tools arrive with milestone 7.
+- **Controller** (`services/campaigns`, image `ambuild-campaigns`; an agent-style token of kind `campaigns`, with its own card on the status page):
+  - Every 10 s, for each active campaign, it follows the web GUI's `decide`: it finishes the campaign with the reason, waits, or proposes a round.
+  - `tpe`, `gp` and `random` use Optuna 5's ask-and-tell interface. The study is rebuilt from the trials each time, with constraints passed as each trial's constraint values (at most 0 where met: the share of seeds short of `feasible_fraction`), and the sampler seeded from the trial count. So campaigns are reproducible: two runs of the CI campaign chose identical points.
+  - `grid` walks the grid (values, integer ranges, choices), and `qmc` walks a scrambled Sobol sequence. With constraints but no objective, TPE minimises how far the means lie outside the constraints.
+  - `gp` needs PyTorch: build the image with `EXTRAS=gp`.
+  - Compose runs it in the demo, and the Helm chart has `campaigns.enabled`.
+- **How the methods compare** (simulated campaigns, `services/campaigns/tests`; density modelled on the Slurm sweep's results):
+  - TPE closes in on a target faster than random. The best distance after 20 points was 0.0016 against random's 0.0113.
+  - Hitting a very narrow band is another matter. With a ±2% density band, 1.6% of the space is feasible, so random needs about 60 points. TPE met it in a median of 38 points against random's 49, but missed within 60 runs for 2 of 8 sampler seeds.
+  - For precise targets, `gp` is the better choice; measuring it is still to do.
+- **Check**: in the Slurm test, the controller steers a campaign aiming at density 0.070 ± 3% over box size (20–32 Å) and grow count (1–6), with 2 seeds per point.
+  - It met the goal after 5 rounds (16 trials, 32 runs, against 72 for the equivalent grid), each round one array job, and every trial linked to its runs.
+  - The winning point (box 20.6 Å, grow 2) had densities 0.0699 and 0.0817 on its two seeds. That spread is why a campaign scores points over several seeds.
+- **Showcase, as run on the demo**: "the densest `li_ion_carbon` network that still lets lithium through".
+  - The search varied box 20–35 Å, grow 4–20 per pass, 3–10 passes and zip margin 0.5–1.5. The constraints were PLD ≥ 1.52 Å and percolation in at least one dimension; the objective was to maximise density. It used TPE, 2 seeds per point, and a budget of 44 runs on the local agent.
+  - The best network, after 22 trials in 5 rounds, reached **0.87 g/cm³ (the default recipe gives 0.26) with a PLD of 3.24 Å, percolating**: box 20.5 Å, grow 20, 9 passes, zip margin 1.16. TPE's later rounds clustered at small boxes, many grow steps and many passes.
+  - Every trial met the lithium constraint. In this range the limit is how densely Ambuild packs without optimisation, not the pores. Finding where the pores close means denser builds, which need optimisation, which needs force-field parameters for sp carbon (TODO).
 
 ## Decisions
 

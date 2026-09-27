@@ -35,6 +35,20 @@ jobs:
       if: always()
       run: docker compose -f deploy/docker-compose.yml --profile agent-test down -v
 
+  campaigns:
+    # The campaign controller's proposals (Optuna), and a simulated campaign, without the
+    # web API; the Slurm test runs a real campaign end to end
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Controller tests
+      run: |
+        pip install --no-deps . && pip install ./services/campaigns pytest
+        cd services/campaigns && python -m pytest -q -p no:cacheprovider tests
+
   chart:
     # The Helm chart: strict lint, size budget (Fleet and Helm cap bundles and releases at
     # ~1 MiB), and the rendered manifests validated against the Kubernetes schemas
@@ -50,6 +64,6 @@ jobs:
       run: |
         for agent in false true; do
           helm template ci deploy/helm/ambuild --set ingress.enabled=true --set ingress.tlsSecret=tls \
-            --set agent.enabled=$agent > rendered.yaml
+            --set agent.enabled=$agent --set campaigns.enabled=$agent > rendered.yaml
           docker run --rm -v "$PWD:/w" ghcr.io/yannh/kubeconform:v0.6.7-alpine -strict -summary /w/rendered.yaml
         done

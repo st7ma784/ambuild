@@ -70,6 +70,18 @@ AMBUILD_API_URL=http://ambuild-web:8000 AMBUILD_AGENT_TOKEN=... ambuild-agent
 It needs Ambuild (and HOOMD-blue, and Poreblazer for recipes that use it) and
 `ambuild-upload` with its database and storage settings; builds do not get those.
 
+Campaigns (goal-directed sweeps) are steered by the campaign controller, the demo's
+`campaigns` service (`services/campaigns`). It uses the web API with a token of kind
+`campaigns` (`AMBUILD_CAMPAIGNS_TOKEN`, registered by `web-init`), keeps no state, and can
+run anywhere the web GUI is reachable:
+
+```sh
+ambuild-web init --agent controller:campaigns     # prints a new token once
+AMBUILD_API_URL=http://ambuild-web:8000 AMBUILD_CAMPAIGNS_TOKEN=... ambuild-campaigns
+```
+
+For the `gp` method, build its image with `--build-arg EXTRAS=gp` (adds PyTorch).
+
 ### Helm chart and Fleet
 
 `helm/ambuild/` deploys the web GUI and, with `agent.enabled`, a K3s agent that builds

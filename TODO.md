@@ -357,7 +357,7 @@ In order:
   start from the longest matching cached prefix. Builds are stochastic, so a
   hit is a previous sample, not the same answer: ensembles and sweeps opt out
   or include the replicate in the key until builds are reproducible (§6).
-- [ ] Goal-directed campaigns (web GUI milestone 6): search recipe parameters
+- [x] Goal-directed campaigns (web GUI milestone 6): search recipe parameters
   with Bayesian optimisation (Optuna TPE or GP, ask-and-tell, replicates per
   point for noise) for structures meeting constraints on their results, e.g. a
   pore limiting diameter above an ion's size, each round queued on Slurm.

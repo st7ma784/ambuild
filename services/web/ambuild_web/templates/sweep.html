@@ -44,7 +44,7 @@
       {% for r in runs %}
       <tr>
         <td class="num"><a href="/submissions/{{ r.submission_id }}">{{ r.sweep_index + 1 }}</a></td>
-        {% for n in names %}<td><code>{{ r.point.get(n) | tojson }}</code></td>{% endfor %}
+        {% for n in names %}<td><code>{{ r.point.get(n) | short }}</code></td>{% endfor %}
         <td class="num">{{ r.seed if r.seed is not none else "random" }}</td>
         <td>{{ m.status(r.state) }}{% if r.error %} <span class="note" title="{{ r.error }}">{{ r.error | truncate(30) }}</span>{% endif %}</td>
         <td>{% if r.uploaded %}<a href="/runs/{{ r.run_id }}"><code class="id">{{ r.run_id[:8] }}</code></a>{% else %}–{% endif %}</td>

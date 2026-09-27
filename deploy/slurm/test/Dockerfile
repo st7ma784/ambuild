@@ -16,7 +16,8 @@ COPY ambuild /ambuild/ambuild
 COPY tests /ambuild/tests
 COPY services/ingest /src/ingest
 COPY services/agent /src/agent
-RUN pip install --no-cache-dir /ambuild /src/ingest /src/agent
+COPY services/campaigns /src/campaigns
+RUN pip install --no-cache-dir /ambuild /src/ingest /src/agent /src/campaigns
 COPY deploy/slurm /opt/ambuild-slurm
 COPY deploy/demo /opt/ambuild-demo
 COPY deploy/slurm/test/slurm.conf deploy/slurm/test/cgroup.conf /etc/slurm/

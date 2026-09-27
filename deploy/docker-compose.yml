@@ -87,11 +87,12 @@ services:
     profiles: ["web", "slurm-test", "agent-test"]  # the Slurm test checks runs through it
 
   web-init:
-    # The web GUI's tables, and the demo agent registered with its token
+    # The web GUI's tables, and the demo agent and campaign controller registered with their tokens
     build: {context: .., dockerfile: services/web/Dockerfile, target: web}
     image: ambuild-web
     environment: *ingest-env
-    command: ["init", "--agent", "local-demo:local:${AMBUILD_AGENT_TOKEN:-ambuild-dev-agent-token}"]
+    command: ["init", "--agent", "local-demo:local:${AMBUILD_AGENT_TOKEN:-ambuild-dev-agent-token}",
+              "--agent", "campaigns:campaigns:${AMBUILD_CAMPAIGNS_TOKEN:-ambuild-dev-campaigns-token}"]
     depends_on:
       init: {condition: service_completed_successfully}
     profiles: ["web", "agent-test"]
@@ -104,11 +105,23 @@ services:
       <<: *ingest-env
       AMBUILD_API_URL: http://web:8000
       AMBUILD_AGENT_TOKEN: ${AMBUILD_AGENT_TOKEN:-ambuild-dev-agent-token}
-      AMBUILD_AGENT_SLOTS: "2"
+      AMBUILD_AGENT_SLOTS: ${AMBUILD_AGENT_SLOTS:-2}
     depends_on:
       web-init: {condition: service_completed_successfully}
       web: {condition: service_started}
     profiles: ["web", "agent-test"]
+
+  campaigns:
+    # The campaign controller (services/campaigns): proposes each round's points
+    build: {context: .., dockerfile: services/campaigns/Dockerfile}
+    image: ambuild-campaigns
+    environment:
+      AMBUILD_API_URL: http://web:8000
+      AMBUILD_CAMPAIGNS_TOKEN: ${AMBUILD_CAMPAIGNS_TOKEN:-ambuild-dev-campaigns-token}
+    depends_on:
+      web-init: {condition: service_completed_successfully}
+      web: {condition: service_started}
+    profiles: ["web"]
 
   demo-recipes:
     # Saves the demo recipe, so the New run page has one to start from
