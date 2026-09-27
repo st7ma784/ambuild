@@ -10,8 +10,8 @@ from ambuild import ab_util
 
 # Edit these to suit your case
 num_processors = 6
-params_dir = os.environ.get("AMBUILD_PARAMS_DIR", "/opt/paramsDir")
-poreblazer_exe = os.environ.get("POREBLAZER_EXE", "/opt/poreblazer/src/poreblazer.exe")
+params_dir = ab_util.paramsDir()
+poreblazer_exe = ab_util.poreblazerExe()
 #
 # Don't change anything below here
 #

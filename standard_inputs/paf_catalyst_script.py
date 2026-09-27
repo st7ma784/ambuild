@@ -28,15 +28,16 @@ Do we do a multi-step operation - e.g. bond the catalysts together and then remo
 """
 
 import os
+from ambuild import ab_util
 from ambuild import ab_cell
 
-BLOCKS_DIR = os.environ.get("AMBUILD_BLOCKS_DIR", "/opt/ambuild/blocks")
+BLOCKS_DIR = ab_util.blocksDir()
 
 #cell dimensions:
 boxDim=[40,40,40]
 
 #Create Cell and seed it with the blocks
-mycell = ab_cell.Cell(boxDim, atomMargin=0.1, bondMargin=0.5, bondAngleMargin=5, paramsDir=os.environ.get("AMBUILD_PARAMS_DIR", "/opt/paramsDir"))
+mycell = ab_cell.Cell(boxDim, atomMargin=0.1, bondMargin=0.5, bondAngleMargin=5, paramsDir=ab_util.paramsDir())
 
 #import the two fragment files if you have 2 different building blocks
 #mycell.libraryAddFragment( filename=os.path.join(BLOCKS_DIR, 'PAF.car'), fragmentType='PAF' )

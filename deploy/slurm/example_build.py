@@ -1,10 +1,11 @@
 """Example build script for submit_build.sh: a small recorded benzene build."""
 import os
 
+from ambuild import ab_util
 from ambuild import ab_cell
 
-params = os.environ.get("AMBUILD_PARAMS_DIR", "/opt/paramsDir")
-blocks = os.environ.get("AMBUILD_BLOCKS_DIR", "/opt/ambuild/blocks")
+params = ab_util.paramsDir()
+blocks = ab_util.blocksDir()
 
 with ab_cell.Cell(
     [30, 30, 30],

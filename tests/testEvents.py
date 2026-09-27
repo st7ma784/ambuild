@@ -1,6 +1,7 @@
 """
 Tests for the events a cell sends to its sinks
 """
+import collections
 import csv
 import hashlib
 import os
@@ -57,9 +58,34 @@ class Test(unittest.TestCase):
             writer = csv.DictWriter(f, ab_analyse.FIELDNAMES)
             writer.writeheader()
             for e in steps:
-                writer.writerow(e["data"])
+                # fragment_types is a dict in the event; the csv keeps its old format
+                ft = collections.defaultdict(list, e["data"]["fragment_types"])
+                writer.writerow(dict(e["data"], fragment_types=str(ft)))
         with open(expected, "rb") as f1, open(self.cell.logcsv, "rb") as f2:
             self.assertEqual(f1.read(), f2.read())
+
+    def testFragmentTypesIsADict(self):
+        """Step events carry fragment_types as a dict (JSON-friendly); the csv keeps the repr"""
+        self.cell.seed(3)
+        self.cell.close()
+        step = self.sink.ofType(ab_analyse.STEP)[-1]
+        self.assertEqual(step["data"]["fragment_types"], {"A": 3})
+        self.assertIs(type(step["data"]["fragment_types"]), dict)
+        with open(self.cell.logcsv, newline="") as f:
+            rows = list(csv.DictReader(f))
+        self.assertEqual(rows[-1]["fragment_types"], "defaultdict(<class 'list'>, {'A': 3})")
+
+    def testJoinAndZipAreSteps(self):
+        """joinBlocks and zipBlocks each record a step, including a zip that makes no bonds"""
+        self.cell.seed(4)
+        self.cell.joinBlocks(1, maxTries=50)
+        self.cell.zipBlocks(bondMargin=0.01, bondAngleMargin=0.01)
+        self.cell.close()
+        types = [e["data"]["type"] for e in self.sink.ofType(ab_analyse.STEP)]
+        self.assertEqual(set(types[:-2]), {"seed"})  # one step per block seeded
+        self.assertEqual(types[-2:], ["join", "zip"])
+        with open(self.cell.logcsv, newline="") as f:
+            self.assertEqual([r["type"] for r in csv.DictReader(f)], types)
 
     def testArtifactEvents(self):
         self.cell.seed(2)

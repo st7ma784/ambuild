@@ -152,6 +152,12 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   `testPoreblazer.testRealPoreblazer` runs it when `POREBLAZER_EXE` is set.
 
 ### Changed
+- Example scripts find their data with `ab_util.paramsDir()`, `blocksDir()` and
+  `poreblazerExe()`: the environment variables, else the checkout's `tests/params`
+  and `tests/blocks` and Poreblazer on the `PATH`, instead of `/opt/...` defaults.
+- `joinBlocks` and `zipBlocks` record `join` and `zip` steps (zip even when it makes
+  no bonds). Step events carry `fragment_types` as a dict, so `events.jsonl` and the
+  database get JSON; `ambuild.csv` is unchanged.
 - The images take Poreblazer from the fork's published image,
   `ghcr.io/st7ma784/poreblazer:sha-<commit>` (build argument `POREBLAZER_IMAGE`),
   instead of compiling it. The fork's CI builds that image only after its tests
@@ -219,6 +225,8 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   install. Install HOOMD-blue from conda-forge.
 
 ### Fixed
+- `Cell.writeCar()` works again: it indexed `CellData` like a dict. It writes each
+  atom with its building block's label, type, symbol and charge.
 - `ab_util.run_command` logged its keyword arguments at debug level, which would
   have included the whole environment when one is passed; `env` is left out.
 - **With HOOMD-blue 2 or later installed, `Cell.writeXyz()` wrote files with no

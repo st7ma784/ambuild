@@ -1912,6 +1912,12 @@ class Cell:
         dihedral: the dihedral angle about the bond (3rd column in csv file)
         maxTries - the maximum number of moves to try when joining
         """
+        added = self._joinBlocks(toJoin, cellEndGroups=cellEndGroups, dihedral=dihedral, maxTries=maxTries)
+        self.analyse.stop("join")
+        return added
+
+    def _joinBlocks(self, toJoin, cellEndGroups=None, dihedral=None, maxTries=100):
+        """joinBlocks without recording the step"""
         logger.info("Joining {0} new blocks".format(toJoin))
         if dihedral:
             # Convert dihedral to radians
@@ -3005,10 +3011,25 @@ class Cell:
         return fileName
 
     def writeCar(self, ofile="ambuild.car", data=None, periodic=True, skipDummy=False):
-        """Car File
+        """Write the cell's atoms as a Materials Studio .car file in outputDir.
+
+        The atoms come from the blocks, with the labels, force-field types, symbols and
+        charges of their building blocks. data, a CellData from cellData(), is used
+        instead if given; it has no atom labels, so each atom's symbol stands in for its
+        label. periodic writes the cell dimensions and wraps the coordinates into the
+        cell. skipDummy leaves out dummy atoms (those the cell does not place in its grid).
         """
-        if not data:
-            data = self.cellData(noRigidParticles=True)
+        atoms = []  # (label, coord, force-field type, symbol, charge)
+        if data is None:
+            for block in self.blocks.values():
+                for i, coord in enumerate(block.iterCoord()):
+                    if skipDummy and block.atomCell[i] is None:
+                        continue
+                    atoms.append((block.label(i), coord, block.type(i), block.symbol(i), block.charge(i)))
+        else:
+            for i, coord in enumerate(data.coords):
+                atoms.append((data.symbols[i], coord, data.atomTypes[i], data.symbols[i], data.charges[i]))
+        A, B, C = self.dim[0], self.dim[1], self.dim[2]
         car = "!BIOSYM archive 3\n"
         if periodic:
             car += "PBC=ON\n"
@@ -3019,21 +3040,13 @@ class Cell:
         car += "!DATE {0}\n".format(tstr)
         if periodic:
             car += "PBC  {0: < 9.4F} {1: < 9.4F} {2: < 9.4F}  90.0000   90.0000   90.0000 (P1)\n".format(
-                data["A"], data["B"], data["C"]
+                A, B, C
             )
-        #         for i, ( idxBlock, block ) in enumerate( self.blocks.items() ):
-        #             for j, coord in enumerate( block.iterCoord() ):
-        for i, coord in enumerate(data["coord"]):
+        for label, coord, atype, symbol, charge in atoms:
             if periodic:
-                coord, _ = xyz_core.wrapCoord3(
-                    coord, np.array([data["A"], data["B"], data["C"]]), center=False
-                )
-            atype = data["type"][i]
-            charge = data["charge"][i]
-            label = data["label"][i][:5]
-            symbol = data["symbol"][i]
+                coord, _ = xyz_core.wrapCoord3(coord, np.array([A, B, C]), center=False)
             car += "{0: <5} {1: >15.10} {2: >15.10} {3: >15.10} XXXX 1      {4: <4}    {5: <2} {6: > 2.3f}\n".format(
-                label, coord[0], coord[1], coord[2], atype, symbol, charge
+                label[:5], coord[0], coord[1], coord[2], atype, symbol, charge
             )
 
         car += "end\nend\n\n"
@@ -3130,6 +3143,25 @@ class Cell:
                      see the atom.
         selfBond  - boolean to specify if zip will allow a block to bond to itself (True) or not (False) [default: True]
         """
+        bondsMade = self._zipBlocks(
+            bondMargin=bondMargin,
+            bondAngleMargin=bondAngleMargin,
+            clashCheck=clashCheck,
+            clashDist=clashDist,
+            selfBond=selfBond,
+        )
+        self.analyse.stop("zip")
+        return bondsMade
+
+    def _zipBlocks(
+        self,
+        bondMargin=0.5,
+        bondAngleMargin=15,
+        clashCheck=False,
+        clashDist=1.6,
+        selfBond=True,
+    ):
+        """zipBlocks without recording the step"""
         if bondMargin > max(self.dim):
             raise RuntimeError("bondMargin is greater then the cell")
         logger.info(
@@ -3273,7 +3305,6 @@ class Cell:
             logger.debug(
                 "Made fewer bonds than expected in zip: %d -> %d", todo, bondsMade
             )
-        self.analyse.stop("zip")
         return bondsMade
 
     def __getstate__(self):

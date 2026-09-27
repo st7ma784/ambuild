@@ -4,11 +4,21 @@ Uploads are idempotent: files already stored with the same sha256 are skipped an
 rows are upserted on their natural keys, so a run can be uploaded any number of
 times, including while it is still being written.
 """
+import json
 import logging
 import os
 import re
 
 from ambuild_ingest.rundir import sha256File
+
+
+def _fragmentTypes(value):
+    """steps.fragment_types as text: JSON for the dict newer Ambuild records, the string
+    older runs recorded as it was"""
+    if isinstance(value, dict):
+        return json.dumps(value, sort_keys=True)
+    return value
+
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +159,7 @@ def uploadRun(rundir, store, conn, finalise=False):
                         d.get("potential_energy"),
                         d.get("num_tries"),
                         d.get("file_count"),
-                        d.get("fragment_types"),
+                        _fragmentTypes(d.get("fragment_types")),
                     )
                     for d in (e["data"] for _, e in events if e["type"] == "step")
                 ],
