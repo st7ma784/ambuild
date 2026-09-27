@@ -301,7 +301,8 @@ and a solvated one several times that.
   - `random` and `grid` (baselines, and the sweep equivalent);
   - `qmc` (Sobol points, for the initial design);
   - `tpe`, the default: Bayesian optimisation with a tree-structured Parzen estimator. It handles constraints and choices, and needs only NumPy and SciPy;
-  - `gp`, Gaussian-process Bayesian optimisation with constraints. It needs PyTorch, so it runs in the controller image only.
+  - `gp`, Gaussian-process Bayesian optimisation with constraints. It needs PyTorch, so it runs in the controller image only;
+  - `external` (added with milestone 7): the controller proposes nothing, and an outside decision-maker supplies each round's points through the API. That decision-maker could be an LLM agent (e.g. Jev, or Claude through the MCP tools) or a person. It sees the trials so far and the goal, and the campaign records who proposed each point, so its choices can be compared with TPE's on the same goal.
 
   Each round asks for `batch_size` points at once (Optuna treats pending points as "constant liars"), so a round fills Slurm in parallel.
 - **Controller**: a small service (`ambuild-campaigns`) that uses only the web API, with an
@@ -333,6 +334,8 @@ assistant instead of forms, for example:
 - "Which of this week's runs let lithium through, and which has the most surface area?"
 - "Why did run 3f2c fail?"
 - "Sweep the zip margin on that recipe with three seeds."
+
+The interface is not tied to one model. Any LLM agent with a chat interface can use the same tools: Claude through MCP, or an in-house decision model such as Jev, which is tuned to make decisions with little calibration. It can use them over MCP, or over the plain HTTP API the tools wrap. It can also steer a campaign itself (method `external`: it proposes each round's points, and the controller queues and scores them).
 
 - **MCP server** (`ambuild-mcp`, a new package, using the Model Context Protocol's Python SDK). It uses only the web API, with a token like an agent's but for a person, so it never touches the database.
   - It serves stdio, for Claude Code, Claude Desktop or an IDE on an engineer's machine, and streamable HTTP beside the web GUI, for shared use.

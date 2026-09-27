@@ -365,7 +365,9 @@ In order:
   whose pores still admit Li+ (PLD >= 1.52 A, percolating).
 - [ ] Chat over experiments (web GUI milestone 7): an MCP server over the web
   API (search, compare and explain runs; propose runs, sweeps and campaigns,
-  confirmed before they run) and a chat page using the same tools.
+  confirmed before they run) and a chat page using the same tools. Model
+  agnostic: any LLM agent (e.g. Jev) can use the tools, and can steer a
+  campaign itself (method "external": it proposes each round's points).
 - [ ] Force-field parameters for sp (alkyne) carbon, type `c1`: the bundled
   parameters give its bond lengths only (k = 0), so `li_ion_carbon` cannot be
   optimised or run through MD until angle, dihedral and pair terms (e.g. from
