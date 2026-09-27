@@ -1049,8 +1049,9 @@ class Cell:
                     and idxCellAtom == b1EndGroup
                     and idxAddAtom in b2BondAtoms
                 ) or (
-                    b2Block == b2Block
+                    b2Block == addBlock
                     and idxAddAtom == b2EndGroup
+                    and b1Block == cellBlock
                     and idxCellAtom in b1BondAtoms
                 ):
                     # logger.info( "REMOVING BOND ATOMS FROM CLASH TEST" )

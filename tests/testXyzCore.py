@@ -212,6 +212,24 @@ class Test(unittest.TestCase):
         return
 
 
+class VectorAngle(unittest.TestCase):
+    def testParallelAndAntiparallelDespiteRounding(self):
+        """Rounding can put the dot product of (anti)parallel unit vectors just outside
+        [-1, 1]; the angle must still be 0 (or pi), not NaN, and parallel must not become pi"""
+        rng = np.random.default_rng(0)
+        found = 0
+        for _ in range(20000):
+            v = rng.normal(size=3)
+            w = v * rng.uniform(0.1, 10)
+            u1, u2 = v / np.linalg.norm(v), w / np.linalg.norm(w)
+            if np.dot(u1, u2) > 1.0:  # the case that used to give pi
+                found += 1
+                self.assertAlmostEqual(xyz_core.vectorAngle(v, w), 0.0, places=6)
+                self.assertAlmostEqual(xyz_core.vectorAngle(v, -w), np.pi, places=6)
+        self.assertGreater(found, 0, "no rounding case found to test")
+        self.assertAlmostEqual(xyz_core.vectorAngle([1, 0, 0], [0, 1, 0]), np.pi / 2)
+
+
 if __name__ == "__main__":
     """
     Run the unit tests

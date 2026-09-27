@@ -1,12 +1,12 @@
 !BIOSYM archive 3
 PBC=OFF
-Benzene linked at C1, C3 and C5; measured C-C 1.397 A, C-H 1.084 A; GAFF types (linking carbons cp)
+Benzene linked at C1 and C4 (para); measured C-C 1.397 A, C-H 1.084 A; GAFF types (linking carbons cp)
 !DATE Sun Sep 28 12:00:00 2026
 C1        1.397000000     0.000000000     0.000000000 XXXX 1      cp      C   0.000
 C2        0.698500000     1.209837489     0.000000000 XXXX 1      ca      C   0.000
-C3       -0.698500000     1.209837489     0.000000000 XXXX 1      cp      C   0.000
-C4       -1.397000000     0.000000000     0.000000000 XXXX 1      ca      C   0.000
-C5       -0.698500000    -1.209837489     0.000000000 XXXX 1      cp      C   0.000
+C3       -0.698500000     1.209837489     0.000000000 XXXX 1      ca      C   0.000
+C4       -1.397000000     0.000000000     0.000000000 XXXX 1      cp      C   0.000
+C5       -0.698500000    -1.209837489     0.000000000 XXXX 1      ca      C   0.000
 C6        0.698500000    -1.209837489     0.000000000 XXXX 1      ca      C   0.000
 H1        2.481000000     0.000000000     0.000000000 XXXX 1      ha      H   0.000
 H2        1.240500000     2.148609027     0.000000000 XXXX 1      ha      H   0.000

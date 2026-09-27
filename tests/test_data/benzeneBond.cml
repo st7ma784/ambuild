@@ -3,70 +3,70 @@
 	<atomType name="cp" title="cp"/>
 	<atomType name="hc" title="hc"/>
 	<atomArray>
-		<atom elementType="C" id="a0" x3="12.5632" y3="6.03464" z3="-1.74782">
+		<atom elementType="C" id="a0" x3="12.623535053" y3="5.960867419" z3="-1.641828338">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="C" id="a1" x3="14.09227" y3="5.85742" z3="-1.70645">
+		<atom elementType="C" id="a1" x3="14.010435925" y3="5.797026243" z3="-1.606176708">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="C" id="a2" x3="14.74089" y3="5.03534" z3="-0.57747">
+		<atom elementType="C" id="a2" x3="14.599664206" y3="5.051880491" z3="-0.58188337">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="C" id="a3" x3="13.86152" y3="4.39379" z3="0.51081">
+		<atom elementType="C" id="a3" x3="13.801991614" y3="4.470575915" z3="0.406758338">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="C" id="a4" x3="12.33371" y3="4.57485" z3="0.47144">
+		<atom elementType="C" id="a4" x3="12.415090741" y3="4.634417091" z3="0.371106708">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="C" id="a5" x3="11.68499" y3="5.39829" z3="-0.65572">
+		<atom elementType="C" id="a5" x3="11.825862461" y3="5.379562843" z3="-0.65318663">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="H" id="a6" x3="14.74447" y3="6.33331" z3="-2.51304">
+		<atom elementType="H" id="a6" x3="14.629388745" y3="6.248088634" z3="-2.373311719">
 			<atomType ref="hc"/>
 		</atom>
-		<atom elementType="H" id="a7" x3="14.34247" y3="3.78143" z3="1.34594">
+		<atom elementType="H" id="a7" x3="14.259202391" y3="3.892381215" z3="1.201557176">
 			<atomType ref="hc"/>
 		</atom>
-		<atom elementType="H" id="a8" x3="11.74412" y3="4.14417" z3="1.20077">
+		<atom elementType="H" id="a8" x3="11.796137921" y3="4.183354699" z3="1.138241719">
 			<atomType ref="hc"/>
 		</atom>
-		<atom elementType="H" id="a9" x3="15.76543" y3="4.91449" z3="-0.55048">
+		<atom elementType="H" id="a9" x3="15.675827804" y3="4.924748182" z3="-0.554219542">
 			<atomType ref="hc"/>
 		</atom>
-		<atom elementType="H" id="a10" x3="10.66091" y3="5.52371" z3="-0.67915">
+		<atom elementType="H" id="a10" x3="10.749698863" y3="5.506695151" z3="-0.680850458">
 			<atomType ref="hc"/>
 		</atom>
-		<atom elementType="C" id="a11" x3="11.916965906" y3="6.84327397162" z3="-2.87449324264">
+		<atom elementType="C" id="a11" x3="11.978209877" y3="6.77695403347" z3="-2.76363850681">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="C" id="a12" x3="10.387895906" y3="7.02049397162" z3="-2.91586324264">
+		<atom elementType="C" id="a12" x3="10.591309005" y3="6.94079520947" z3="-2.79929013681">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="C" id="a13" x3="9.73769313384" y3="7.82642373515" z3="-4.0555267204">
+		<atom elementType="C" id="a13" x3="10.002080724" y3="7.68594096204" z3="-3.82358347443">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="C" id="a14" x3="10.6160030264" y3="8.45715664726" z3="-5.15096228856">
+		<atom elementType="C" id="a14" x3="10.7997533161" y3="8.26724553847" z3="-4.81222518214">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="C" id="a15" x3="12.1445290221" y3="8.28340249991" z3="-5.10675942345">
+		<atom elementType="C" id="a15" x3="12.186654189" y3="8.10340436234" z3="-4.77657355223">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="C" id="a16" x3="12.7951777236" y3="7.47964251781" z3="-3.96658097423">
+		<atom elementType="C" id="a16" x3="12.775882469" y3="7.3582586099" z3="-3.75228021452">
 			<atomType ref="cp"/>
 		</atom>
-		<atom elementType="H" id="a17" x3="9.73654151468" y3="6.55323236453" z3="-2.10356550927">
+		<atom elementType="H" id="a17" x3="9.97235618498" y3="6.48973281869" z3="-2.03215512566">
 			<atomType ref="hc"/>
 		</atom>
-		<atom elementType="H" id="a18" x3="10.1333218546" y3="9.05185217601" z3="-5.99777744165">
+		<atom elementType="H" id="a18" x3="10.3425425389" y3="8.84544023696" z3="-5.60702402115">
 			<atomType ref="hc"/>
 		</atom>
-		<atom elementType="H" id="a19" x3="12.7333056504" y3="8.70578304559" z3="-5.84157956199">
+		<atom elementType="H" id="a19" x3="12.8056070089" y3="8.55446675275" z3="-5.5437085643">
 			<atomType ref="hc"/>
 		</atom>
-		<atom elementType="H" id="a20" x3="8.71280262867" y3="7.9436972625" z3="-4.08488257839">
+		<atom elementType="H" id="a20" x3="8.92591712599" y3="7.81307327081" z3="-3.85124730259">
 			<atomType ref="hc"/>
 		</atom>
-		<atom elementType="H" id="a21" x3="13.8205522417" y3="7.36743147801" z3="-3.93441316827">
+		<atom elementType="H" id="a21" x3="13.8520460669" y3="7.23112630077" z3="-3.72461638728">
 			<atomType ref="hc"/>
 		</atom>
 	</atomArray>

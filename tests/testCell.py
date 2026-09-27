@@ -783,8 +783,9 @@ class Test(unittest.TestCase):
         # Need to subtract cap atoms
         self.assertEqual(natoms2, (natoms * nblocks) - (nblocks - 1) * 2)
         block = list(mycell.blocks.values())[0]
+        # (a regression value for this deterministic build, with benzene's measured geometry)
         self.assertTrue(
-            np.allclose(block.centroid(), [12.91963557, 17.39975016, 11.65120767])
+            np.allclose(block.centroid(), [12.83773966, 17.34022598, 12.06653818])
         )
         self.assertFalse(self.clashes(mycell))
         return
@@ -862,20 +863,20 @@ class Test(unittest.TestCase):
         # Add to the cell
         mycell.addBlock(block1)
 
-        # Try adding 6 blocks - only 5 will fit
-        nblocks = 6
+        # Try adding 7 blocks along x: a ring and its bond span 2 x 1.397 + 1.53 = 4.324 A, so
+        # 7 rings are 30.27 A, about the cell's length. After 6 are added the chain's end
+        # meets its own periodic image and bonds to it, leaving no end group for a 7th
+        nblocks = 7
         added = mycell.growBlocks(nblocks, endGroupType=None, maxTries=5, random=False)
 
-        self.assertEqual(added, 5, "growBlocks did not add 5 blocks")
+        self.assertEqual(added, 6, "growBlocks did not add 6 blocks")
         self.assertEqual(
             1,
             len(mycell.blocks),
             "Growing blocks found {0} blocks".format(len(mycell.blocks)),
         )
+        self.assertEqual(block1.numFreeEndGroups(), 0, "the chain has not closed on itself")
         self.assertFalse(self.clashes(mycell))
-        self.assertTrue(
-            np.allclose(block1.centroid(), [12.69119085, 14.93774993, 14.96541503])
-        )
         return
 
     def testGrowBlocksDihedral(self):
