@@ -158,8 +158,14 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   pass: upstream's example frameworks (one hexagonal) and three Ambuild cells must
   give byte-identical output to upstream Poreblazer 3.0.5 at 1 and 4 threads, and
   exact labelling must match its reference. `scripts/update_poreblazer.sh` moves the
-  pin to the fork's newest build, and the Update Poreblazer workflow opens a pull
-  request for it weekly.
+  pin to the fork's newest build, and the Update Poreblazer workflow (run by hand)
+  opens a pull request for it.
+- Poreblazer fork `d70fa08` (image `sha-d70fa08`): the cell list, the PSD's
+  block pruning and the vectorised distances work in non-orthorhombic cells too,
+  still byte-identical to upstream (hexagonal MOF-180: 45 s to 3.5 s on 4 threads).
+- Nothing runs on a schedule: the K3s upload scan is an on-demand Job
+  (`kubectl create -f deploy/k8s/upload-scan.yaml`) instead of a CronJob every 15
+  minutes, and the Update Poreblazer workflow has no weekly trigger.
 - Poreblazer no longer writes `nitrogen_network.grd` (~13 MB for a 20 Å cell,
   growing with volume) unless asked: `visualisation` defaults to `"none"`;
   pass `visualisation="grd"` (or `"xyz"`, `"both"`) to keep it.

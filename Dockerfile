@@ -19,7 +19,7 @@ ARG HOOMD_VERSION=7.2.0
 ARG HOOMD_VARIANT=cpu
 # Ambuild's fork of Poreblazer (FORK.md there), as built and tested by the fork's CI and
 # published to GHCR; a sha- tag pins one commit. scripts/update_poreblazer.sh moves the pin.
-ARG POREBLAZER_IMAGE=ghcr.io/st7ma784/poreblazer:sha-9d4cbcc
+ARG POREBLAZER_IMAGE=ghcr.io/st7ma784/poreblazer:sha-d70fa08
 
 # --- conda-forge environment, pruned of headers, static libraries and caches
 FROM mambaorg/micromamba:2.3.2 AS hoomd-env

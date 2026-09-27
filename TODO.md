@@ -140,11 +140,12 @@ runtime rather than on the current developer machines.
   - [x] Test the fork in CI against upstream and publish its image (fork
     `.github/workflows/ci.yml`, `ghcr.io/st7ma784/poreblazer`); Ambuild's images copy
     the executable from a pinned `sha-` tag.
-  - [ ] Let the Update Poreblazer workflow open pull requests (repository setting
-    "Allow GitHub Actions to create and approve pull requests"), or trigger it from
-    the fork's publish step (needs a token with access to this repository).
-  - [ ] Extend the cell list and the PSD's distance pruning to non-orthorhombic cells;
-    triclinic cells (e.g. hexagonal MOF-180) still check every atom.
+  - [ ] Let the Update Poreblazer workflow (run by hand; nothing is scheduled) open
+    pull requests: repository setting "Allow GitHub Actions to create and approve
+    pull requests".
+  - [x] Extend the cell list and the PSD's distance pruning to non-orthorhombic cells
+    (fork `d70fa08`: hexagonal MOF-180 52 s to 10 s on 1 thread, 45 s to 3.5 s on 4;
+    upstream 59 s), still byte-identical to upstream.
 - [x] Algorithmic changes in the same fork: a cell list so each grid cube checks
   only atoms within the cutoff (`3ce6695`: lattice step 3.4x faster at 40 Å,
   output bit-identical to upstream in 24 of 24 runs, `docs/benchmarks.md`).
@@ -268,7 +269,7 @@ runtime rather than on the current developer machines.
 ## 7. Deployment follow-ups
 
 - [ ] Helm chart mirroring `deploy/docker-compose.yml` (PostgreSQL, SeaweedFS
-  or an existing S3, uploader CronJob), replacing `deploy/k8s/`.
+  or an existing S3, the on-demand upload scan Job), replacing `deploy/k8s/`.
 - [ ] Publish the `ambuild-ingest` image (e.g. GHCR) on version tags; the K3s
   manifests reference `ghcr.io/st7ma784/ambuild-ingest:0.1.0`, which is not
   built yet.

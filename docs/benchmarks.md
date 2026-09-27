@@ -166,7 +166,8 @@ commit `8ed0c70`, described in its `FORK.md`) changes upstream 3.0.5 in five rou
      cube checks only atoms in cells within the 12.8 Å cutoff, in ascending atom order,
      so every sum and minimum is bit-identical. A cube whose nearest atom (or surface)
      could lie beyond the cutoff, i.e. in a pore wider than ~25 Å, checks every atom,
-     as upstream does. Orthorhombic cells only.
+     as upstream does. Non-orthorhombic cells search further, in slanted
+     coordinates, scaled by a bound on the cell's shape (commit `d70fa08`).
    - A task-parallel sort of the cubes by pore radius before the PSD. It was serial
      and took ~3 s at 60 Å. Tie order can differ, which changes no result.
    - Cluster relabelling in the percolation analysis through a lookup table, instead
