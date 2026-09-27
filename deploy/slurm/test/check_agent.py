@@ -6,7 +6,9 @@
    run page is live;
 3. the agent is killed mid-run and started again: it takes the job up and the run
    finishes, uploaded by its Slurm upload job, with its results;
-4. cancelling a running submission scancels it, and the run is uploaded as cancelled.
+4. cancelling a running submission scancels it, and the run is uploaded as cancelled;
+5. a 3x3 grid sweep runs as one array job, and its page plots a result against both
+   parameters.
 
 Only the standard library (and deploy/demo/webapi.py). AMBUILD_API_URL: the web GUI.
 """
@@ -123,6 +125,32 @@ def main():
     run = waitFor(lambda: runOrNone(sub["run_id"]), 60, "the cancelled run is uploaded")
     check(run["summary"]["status"] in ("failed", "incomplete"),
           "its run was uploaded as {0}: {1}".format(run["summary"]["status"], run["summary"]["error"]))
+
+    # 5. a 3x3 grid sweep, as one array job, and its page plotting against both parameters
+    base = webapi.demoRecipe(BLOCKS, name="slurm sweep " + name, seed=3, stages=[
+        {"op": "seed", "count": 4},
+        {"repeat": 2, "stages": [{"op": "grow", "count": 2}, {"op": "zip", "bond_margin": 1.0}]}])
+    grid = [{"name": "box", "path": "/cell/box", "all": True, "values": [20, 25, 30]},
+            {"name": "grow", "path": "/stages/1/stages/0/count", "values": [1, 2, 3]}]
+    sweep = webapi.call("POST", "/api/sweeps", {"recipe": base, "parameters": grid, "backend": "slurm",
+                                                "owner": "slurm test"})
+    check(sweep["runs"] == 9, "a 3x3 grid sweep of 9 runs is queued")
+
+    def sweepRuns():
+        return webapi.call("GET", "/api/sweeps/{0}".format(sweep["sweep_id"]))["runs"]
+
+    runs = waitFor(lambda: (lambda rs: rs if all(r["state"] in FINAL for r in rs) else None)(sweepRuns()), 600,
+                   "the sweep's runs finish")
+    check(all(r["state"] == "finished" and r["uploaded"] for r in runs),
+          "all 9 runs finished and were uploaded ({0})".format(sorted({r["state"] for r in runs})))
+    tasks = [r["external_id"][6:].split("/")[0] for r in runs]
+    arrays = {t.split("_")[0] for t in tasks}
+    check(len(arrays) == 1 and sorted(int(t.split("_")[1]) for t in tasks) == list(range(9)),
+          "as the 9 tasks of one array job ({0})".format(", ".join(sorted(arrays))))
+    check(all(r["results"]["density"] is not None for r in runs), "each with its density")
+    page = webapi.get("/sweeps/{0}?metric=density".format(sweep["sweep_id"])).decode()
+    check('id="sweep-box-data"' in page and 'id="sweep-grow-data"' in page,
+          "the sweep page plots density against box and against grow")
 
     webapi.call("POST", "/api/agents/{0}/revoke".format(created["agent_id"]))
     agent.terminate()

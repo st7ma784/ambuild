@@ -136,6 +136,7 @@ class SlurmBackend:
         self.work = os.path.join(self.root, ".ambuild-work")
         self.submitScript = os.path.join(config.slurm_dir, "submit_build.sh")
         self.user = getpass.getuser()
+        self.beginPass()
 
     def _paths(self, runId):
         return os.path.join(self.root, runId), os.path.join(self.work, runId)
@@ -181,23 +182,108 @@ class SlurmBackend:
             return None
         return result.stdout if result.returncode == 0 else None
 
+    def startBatch(self, subs):
+        """Submit several submissions (a sweep's runs) as one array job; one alone is
+        submitted as a plain build"""
+        if len(subs) == 1:
+            return [self.start(subs[0])]
+        os.makedirs(self.work, exist_ok=True)
+        lines = []
+        for sub in subs:
+            recipeFile = writeRecipe(sub, self._paths(sub["run_id"])[1])
+            lines.append("{0} {1}{2}".format(sub["run_id"], recipeFile,
+                                             "" if sub.get("seed") is None else " {0}".format(sub["seed"])))
+        tasks = os.path.join(self.work, "array-{0}.tasks".format(subs[0]["run_id"]))
+        with open(tasks, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        env = buildEnvironment({"AMBUILD_RUNS_ROOT": self.root, "AMBUILD_BLOBS": self.blobs})
+        options = self.sbatchOptions(subs[0])
+        options[0] = "--job-name=ambuild-sweep-{0}".format(subs[0].get("sweep_id") or subs[0]["submission_id"])
+        result = subprocess.run([os.path.join(self.config.slurm_dir, "submit_array.sh"), tasks] + options,
+                                cwd=self.work, env=env, capture_output=True, text=True, timeout=120)
+        match = re.search(r"array job (\d+) \((\d+) tasks\), upload job (\d+)", result.stdout)
+        if result.returncode != 0 or not match or int(match.group(2)) != len(subs):
+            raise RuntimeError("submit_array.sh failed: " + (result.stderr or result.stdout).strip()[-1000:])
+        array, _, upload = match.groups()
+        logger.info("submissions %s-%s: array job %s, upload job %s", subs[0]["submission_id"],
+                    subs[-1]["submission_id"], array, upload)
+        jobs = []
+        for i, sub in enumerate(subs):
+            rundir, workdir = self._paths(sub["run_id"])
+            task = "{0}_{1}".format(array, i)
+            jobs.append(Job(submission=sub, rundir=rundir, workdir=workdir, handle={"build": task, "upload": upload},
+                            external_id="slurm:{0}/{1}".format(task, upload), state="submitted"))
+        return jobs
+
+    def beginPass(self):
+        """Forget the job states of the last pass (they are looked up once per pass)"""
+        self._queue = None
+        self._ended = {}
+
+    @staticmethod
+    def _taskIds(text):
+        """Array task ids from Slurm's notation, e.g. "0-3,7%50" """
+        ids = []
+        for part in text.split("%")[0].split(","):
+            low, _, high = part.partition("-")
+            if low.isdigit():
+                ids.extend(range(int(low), int(high or low) + 1))
+        return ids
+
+    def _queued(self):
+        """{job id: state} of this user's jobs in squeue (array tasks as ARRAY_TASK)"""
+        if getattr(self, "_queue", None) is None:
+            out = self._run(["squeue", "-h", "-o", "%i %T", "-u", self.user])
+            if out is None:
+                raise RuntimeError("squeue failed")
+            found = {}
+            for line in out.splitlines():
+                if " " not in line:
+                    continue
+                jobId, state = line.split(None, 1)
+                pending = re.fullmatch(r"(\d+)_\[(.+)\]", jobId)
+                if pending:
+                    for task in self._taskIds(pending.group(2)):
+                        found["{0}_{1}".format(pending.group(1), task)] = state.strip()
+                else:
+                    found[jobId] = state.strip()
+            self._queue = found
+        return self._queue
+
+    def _endedStates(self, baseId):
+        """{job id: state} of a job (or every task of an array job) that squeue no longer
+        shows: from scontrol (recently ended jobs), else sacct (accounting)"""
+        cache = getattr(self, "_ended", None)
+        if cache is None:
+            cache = self._ended = {}
+        if baseId not in cache:
+            states = {}
+            for line in (self._run(["scontrol", "show", "job", "-o", baseId]) or "").splitlines():
+                fields = dict(re.findall(r"(\w+)=(\S+)", line))
+                if "JobState" not in fields:
+                    continue
+                if "ArrayJobId" in fields and "ArrayTaskId" in fields:
+                    for task in self._taskIds(fields["ArrayTaskId"]):
+                        states["{0}_{1}".format(fields["ArrayJobId"], task)] = fields["JobState"]
+                else:
+                    states[fields.get("JobId", baseId)] = fields["JobState"]
+            if not states:
+                for line in (self._run(["sacct", "-n", "-X", "-P", "-o", "JobID,State", "-j", baseId]) or "").splitlines():
+                    if "|" in line:
+                        jobId, state = line.split("|", 1)
+                        states[jobId] = (state.split() or [GONE])[0]
+            cache[baseId] = states
+        return cache[baseId]
+
     def states(self, jobIds):
-        """{job id: state} from squeue, else scontrol (recently ended jobs), else sacct"""
-        queue = self._run(["squeue", "-h", "-o", "%i %T", "-u", self.user])
-        if queue is None:
-            raise RuntimeError("squeue failed")
-        found = dict(line.split(None, 1) for line in queue.splitlines() if " " in line)
+        """{job id: state} from squeue, else scontrol, else sacct; job ids may be array
+        tasks (ARRAY_TASK)"""
+        queued = self._queued()
         states = {}
         for jobId in jobIds:
-            state = found.get(jobId, "").strip()
+            state = queued.get(jobId)
             if not state:
-                shown = self._run(["scontrol", "show", "job", "-o", jobId]) or ""
-                match = re.search(r"JobState=(\S+)", shown)
-                if match:
-                    state = match.group(1)
-                else:
-                    acct = (self._run(["sacct", "-n", "-X", "-P", "-o", "State", "-j", jobId]) or "").split()
-                    state = acct[0] if acct else GONE
+                state = self._endedStates(jobId.split("_")[0]).get(jobId, GONE)
             states[jobId] = state
         return states
 
@@ -234,7 +320,7 @@ class SlurmBackend:
         return False
 
     def resume(self, sub):
-        match = re.fullmatch(r"slurm:(\d+)/(\d+)", sub.get("external_id") or "")
+        match = re.fullmatch(r"slurm:(\d+(?:_\d+)?)/(\d+)", sub.get("external_id") or "")
         if not match:
             return None
         rundir, workdir = self._paths(sub["run_id"])

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}New sweep · {{ title }}{% endblock %}
+{% block scripts %}<script src="/static/submit.js" defer></script>{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/sweeps">Sweeps</a> / new</p>
+<h1>New sweep</h1>
+<p class="lede">Choose a recipe, then the settings to vary: each parameter is a JSON pointer into the
+  recipe with a list of values, and every combination is run (once per seed). Or upload a CSV file whose
+  columns are the parameters (and optionally <code>seed</code>): one run per row. At most {{ max_runs }} runs.</p>
+
+{% if not agents | selectattr("live") | list %}
+<p class="error-box" role="status">No agent has checked in during the last two minutes, so the sweep's runs
+  will wait in the queue until one does.</p>
+{% endif %}
+
+<form class="filters" method="get" action="/sweeps/new">
+  <div class="field grow">
+    <label for="saved">Start from a saved recipe</label>
+    <select id="saved" name="recipe">
+      {% if recipes %}<option value="" disabled selected>choose a recipe…</option>{% endif %}
+      {% for r in recipes %}<option value="{{ r.recipe_id }}">{{ r.name }} (v{{ r.version }})</option>
+      {% else %}<option value="" disabled selected>none saved yet</option>{% endfor %}
+    </select>
+  </div>
+  <div class="actions"><button type="submit" {% if not recipes %}disabled{% endif %}>Load</button></div>
+</form>
+
+{% if errors %}
+<div class="error-box" role="alert">
+  <strong>The sweep cannot be queued:</strong>
+  <ul class="errors">{% for e in errors %}<li><code>{{ e }}</code></li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" action="/sweeps" enctype="multipart/form-data" class="submit-form">
+  <label for="recipe" class="field-label">Base recipe (JSON)</label>
+  <textarea id="recipe" name="recipe" rows="16" spellcheck="false" autocomplete="off">{{ recipe_text }}</textarea>
+  <p class="note"><button type="button" hx-post="/sweeps/paths" hx-include="#recipe" hx-target="#paths">Show the recipe's settings</button>
+    to see each setting's pointer.</p>
+  <div id="paths"></div>
+
+  <label for="parameters" class="field-label">Parameters (JSON)</label>
+  <textarea id="parameters" name="parameters" rows="10" spellcheck="false" autocomplete="off">{{ parameters_text }}</textarea>
+  <p class="note">e.g. <code>[{"name": "box", "path": "/cell/box", "all": true, "values": [20, 25, 30]},
+    {"name": "grow", "path": "/stages/1/stages/0/count", "values": [2, 5, 10]}]</code>. <code>"all"</code>
+    sets every element of a list; a pointer may add an argument a stage does not give yet. Leave out
+    <code>values</code> when using a CSV file.</p>
+
+  <div class="filters">
+    <div class="field grow">
+      <label for="seeds">Seeds</label>
+      <input id="seeds" name="seeds" value="{{ seeds }}" placeholder="e.g. 1-5 (default: the recipe's)">
+    </div>
+    <div class="field grow">
+      <label for="rows_csv">Or rows from a CSV file</label>
+      <input id="rows_csv" name="rows_csv" type="file" accept=".csv,text/csv">
+    </div>
+  </div>
+  <div class="filters">
+    <div class="field grow">
+      <label for="name">Name</label>
+      <input id="name" name="name" value="{{ name }}" placeholder="default: the recipe's name" maxlength="200">
+    </div>
+    <div class="field">
+      <label for="priority">Priority</label>
+      <input id="priority" name="priority" value="{{ priority }}" inputmode="numeric" size="4">
+    </div>
+    <div class="field">
+      <label for="backend">Run on</label>
+      {% set online = agents | selectattr("live") | map(attribute="backend") | list %}
+      <select id="backend" name="backend">{% for b in backends %}<option value="{{ b }}" {% if b == backend %}selected{% endif %}>{{ b }}{% if b not in online %} (no agent online){% endif %}</option>{% endfor %}</select>
+    </div>
+    <div class="actions">
+      <button type="button" hx-post="/sweeps/preview" hx-encoding="multipart/form-data" hx-include="closest form" hx-target="#preview">Preview</button>
+      <button type="submit">Queue the sweep</button>
+    </div>
+  </div>
+  <div id="preview" aria-live="polite"></div>
+</form>
+{% endblock %}

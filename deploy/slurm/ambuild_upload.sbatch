@@ -12,7 +12,20 @@
 #SBATCH --time=00:30:00
 #SBATCH --output=%x-%j.out
 set -euo pipefail
-: "${AMBUILD_RUN_DIR:?}"
+# AMBUILD_RUN_DIR, or AMBUILD_RUN_LIST: a file of run directories (an array job's, from
+# submit_array.sh; those that were never started are skipped)
+dirs=()
+if [ -n "${AMBUILD_RUN_LIST:-}" ]; then
+    while IFS= read -r dir; do
+        [ -d "$dir" ] && dirs+=("$dir")
+    done < "$AMBUILD_RUN_LIST"
+    if [ "${#dirs[@]}" -eq 0 ]; then
+        echo "None of the runs in $AMBUILD_RUN_LIST started; nothing to upload"
+        exit 0
+    fi
+else
+    dirs=("${AMBUILD_RUN_DIR:?set AMBUILD_RUN_DIR or AMBUILD_RUN_LIST}")
+fi
 
 env_file="${AMBUILD_UPLOAD_ENV:-$HOME/.config/ambuild/upload.env}"
 set -a
@@ -20,4 +33,4 @@ set -a
 source "$env_file"
 set +a
 
-ambuild-upload --finalise --recursive "$AMBUILD_RUN_DIR"
+ambuild-upload --finalise --recursive "${dirs[@]}"

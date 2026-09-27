@@ -70,3 +70,18 @@ CREATE INDEX IF NOT EXISTS submissions_queue_idx ON submissions (backend, priori
     WHERE state = 'queued';
 CREATE INDEX IF NOT EXISTS submissions_state_idx ON submissions (state);
 CREATE INDEX IF NOT EXISTS submissions_run_idx ON submissions (run_id);
+
+-- Sweeps: one recipe over many points and seeds; each run is a submission
+CREATE TABLE IF NOT EXISTS sweeps (
+    sweep_id   bigserial PRIMARY KEY,
+    name       text NOT NULL,
+    recipe     jsonb NOT NULL,         -- the base recipe
+    spec       jsonb NOT NULL,         -- parameters, rows, seeds (ambuild.sweep)
+    backend    text NOT NULL,
+    owner      text,
+    created    timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS sweep_id bigint REFERENCES sweeps ON DELETE SET NULL;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS point jsonb;         -- the sweep point's values
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS sweep_index integer; -- its place in the sweep
+CREATE INDEX IF NOT EXISTS submissions_sweep_idx ON submissions (sweep_id);

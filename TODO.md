@@ -360,8 +360,12 @@ In order:
   with Bayesian optimisation (Optuna TPE or GP, ask-and-tell, replicates per
   point for noise) for structures meeting constraints on their results, e.g. a
   pore limiting diameter above an ion's size, each round queued on Slurm.
-- [ ] Sweeps and ensembles: one recipe over many seeds or parameters as an
+- [x] Sweeps and ensembles: one recipe over many seeds or parameters as an
   array job, each run tagged with a `sweep_id` in `run.json` and the database.
+  - Web GUI milestone 5 (`ambuild/sweep.py`): grids of JSON-pointer parameters,
+    CSV rows and seed lists; a Slurm agent submits a sweep's runs as one array
+    job (`deploy/slurm/submit_array.sh`). Runs are linked to their sweep in the
+    database (`submissions.sweep_id`), not in `run.json`.
 - [ ] Dispatcher behind the web API: turns queued recipes into jobs, packing
   small builds several per node (`srun --multi-prog` or a task-farm worker)
   and sharing GPUs between small HOOMD runs (MPS).

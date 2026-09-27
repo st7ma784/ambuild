@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ sweep.name }} · Sweep {{ sweep.sweep_id }} · {{ title }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/sweeps">Sweeps</a> / sweep {{ sweep.sweep_id }}</p>
+<div id="sweep-live" {% if active %}hx-get="/sweeps/{{ sweep.sweep_id }}?metric={{ metric }}" hx-trigger="every 10s" hx-select="#sweep-live" hx-swap="outerHTML"{% endif %}>
+<h1>{{ sweep.name }}{% if active %} <span class="live-note">running: refreshed every 10 s</span>{% endif %}</h1>
+<p class="lede">{{ runs | length }} runs on {{ sweep.backend }}{% if sweep.owner %}, by {{ sweep.owner }}{% endif %}, queued
+  {{ sweep.created | when }}{% if names %}; varying {{ names | join(", ") }}{% endif %}{% if seeds %}, with seeds {{ seeds | join(", ") | truncate(60) }}{% endif %}.</p>
+
+<p class="button-row">
+  {% for state, n in counts | dictsort %}{{ m.status(state) }} {{ n }}&nbsp;&nbsp;{% endfor %}
+</p>
+<div class="button-row">
+  {% if active %}<form method="post" action="/sweeps/{{ sweep.sweep_id }}/cancel" onsubmit="return confirm('Cancel every unfinished run of this sweep?')"><button type="submit" class="danger">Cancel the sweep</button></form>{% endif %}
+  {% if counts.get("failed") or counts.get("cancelled") %}<form method="post" action="/sweeps/{{ sweep.sweep_id }}/retry"><button type="submit">Retry failed and cancelled runs</button></form>{% endif %}
+  <a class="button" href="/sweeps/new?sweep={{ sweep.sweep_id }}">New sweep like this…</a>
+</div>
+
+<h2>Results</h2>
+<form class="filters" method="get" action="/sweeps/{{ sweep.sweep_id }}">
+  <div class="field">
+    <label for="metric">Plot</label>
+    <select id="metric" name="metric">{% for column, label in metrics %}<option value="{{ column }}" {% if column == metric %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  </div>
+  <div class="actions"><button type="submit">Show</button></div>
+</form>
+{% if charts %}
+<p class="note">The mean over each point's seeds, against each parameter; one line for each value of the other parameters.</p>
+<div class="charts">{% for c in charts %}{{ m.chart(c, 260) }}{% endfor %}</div>
+{% else %}
+<p class="empty">Nothing to plot yet: no finished runs have this result{% if not names %}, or the sweep has only seeds{% endif %}.</p>
+{% endif %}
+
+<h2>Runs</h2>
+<div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr><th scope="col" class="num">#</th>{% for n in names %}<th scope="col">{{ n }}</th>{% endfor %}
+        <th scope="col" class="num">seed</th><th scope="col">state</th><th scope="col">run</th>
+        <th scope="col" class="num">SA (m²/g)</th><th scope="col" class="num">PLD (Å)</th><th scope="col" class="num">density</th><th scope="col" class="num">atoms</th></tr>
+    </thead>
+    <tbody>
+      {% for r in runs %}
+      <tr>
+        <td class="num"><a href="/submissions/{{ r.submission_id }}">{{ r.sweep_index + 1 }}</a></td>
+        {% for n in names %}<td><code>{{ r.point.get(n) | tojson }}</code></td>{% endfor %}
+        <td class="num">{{ r.seed if r.seed is not none else "random" }}</td>
+        <td>{{ m.status(r.state) }}{% if r.error %} <span class="note" title="{{ r.error }}">{{ r.error | truncate(30) }}</span>{% endif %}</td>
+        <td>{% if r.uploaded %}<a href="/runs/{{ r.run_id }}"><code class="id">{{ r.run_id[:8] }}</code></a>{% else %}–{% endif %}</td>
+        <td class="num">{{ r.results.surface_area_m2_g | number(1) }}</td>
+        <td class="num">{{ r.results.pore_limiting_diameter_a | number }}</td>
+        <td class="num">{{ r.results.density | number(3) }}</td>
+        <td class="num">{{ r.results.num_particles | number }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+</div>
+{% endblock %}

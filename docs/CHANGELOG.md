@@ -16,6 +16,11 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Web GUI, milestone 5: sweeps.
+  - `ambuild/sweep.py` expands a recipe over a grid of parameter values (JSON pointers into the recipe), rows of a CSV file, and seed lists, checking every point.
+  - The web GUI queues a sweep as one submission per run, with a New sweep page (preview, and the recipe's settings with their pointers), a sweeps list, and a sweep page. The sweep page plots any result against each parameter (one line per value of the others) above a table of the runs and their results. There are cancel and retry for a whole sweep, and `/api/sweeps`.
+  - A Slurm agent claims a sweep's runs together (`/api/agent/claim-batch`) and submits them as one array job with one upload job (`deploy/slurm/submit_array.sh`, `ambuild_build_array.sbatch`). `ambuild_upload.sbatch` takes a list of run directories (`AMBUILD_RUN_LIST`).
+  - The Slurm test checks a 3×3 grid sweep end to end.
 - Web GUI, milestone 4: the Slurm agent.
   - **Slurm backend:** `ambuild-agent` with `AMBUILD_AGENT_BACKEND=slurm` submits queued recipes from a login node through `deploy/slurm/submit_build.sh`. The recipe's resources become sbatch options. It follows the jobs through `squeue`, `scontrol` or `sacct`, cancels with `scancel`, and after a restart takes up the jobs it had.
   - **Slurm scripts:** `submit_build.sh --recipe RECIPE.json` builds a recipe, and takes `AMBUILD_RUN_ID`, `AMBUILD_BLOBS` and `AMBUILD_SEED`.

@@ -42,6 +42,7 @@ def conn(client):
         yield c
         c.execute("DELETE FROM submissions WHERE backend = 'test' OR name LIKE %s", ("%" + TOKEN + "%",))
         c.execute("DELETE FROM agents WHERE name LIKE %s", ("%" + TOKEN + "%",))
+        c.execute("DELETE FROM sweeps WHERE name LIKE %s", ("%" + TOKEN + "%",))
         c.execute("DELETE FROM recipes WHERE name LIKE %s", ("%" + TOKEN + "%",))
         c.execute("DELETE FROM blobs WHERE name LIKE %s", ("%" + TOKEN + "%",))
 
@@ -384,3 +385,100 @@ def test_new_run_page_says_which_backends_have_agents(client, conn):
     conn.execute("UPDATE agents SET last_heartbeat = NULL WHERE backend = 'test'")
     html = client.get("/submit").text
     assert '>test (no agent online)</option>' in html
+
+
+# --- milestone 5: sweeps
+
+GRID = [{"name": "box", "path": "/cell/box", "all": True, "values": [20, 25, 30]},
+        {"name": "grow", "path": "/stages/1/stages/0/count", "values": [1, 2, 3]}]
+
+
+def makeSweep(client, blobs, name="sweep", **payload):
+    payload.setdefault("recipe", recipe(blobs, name))
+    payload.setdefault("parameters", GRID)
+    payload.setdefault("backend", "test")
+    payload.setdefault("name", "{0}-{1}".format(name, TOKEN))
+    r = client.post("/api/sweeps", json=payload)
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def test_sweep_preview_and_problems(client, blobs):
+    body = {"recipe": recipe(blobs), "parameters": GRID, "seeds": [1, 2], "preview": True}
+    data = client.post("/api/sweeps", json=body).json()
+    assert data["valid"] and data["runs"] == 18 and data["points"] == 9
+    assert data["first"][0] == {"point": {"box": 20, "grow": 1}, "seed": 1}
+    bad = client.post("/api/sweeps", json=dict(body, parameters=[dict(GRID[1], values=[1, 0])])).json()
+    assert bad["errors"] == ["grow=0: stages[1].stages[0].count: must be at least 1"]
+    bad = client.post("/api/sweeps", json=dict(body, parameters=[dict(GRID[0], path="/nowhere/x")])).json()
+    assert bad["errors"][0].startswith("parameters[0].path")
+    missing = recipe(blobs)
+    missing["fragments"][0]["car"] = "sha256:" + "cd" * 32
+    bad = client.post("/api/sweeps", json=dict(body, recipe=missing)).json()
+    assert bad["errors"] == ["base recipe: fragments[0].car: no uploaded file has this sha256"]
+
+
+def test_sweep_is_claimed_as_one_batch(client, blobs, conn):
+    headers = agent(conn, "batcher")
+    sweep = makeSweep(client, blobs)
+    assert sweep["runs"] == 9
+    single = submit(client, blobs)  # queued after the sweep
+    batch = client.post("/api/agent/claim-batch", json={"limit": 100}, headers=headers).json()["submissions"]
+    assert len(batch) == 9 and {s["sweep_id"] for s in batch} == {sweep["sweep_id"]}
+    assert [s["recipe"]["cell"]["box"][0] for s in batch] == [20, 20, 20, 25, 25, 25, 30, 30, 30]
+    assert [s["recipe"]["stages"][1]["stages"][0]["count"] for s in batch[:3]] == [1, 2, 3]
+    alone = client.post("/api/agent/claim-batch", headers=headers).json()["submissions"]
+    assert [s["submission_id"] for s in alone] == [single["submission_id"]]
+    assert client.post("/api/agent/claim-batch", headers=headers).json()["submissions"] == []
+    listed = client.get("/api/submissions").json()["submissions"]
+    assert any(s["sweep_id"] == sweep["sweep_id"] and s["point"] == {"box": 20, "grow": 1} for s in listed)
+    assert client.post("/api/sweeps/{0}/cancel".format(sweep["sweep_id"])).json() == {"cancelled": 9}
+    client.post("/api/submissions/{0}/cancel".format(single["submission_id"]))
+
+
+def test_sweep_page_plots_results_against_both_parameters(client, blobs, conn, recorded):
+    small = [dict(GRID[0], values=[20, 25]), dict(GRID[1], values=[1, 2])]
+    sweep = makeSweep(client, blobs, "plotted", parameters=small)
+    runs = client.get("/api/sweeps/{0}".format(sweep["sweep_id"])).json()["runs"]
+    assert [r["point"] for r in runs] == [{"box": 20, "grow": 1}, {"box": 20, "grow": 2},
+                                         {"box": 25, "grow": 1}, {"box": 25, "grow": 2}]
+    # two of its runs "finished" as recorded runs a and c, with their Poreblazer results
+    for run, runId in zip(runs[:3:2], (recorded["a"], recorded["c"])):
+        conn.execute("UPDATE submissions SET state = 'finished', run_id = %s WHERE submission_id = %s",
+                     (runId, run["submission_id"]))
+    data = client.get("/api/sweeps/{0}".format(sweep["sweep_id"])).json()["runs"]
+    assert [r["results"]["surface_area_m2_g"] for r in data[:3:2]] == [1500.0, 2600.0]
+    html = client.get("/sweeps/{0}".format(sweep["sweep_id"])).text
+    specs = {m.group(1): json.loads(m.group(2)) for m in
+             re.finditer(r'id="(sweep-[a-z]+)-data">(.*?)</script>', html, re.S)}
+    assert set(specs) == {"sweep-box", "sweep-grow"}
+    assert specs["sweep-box"]["series"] == [{"label": "grow=1", "x": [20, 25], "y": [1500.0, 2600.0]}]
+    assert "surface area (m²/g) against box" in html and 'hx-trigger="every 10s"' in html
+    density = client.get("/sweeps/{0}".format(sweep["sweep_id"]), params={"metric": "density"}).text
+    assert "density (g/cm³) against grow" in density
+    assert client.post("/api/sweeps/{0}/cancel".format(sweep["sweep_id"])).json() == {"cancelled": 2}
+    assert client.post("/api/sweeps/{0}/retry".format(sweep["sweep_id"])).json() == {"queued": 2}
+    client.post("/api/sweeps/{0}/cancel".format(sweep["sweep_id"]))
+    assert "plotted-{0}".format(TOKEN) in client.get("/sweeps").text
+
+
+def test_sweep_form_with_csv_rows(client, blobs):
+    params = json.dumps([{"name": "box", "path": "/cell/box", "all": True},
+                         {"name": "grow", "path": "/stages/1/stages/0/count"}])
+    form = {"recipe": json.dumps(recipe(blobs, "csv")), "parameters": params, "seeds": "",
+            "name": "csv-" + TOKEN, "backend": "test", "priority": "0"}
+    csvFile = {"rows_csv": ("rows.csv", b"box,grow,seed\n22,1,5\n24,3,6\n", "text/csv")}
+    preview = client.post("/sweeps/preview", data=form, files=csvFile).text
+    assert re.search(r"2 runs: 2\s+points", preview) and "<code>24</code>" in preview
+    r = client.post("/sweeps", data=form, files=csvFile, follow_redirects=False)
+    assert r.status_code == 303
+    sweepId = int(r.headers["location"].rsplit("/", 1)[1])
+    runs = client.get("/api/sweeps/{0}".format(sweepId)).json()["runs"]
+    assert [(r["point"], r["seed"]) for r in runs] == [({"box": 22, "grow": 1}, 5), ({"box": 24, "grow": 3}, 6)]
+    copied = client.get("/sweeps/new", params={"sweep": sweepId}).text
+    assert "csv-" + TOKEN in copied and "/stages/1/stages/0/count" in copied
+    bad = client.post("/sweeps", data=dict(form, parameters="[{"), files=csvFile)
+    assert bad.status_code == 422 and "parameters: not valid JSON" in bad.text
+    paths = client.post("/sweeps/paths", data={"recipe": form["recipe"]}).text
+    assert "<code>/cell/box</code>" in paths and "<code>/stages/1/repeat</code>" in paths
+    client.post("/api/sweeps/{0}/cancel".format(sweepId))

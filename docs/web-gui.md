@@ -430,7 +430,7 @@ Each milestone is deployable on its own and has a check that says it is done.
 | 2 ✅ | **Structure viewer (d)**: `Cell.dump()` also writes an extended XYZ with the lattice; 3Dmol.js viewer with the step slider and colouring; Poreblazer results over checkpoints | the viewer shows every checkpoint of a recorded build; the XYZ round-trips to the same coordinates |
 | 3 ✅ | **Recipes and the runner**: recipe schema and validation, `python -m ambuild.recipe run`, content-addressed blobs; queue tables; **submit (a)** one run to a **local/K3s agent** | a recipe submitted from the browser runs, uploads, and reproduces the structure of the same recipe run from the command line with the same seed |
 | 4 ✅ | **Slurm agent**: token API for agents; claims, stages inputs, submits through the sbatch scripts, tracks state, cancels, heartbeats; agent cards and token management on the status page (c); live progress | a run queued in the browser runs on Slurm (the `slurm-test` container in CI) and its page updates while it runs; cancelling scancels it |
-| 5 | **Batches and sweeps (a, b)**: seed lists, parameter grids, CSV; one array job per sweep; sweep page with scatter plots | a 3×3 grid sweep runs as one array, and its page plots a result against both parameters |
+| 5 ✅ | **Batches and sweeps (a, b)**: seed lists, parameter grids, CSV; one array job per sweep; sweep page with scatter plots | a 3×3 grid sweep runs as one array, and its page plots a result against both parameters |
 | 6 | **Campaigns (goal-directed sweeps)**: constraints and an objective over results, parameters as recipe pointers, replicates; Optuna ask-and-tell (random, QMC, TPE, GP) in the `ambuild-campaigns` controller; each round queued as a batch; campaign page with best-so-far and parameter plots | in the Slurm test container, a campaign aiming at a target density over box size and grow count meets it in fewer runs than the equivalent grid, and every trial links to its runs |
 | 7 | **Checkpoint cache, resume and fork**: cache keyed by recipe prefix, seed, inputs and version; resume failed runs; run again / fork | resubmitting a finished recipe with the same seed starts from its final checkpoint and finishes in seconds with the same structure |
 | 8 | **Hardening**: audit, notifications, retention, metrics, the Python client, the Helm chart deployed through Fleet to Rancher | the chart deploys from Git through Fleet; a sweep's owner gets an email when it finishes |
@@ -492,6 +492,27 @@ and results browser early; 3–4 are the submission path; 5–8 build on it, 6 (
   - kills the agent mid-run and starts it again;
   - checks the finished run (its Slurm job id, three Poreblazer results, four structures);
   - cancels a second run and checks that it was scancelled and uploaded.
+
+**As built in milestone 5.**
+
+- **Sweep spec** (`ambuild/sweep.py`, standard library only, so the campaign controller can share it):
+  - Parameters are JSON pointers into the recipe, each with a list of values; the grid is every combination.
+  - `"all": true` sets every element of a list (a cubic box). A pointer may add an argument a stage does not give yet.
+  - Instead of values, `rows` give explicit points, e.g. from a CSV file with a column per parameter and an optional `seed` column.
+  - `seeds` (e.g. "1-5") repeats every point.
+  - Every point is checked as a recipe before anything is queued, and errors name the point (e.g. `grow=0: stages[1].stages[0].count: must be at least 1`). A sweep has at most 1,000 runs.
+- **Data**: a `sweeps` table (base recipe, spec, backend, owner). Each run is an ordinary submission with `sweep_id`, `point` and `sweep_index`, so the queue, cancelling, retrying and the run pages work as for single runs. Runs are linked to their sweep in the database, not in `run.json`.
+- **One array job per sweep**:
+  - A Slurm agent claims with `POST /api/agent/claim-batch`, which returns every queued run of the first sweep in the queue (or one single submission).
+  - It submits them with `deploy/slurm/submit_array.sh`: one task per run (`ambuild_build_array.sbatch`), `AMBUILD_ARRAY_MAX` at once, and one upload job for all the run directories.
+  - Each run's external id is its task (`slurm:<array>_<i>/<upload>`). The agent looks up every job's state once per pass, and understands squeue's pending ranges and scontrol's task records.
+  - The local agent runs a sweep's runs one by one, as separate submissions.
+- **Pages**:
+  - Sweeps list, and a New sweep page with a recipe editor, the parameters (JSON), seeds or a CSV file, "Show the recipe's settings" (every setting with its pointer) and a preview of the runs.
+  - The sweep page shows run counts by state, cancel and retry buttons, "New sweep like this", and the runs table with their results.
+  - Its charts plot a chosen result (surface area, PLD, maximum pore diameter, helium volume, density, atoms, blocks) against each parameter: the mean over the seeds, one line for each value of the other parameters. The page refreshes while runs are active.
+- **API**: `POST /api/sweeps` (with `"preview": true` to only list the runs), `GET /api/sweeps[/{id}]` (runs with their results), and `POST /api/sweeps/{id}/{cancel,retry}`.
+- **Check**: `check_agent.py` in the Slurm test runs a 3×3 grid sweep (box × grow count). It checks the sweep ran as the 9 tasks of one array job, each with its density, and that the sweep page plots density against both parameters.
 
 ## Decisions
 
