@@ -10,6 +10,8 @@ S3-compatible object storage by `ambuild-upload` (`services/ingest`).
 | `slurm/` | Job scripts: build, upload, Poreblazer fan-out |
 | `slurm/test/` | Single-node Slurm image that tests `slurm/` end to end |
 | `k8s/` | K3s fallback: init Job, on-demand upload scan Job, runs PVC, Secret template |
+| `helm/ambuild/` | Helm chart for the web GUI, deployed through Rancher's Fleet (`fleet.yaml`) |
+| `demo/` | Demo runs for the web GUI's Compose profile |
 
 ## Local stack
 
@@ -32,6 +34,32 @@ docker compose -f deploy/docker-compose.yml --profile test run --rm --build inge
 docker compose -f deploy/docker-compose.yml --profile slurm-test run --rm --build slurm-test
 docker compose -f deploy/docker-compose.yml down -v
 ```
+
+## Web GUI
+
+The web GUI (`services/web`, planned in [docs/web-gui.md](../docs/web-gui.md)) reads the
+same database and bucket. A local demo, with a few recorded runs (three with Poreblazer
+results, one failed) built and uploaded on the first start:
+
+```sh
+docker compose -f deploy/docker-compose.yml --profile web up -d --build
+# http://127.0.0.1:8080 (AMBUILD_WEB_PORT to change); the status page shows PostgreSQL
+# and object storage, and why either is unreachable
+docker compose -f deploy/docker-compose.yml --profile web-test run --rm --build web-test
+```
+
+It has no sign-in yet: keep it on the lab network.
+
+### Helm chart and Fleet
+
+`helm/ambuild/` deploys the web GUI only; PostgreSQL and S3 are external, named in its
+values, and the credentials come from a Secret created outside Git
+(`helm/ambuild-secret.example.yaml`). Point a Fleet GitRepo's `paths` at
+`deploy/helm/ambuild`. Fleet bundles every file under that path and stores the bundle
+in etcd, and Helm stores each release in a Secret; both are capped at about 1 MiB, so
+the directory holds the chart and `fleet.yaml` only, and `scripts/check_chart_size.sh`
+(run in CI) fails if the packaged chart, the rendered manifests or the bundled files
+grow past a small budget.
 
 ## Slurm
 

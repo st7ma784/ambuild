@@ -1,0 +1,18 @@
+# Fleet (Rancher Continuous Delivery) bundle for the chart in this directory. Point a
+# GitRepo's paths at deploy/helm/ambuild: Fleet bundles every file under that path, so
+# the directory holds the chart and this file only (.fleetignore keeps stray files out).
+# Per-cluster values go in targetCustomizations; the Secret named by existingSecret is
+# created outside Git.
+defaultNamespace: ambuild
+helm:
+  releaseName: ambuild
+  values:
+    ingress:
+      enabled: false
+# targetCustomizations:
+#   - name: lab
+#     clusterSelector: {matchLabels: {env: lab}}
+#     helm:
+#       values:
+#         ingress: {enabled: true, host: ambuild.lab.internal}
+#         s3: {endpointUrl: "http://seaweedfs-s3.storage:8333"}

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ title }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">{{ title }}</a>
+    <nav aria-label="Main">
+      <a href="/status" {% if path.startswith('/status') %}aria-current="page"{% endif %}>Status</a>
+      <a href="/api/docs">API</a>
+    </nav>
+    <form class="owner" method="post" action="/owner">
+      <label for="owner-name">{% if owner %}You are{% else %}Your name{% endif %}</label>
+      <input id="owner-name" name="name" value="{{ owner or '' }}" placeholder="for recording who submits" maxlength="64">
+      <input type="hidden" name="next" value="{{ path }}">
+      <button type="submit">Save</button>
+    </form>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>ambuild-web {{ version }}</footer>
+</body>
+</html>

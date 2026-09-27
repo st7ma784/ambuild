@@ -1,0 +1,43 @@
+# ambuild chart: the web interface only. PostgreSQL and S3-compatible storage are
+# external: point at them here. Keep this chart small (Fleet and Helm limit a bundle or
+# release to about 1 MiB; scripts/check_chart_size.sh enforces a budget far below that).
+
+image:
+  repository: ghcr.io/st7ma784/ambuild-web
+  tag: ""  # default: the chart's appVersion
+  pullPolicy: IfNotPresent
+
+replicas: 1
+title: Ambuild
+
+# Credentials come from a Secret created outside Git (see ../ambuild-secret.example.yaml):
+# DATABASE_URL, AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+existingSecret: ambuild
+
+s3:
+  endpointUrl: ""  # empty: AWS S3; e.g. http://seaweedfs-s3.storage:8333
+  bucket: ambuild-runs
+  prefix: ""
+  region: us-east-1
+
+service:
+  port: 80
+
+# Internal tool with no sign-in yet: expose it on the lab network only. On K3s (Traefik)
+# restrict it with an ipAllowList middleware, e.g.
+#   annotations:
+#     traefik.ingress.kubernetes.io/router.middlewares: ambuild-lab-only@kubernetescrd
+ingress:
+  enabled: false
+  className: ""
+  host: ambuild.example.internal
+  annotations: {}
+  tlsSecret: ""
+
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {memory: 512Mi}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

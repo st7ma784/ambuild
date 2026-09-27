@@ -1,0 +1,23 @@
+{% set labels = {"ok": "OK", "warn": "Needs attention", "fail": "Failed"} %}
+<div id="status-cards" hx-get="/status/cards" hx-trigger="every {{ refresh }}s" hx-swap="outerHTML">
+  <p class="overall state-{{ status.state }}">
+    <span class="badge">{{ labels[status.state] }}</span>
+    Checked {{ status.checked_at }}
+  </p>
+  <div class="cards">
+    {% for check in status.checks %}
+    <section class="card state-{{ check.state }}" aria-labelledby="check-{{ loop.index }}">
+      <h2 id="check-{{ loop.index }}">{{ check.name }} <span class="badge">{{ labels[check.state] }}</span></h2>
+      <p class="summary">{{ check.summary }}</p>
+      {% if check.facts %}
+      <dl>
+        {% for key, value in check.facts.items() %}
+        <dt>{{ key }}</dt><dd>{{ value }}</dd>
+        {% endfor %}
+      </dl>
+      {% endif %}
+      <p class="timing">{{ "%.0f"|format(check.seconds * 1000) }} ms</p>
+    </section>
+    {% endfor %}
+  </div>
+</div>

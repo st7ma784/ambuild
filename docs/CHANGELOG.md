@@ -16,6 +16,12 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Web GUI, milestone 0 (`services/web`, docs/web-gui.md): FastAPI with server-rendered
+  pages and htmx; a status page and `/api/status` for PostgreSQL (tables, runs by
+  status, size) and object storage (write, read and delete probe), each green, amber
+  or red with the reason; `/healthz` and `/readyz`; the owner name kept in a cookie
+  (no sign-in yet). A Compose `web` profile with demo runs; a Helm chart for Rancher's
+  Fleet with a CI size budget (`scripts/check_chart_size.sh`) and schema validation.
 - Reproducible builds: the same script and `Cell(..., seed=n)` give the same
   structure in any process (block ids are serial numbers, not memory addresses;
   random choices from sets draw from a sorted list; a split block keeps its

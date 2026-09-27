@@ -1,0 +1,8 @@
+# Not part of the chart
+fleet.yaml
+.fleetignore
+*.tgz
+.git/
+*.swp
+*~
+.DS_Store

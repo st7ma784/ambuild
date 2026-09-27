@@ -1,0 +1,5 @@
+# Fleet bundles every file under this path; keep anything but the chart out
+*.tgz
+*.swp
+*~
+.DS_Store
