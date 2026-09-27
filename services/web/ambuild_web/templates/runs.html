@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Runs · {{ title }}{% endblock %}
+{% block content %}
+<h1>Runs</h1>
+<p class="lede">Every recorded build uploaded to the database. Poreblazer results from a build's
+  child runs (its Poreblazer tasks) are shown on the build.</p>
+
+<form class="filters" method="get" action="/runs">
+  <div class="field grow">
+    <label for="q">Search</label>
+    <input id="q" name="q" value="{{ f.q }}" placeholder="run id, script, command or host">
+  </div>
+  <fieldset class="field">
+    <legend>Status</legend>
+    {% for s in ["finished", "running", "failed", "incomplete"] %}
+    <label class="check"><input type="checkbox" name="status" value="{{ s }}" {% if s in f.status %}checked{% endif %}> {{ s | status_label }}</label>
+    {% endfor %}
+  </fieldset>
+  <fieldset class="field range">
+    <legend>Surface area (m²/g)</legend>
+    <input name="min_sa" inputmode="decimal" value="{{ f.min_surface_area if f.min_surface_area is not none else '' }}" placeholder="min" aria-label="Minimum surface area">
+    <input name="max_sa" inputmode="decimal" value="{{ f.max_surface_area if f.max_surface_area is not none else '' }}" placeholder="max" aria-label="Maximum surface area">
+  </fieldset>
+  <fieldset class="field range">
+    <legend>Pore limiting diameter (Å)</legend>
+    <input name="min_pld" inputmode="decimal" value="{{ f.min_pld if f.min_pld is not none else '' }}" placeholder="min" aria-label="Minimum pore limiting diameter">
+    <input name="max_pld" inputmode="decimal" value="{{ f.max_pld if f.max_pld is not none else '' }}" placeholder="max" aria-label="Maximum pore limiting diameter">
+  </fieldset>
+  <fieldset class="field">
+    <legend>Show</legend>
+    <label class="check"><input type="checkbox" name="poreblazer" value="1" {% if f.with_poreblazer %}checked{% endif %}> only with Poreblazer results</label>
+    <label class="check"><input type="checkbox" name="children" value="1" {% if f.children %}checked{% endif %}> child runs too</label>
+  </fieldset>
+  <div class="field">
+    <label for="sort">Sort by</label>
+    <select id="sort" name="sort">
+      {% for s in sorts %}<option value="{{ s }}" {% if s == f.sort %}selected{% endif %}>{{ s | replace("_", " ") }}</option>{% endfor %}
+    </select>
+    <select name="dir" aria-label="Order">
+      <option value="desc" {% if f.descending %}selected{% endif %}>descending</option>
+      <option value="asc" {% if not f.descending %}selected{% endif %}>ascending</option>
+    </select>
+  </div>
+  <div class="actions">
+    <button type="submit">Apply</button>
+    <a href="/runs">Reset</a>
+  </div>
+</form>
+
+<form method="get" action="/compare">
+  <div class="table-head">
+    <p>{{ total }} run{{ "" if total == 1 else "s" }}{% if pages > 1 %}, page {{ f.page }} of {{ pages }}{% endif %}</p>
+    <button type="submit">Compare selected</button>
+  </div>
+  {% if runs %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th scope="col"><span class="visually-hidden">Compare</span></th>
+          <th scope="col">Status</th>
+          <th scope="col">Run</th>
+          <th scope="col">Started</th>
+          <th scope="col" class="num">Seed</th>
+          <th scope="col" class="num">Duration</th>
+          <th scope="col" class="num">Atoms</th>
+          <th scope="col" class="num">Blocks</th>
+          <th scope="col" class="num">Density</th>
+          <th scope="col" class="num">Surface area<br><span class="unit">m²/g</span></th>
+          <th scope="col" class="num">PLD<br><span class="unit">Å</span></th>
+          <th scope="col" class="num">Max pore<br><span class="unit">Å</span></th>
+          <th scope="col" class="num">Child runs</th>
+          <th scope="col">Slurm job</th>
+          <th scope="col">Host</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td><input type="checkbox" name="run" value="{{ r.run_id }}" aria-label="Compare {{ r.label }}"></td>
+          <td>{{ m.status(r.status) }}</td>
+          <td>{{ m.runlink(r) }}{% if r.parent_run_id %}<br><span class="note">child of <a href="/runs/{{ r.parent_run_id }}">{{ r.parent_run_id[:8] }}</a></span>{% endif %}</td>
+          <td>{{ r.started | when }}</td>
+          <td class="num">{{ r.seed if r.seed is not none else "–" }}</td>
+          <td class="num">{{ r.duration | duration }}</td>
+          <td class="num">{{ r.num_particles | number }}</td>
+          <td class="num">{{ r.num_blocks | number }}</td>
+          <td class="num">{{ r.density | number(3) }}</td>
+          <td class="num">{{ r.surface_area_m2_g | number(1) }}</td>
+          <td class="num">{{ r.pore_limiting_diameter_a | number(2) }}</td>
+          <td class="num">{{ r.maximum_pore_diameter_a | number(2) }}</td>
+          <td class="num">{{ r.children or "–" }}</td>
+          <td>{{ r.slurm_job_id or "–" }}</td>
+          <td>{{ r.host or "–" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No runs match. <a href="/runs">Clear the filters</a>, or check the <a href="/status">status page</a> if you expected some.</p>
+  {% endif %}
+</form>
+
+{% if pages > 1 %}
+<nav class="pager" aria-label="Pages">
+  {% if f.page > 1 %}<a href="{{ page_url(f.page - 1) }}">Previous</a>{% endif %}
+  <span>Page {{ f.page }} of {{ pages }}</span>
+  {% if f.page < pages %}<a href="{{ page_url(f.page + 1) }}">Next</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

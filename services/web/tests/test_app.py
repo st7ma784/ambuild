@@ -85,11 +85,13 @@ def test_owner_redirect_stays_on_the_site(target):
     assert r.headers["location"] == "/"
 
 
-def test_vendored_htmx_matches_its_recorded_checksum():
+def test_vendored_files_match_their_recorded_checksums():
     with open(os.path.join(STATIC, "VENDOR.md")) as f:
-        recorded = re.search(r"`htmx\.min\.js`.*`([0-9a-f]{64})`", f.read()).group(1)
-    served = client(Settings()).get("/static/htmx.min.js").content
-    assert hashlib.sha256(served).hexdigest() == recorded
+        recorded = dict(re.findall(r"^\| `([^`]+)` \|.*`([0-9a-f]{64})` \|$", f.read(), re.M))
+    assert {"htmx.min.js", "uPlot.iife.min.js", "uPlot.min.css"} <= set(recorded)
+    c = client(Settings())
+    for name, sha in recorded.items():
+        assert hashlib.sha256(c.get("/static/" + name).content).hexdigest() == sha, name
 
 
 def test_status_page_renders_without_javascript():
@@ -156,3 +158,12 @@ def test_cards_partial(settings):
     html = client(settings).get("/status/cards").text
     assert html.lstrip().startswith("<div id=\"status-cards\"") or 'id="status-cards"' in html
     assert "OK" in html
+
+
+def test_templates_and_static_files_are_utf8():
+    """Jinja reads templates as UTF-8; a file saved in another encoding breaks its page"""
+    package = os.path.dirname(STATIC)
+    for folder in ("templates", "static"):
+        for name in os.listdir(os.path.join(package, folder)):
+            with open(os.path.join(package, folder, name), "rb") as f:
+                f.read().decode("utf-8")  # raises if not

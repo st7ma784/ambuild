@@ -37,3 +37,6 @@ squeue
 echo "--- job outputs"; tail -n 3 /tmp/*.out
 python3 "$slurm/test/check_db.py" "$(run_id_of "$ok")" "$(run_id_of "$failed")" "$(run_id_of "$cancelled")" \
     "$(run_id_of "$multitask")"
+echo "--- web GUI"
+python3 "$slurm/test/check_web.py" "$(run_id_of "$ok")" "$(run_id_of "$failed")" "$(run_id_of "$cancelled")" \
+    "$(run_id_of "$multitask")"

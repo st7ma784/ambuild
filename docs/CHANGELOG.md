@@ -16,6 +16,14 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Web GUI, milestone 1: the run browser. A run list filtered by status, text (run
+  id, script, command, host) and ranges of surface area and pore limiting diameter,
+  sortable and paged, with Poreblazer results from child runs shown on their build;
+  run pages with provenance, step charts (uPlot, vendored), Poreblazer results and
+  pore size distributions, parent and child runs, files streamed from object storage
+  (only those the run recorded) and the event log; comparison of 2-4 runs with the
+  differing settings highlighted; the same data as JSON under `/api/runs`. The Slurm
+  end-to-end test checks every run through the web GUI and every file's sha256.
 - Web GUI, milestone 0 (`services/web`, docs/web-gui.md): FastAPI with server-rendered
   pages and htmx; a status page and `/api/status` for PostgreSQL (tables, runs by
   status, size) and object storage (write, read and delete probe), each green, amber

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ s.label }} · {{ title }}{% endblock %}
+{% block content %}
+{% set env = run_json.get("environment", {}) %}
+{% set cell = run_json.get("cell", {}) %}
+{% set rnd = run_json.get("random", {}) %}
+<p class="crumbs"><a href="/runs">Runs</a> / <code>{{ s.run_id[:8] }}</code></p>
+<h1>{{ s.label }} {{ m.status(s.status) }}</h1>
+<p class="lede"><code>{{ s.run_id }}</code></p>
+{% if s.error %}<p class="error-box"><strong>Error:</strong> {{ s.error }}</p>{% endif %}
+
+<dl class="facts">
+  <div><dt>Started</dt><dd>{{ s.started | when }}</dd></div>
+  <div><dt>Finished</dt><dd>{{ s.finished | when }}</dd></div>
+  <div><dt>Duration</dt><dd>{{ s.duration | duration }}</dd></div>
+  <div><dt>Steps</dt><dd>{{ s.last_step | number }}</dd></div>
+  <div><dt>Atoms</dt><dd>{{ s.num_particles | number }}</dd></div>
+  <div><dt>Blocks</dt><dd>{{ s.num_blocks | number }}</dd></div>
+  <div><dt>Density</dt><dd>{{ s.density | number(3) }} g/cm³</dd></div>
+  <div><dt>Box</dt><dd>{% if cell.box_dim %}{{ cell.box_dim | join(" × ") }} Å{% else %}–{% endif %}</dd></div>
+  <div><dt>Seed</dt><dd>{{ rnd.seed if rnd.seed is not none else ("not seeded (state recorded)" if rnd.state else "–") }}</dd></div>
+  <div><dt>Ambuild</dt><dd>{{ s.ambuild_version or "–" }}{% if s.git_commit %} <code>{{ s.git_commit[:10] }}</code>{% endif %}</dd></div>
+  <div><dt>Host</dt><dd>{{ s.host or "–" }}</dd></div>
+  <div><dt>Slurm job</dt><dd>{{ s.slurm_job_id or "–" }}</dd></div>
+</dl>
+{% if run_json.command %}<p class="command"><span class="note">Command</span> <code>{{ run_json.command | join(" ") }}</code></p>{% endif %}
+
+{% if r.parent or r.children %}
+<section>
+  <h2>Related runs</h2>
+  {% if r.parent %}<p>Started from {{ m.runlink(r.parent) }} {{ m.status(r.parent.status) }}</p>{% endif %}
+  {% if r.children %}
+  <div class="table-wrap">
+    <table class="data">
+      <caption>Child runs (Poreblazer tasks and resumed builds)</caption>
+      <thead><tr><th scope="col">Status</th><th scope="col">Run</th><th scope="col">Started</th>
+        <th scope="col" class="num">Surface area <span class="unit">m²/g</span></th>
+        <th scope="col" class="num">PLD <span class="unit">Å</span></th>
+        <th scope="col" class="num">Max pore <span class="unit">Å</span></th></tr></thead>
+      <tbody>
+        {% for c in r.children %}
+        <tr><td>{{ m.status(c.status) }}</td><td>{{ m.runlink(c) }}</td><td>{{ c.started | when }}</td>
+          <td class="num">{{ c.surface_area_m2_g | number(1) }}</td>
+          <td class="num">{{ c.pore_limiting_diameter_a | number(2) }}</td>
+          <td class="num">{{ c.maximum_pore_diameter_a | number(2) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<section>
+  <h2>Build steps</h2>
+  {% if r.steps %}
+  <div class="charts">{% for c in step_charts %}{{ m.chart(c) }}{% endfor %}</div>
+  <details>
+    <summary>Steps table ({{ r.steps | length }} rows)</summary>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col" class="num">Step</th><th scope="col">Type</th><th scope="col" class="num">Time (s)</th>
+          <th scope="col" class="num">Atoms</th><th scope="col" class="num">Blocks</th><th scope="col" class="num">Fragments</th>
+          <th scope="col" class="num">Density</th><th scope="col" class="num">Free end groups</th>
+          <th scope="col" class="num">Potential energy</th><th scope="col" class="num">Tries</th><th scope="col">Fragment types</th></tr></thead>
+        <tbody>
+          {% for st in r.steps %}
+          <tr><td class="num">{{ st.step }}</td><td>{{ st.type }}</td><td class="num">{{ st.step_time | number(2) }}</td>
+            <td class="num">{{ st.num_particles | number }}</td><td class="num">{{ st.num_blocks | number }}</td>
+            <td class="num">{{ st.num_frags | number }}</td><td class="num">{{ st.density | number(4) }}</td>
+            <td class="num">{{ st.num_free_endgroups | number }}</td><td class="num">{{ st.potential_energy | number(3) }}</td>
+            <td class="num">{{ st.num_tries | number }}</td><td><code>{{ st.fragment_types or "" }}</code></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% else %}<p class="empty">No steps recorded.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Poreblazer</h2>
+  {% if r.pore_results %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col" class="num">Step</th><th scope="col">Directory</th>
+        <th scope="col" class="num">Surface area<br><span class="unit">m²/g</span></th>
+        <th scope="col" class="num">Surface area<br><span class="unit">Å²</span></th>
+        <th scope="col" class="num">Helium volume<br><span class="unit">cm³/g</span></th>
+        <th scope="col" class="num">Geometric volume<br><span class="unit">cm³/g</span></th>
+        <th scope="col" class="num">PLD<br><span class="unit">Å</span></th>
+        <th scope="col" class="num">Max pore<br><span class="unit">Å</span></th>
+        <th scope="col" class="num">Percolated dimensions</th><th scope="col">Version</th></tr></thead>
+      <tbody>
+        {% for p in r.pore_results %}
+        <tr><td class="num">{{ p.step if p.step is not none else "–" }}</td>
+          <td><code>{{ p.directory.split("/")[-1].split("\\")[-1] }}</code>{% if p.from_child %}<br><span class="note">from <a href="/runs/{{ p.run_id }}">{{ (p.run_id | string)[:8] }}</a></span>{% endif %}</td>
+          <td class="num">{{ p.surface_area_m2_g | number(1) }}</td><td class="num">{{ p.surface_area_a2 | number(1) }}</td>
+          <td class="num">{{ p.helium_volume_cm3_g | number(3) }}</td><td class="num">{{ p.geometric_volume_cm3_g | number(3) }}</td>
+          <td class="num">{{ p.pore_limiting_diameter_a | number(2) }}</td><td class="num">{{ p.maximum_pore_diameter_a | number(2) }}</td>
+          <td class="num">{{ p.percolated_dimensions if p.percolated_dimensions is not none else "–" }}</td>
+          <td>{{ p.version or "–" }}{% if p.returncode %} <span class="status state-fail">exit {{ p.returncode }}</span>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="charts">{% for c in psd_charts %}{{ m.chart(c, 240) }}{% endfor %}</div>
+  {% else %}<p class="empty">No Poreblazer results for this run or its child runs.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Files</h2>
+  {% if r.files %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">Path</th><th scope="col">Kind</th><th scope="col" class="num">Step</th>
+        <th scope="col" class="num">Size</th><th scope="col">sha256</th></tr></thead>
+      <tbody>
+        {% for f in r.files %}
+        {% set href = "/runs/" ~ s.run_id ~ "/files/" ~ quote(f.path) %}
+        <tr><td><a href="{{ href }}">{{ f.path }}</a>{% if f.path.rsplit(".", 1)[-1] in ["json", "jsonl", "csv", "log", "txt", "xyz", "car", "cml", "py", "dat", "atoms"] %} · <a href="{{ href }}?inline=1">view</a>{% endif %}</td>
+          <td>{{ f.kind or "–" }}</td><td class="num">{{ f.step if f.step is not none else "–" }}</td>
+          <td class="num">{{ f.size | filesize }}</td><td><code title="{{ f.sha256 }}">{{ f.sha256[:12] }}</code></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="empty">No files uploaded.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Provenance</h2>
+  <dl class="facts">
+    <div><dt>Python</dt><dd>{{ env.python or "–" }}</dd></div>
+    <div><dt>NumPy</dt><dd>{{ env.numpy or "–" }}</dd></div>
+    <div><dt>HOOMD-blue</dt><dd>{{ env.hoomd or "–" }}</dd></div>
+    <div><dt>Platform</dt><dd>{{ env.platform or "–" }}</dd></div>
+    <div><dt>Margins</dt><dd>atom {{ cell.atom_margin }}, bond {{ cell.bond_margin }}, angle {{ cell.bond_angle_margin_degrees }}°</dd></div>
+    <div><dt>Git</dt><dd>{% if run_json.ambuild and run_json.ambuild.git_dirty %}uncommitted changes{% else %}clean or unknown{% endif %}</dd></div>
+  </dl>
+  {% set inputs = run_json.get("inputs", []) %}
+  {% if inputs %}
+  <div class="table-wrap">
+    <table class="data">
+      <caption>Inputs</caption>
+      <thead><tr><th scope="col">Kind</th><th scope="col">File</th><th scope="col" class="num">Size</th><th scope="col">sha256</th></tr></thead>
+      <tbody>
+        {% for i in inputs %}
+        <tr><td>{{ i.kind }}{% if i.fragment_type %} <span class="note">{{ i.fragment_type }}</span>{% endif %}</td>
+          <td><a href="/runs/{{ s.run_id }}/files/{{ quote(i.path) }}">{{ i.path }}</a></td>
+          <td class="num">{{ i.size | filesize }}</td><td><code title="{{ i.sha256 }}">{{ (i.sha256 or "")[:12] }}</code></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  <details><summary>run.json</summary><pre class="json">{{ run_json_text }}</pre></details>
+</section>
+
+<section>
+  <h2>Events</h2>
+  <p class="note">{% for t, n in r.event_counts.items() %}{{ t }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+  <label for="event-type">Type</label>
+  <select id="event-type" name="type" hx-get="/runs/{{ s.run_id }}/events" hx-target="#events-body" hx-swap="innerHTML">
+    <option value="">all</option>
+    {% for t in r.event_counts %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+  </select>
+  <div class="table-wrap">
+    <table class="data events">
+      <thead><tr><th scope="col" class="num">#</th><th scope="col">Type</th><th scope="col" class="num">Step</th><th scope="col">Data</th></tr></thead>
+      <tbody id="events-body">{% set run_id = s.run_id %}{% set etype = "" %}{% include "_events.html" %}</tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

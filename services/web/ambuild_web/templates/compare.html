@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Compare · {{ title }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/runs">Runs</a> / compare</p>
+<h1>Compare {{ runs | length }} runs</h1>
+<p class="lede">Rows where the runs differ are highlighted.</p>
+
+<div class="table-wrap">
+  <table class="data compare">
+    <thead>
+      <tr><th scope="col">Setting or result</th>
+        {% for r in runs %}<th scope="col">{{ m.runlink(r.summary) }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      {% for label, values, differ in rows %}
+      <tr {% if differ %}class="differs"{% endif %}>
+        <th scope="row">{{ label }}{% if differ %} <span class="visually-hidden">(differs)</span>{% endif %}</th>
+        {% for v in values %}
+        <td>{% if label == "status" %}{{ m.status(v) }}{% elif label == "started" %}{{ v }}{% elif v is number %}{{ v | number(3) if v is float else v }}{% elif v is none %}–{% else %}{{ v | join(" × ") if v is iterable and v is not string else v }}{% endif %}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if step_charts %}
+<section>
+  <h2>Build steps</h2>
+  <div class="charts">{% for c in step_charts %}{{ m.chart(c) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+<section>
+  <h2>Poreblazer</h2>
+  {% if pores %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">Run</th><th scope="col" class="num">Step</th>
+        <th scope="col" class="num">Surface area <span class="unit">m²/g</span></th>
+        <th scope="col" class="num">Helium volume <span class="unit">cm³/g</span></th>
+        <th scope="col" class="num">PLD <span class="unit">Å</span></th>
+        <th scope="col" class="num">Max pore <span class="unit">Å</span></th></tr></thead>
+      <tbody>
+        {% for p in pores %}
+        <tr><td>{{ p.run_name }}</td><td class="num">{{ p.step if p.step is not none else "–" }}</td>
+          <td class="num">{{ p.surface_area_m2_g | number(1) }}</td><td class="num">{{ p.helium_volume_cm3_g | number(3) }}</td>
+          <td class="num">{{ p.pore_limiting_diameter_a | number(2) }}</td><td class="num">{{ p.maximum_pore_diameter_a | number(2) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="charts">{% for c in psd_charts %}{{ m.chart(c, 260) }}{% endfor %}</div>
+  {% else %}<p class="empty">None of these runs has Poreblazer results.</p>{% endif %}
+</section>
+{% endblock %}

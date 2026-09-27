@@ -1,0 +1,11 @@
+{% for e in events %}
+<tr><td class="num">{{ e.seq }}</td><td>{{ e.type }}</td><td class="num">{{ e.step if e.step is not none else "–" }}</td>
+  <td><code class="event-data">{{ e.data | tojson | truncate(300, True, "…") }}</code></td></tr>
+{% endfor %}
+{% if next_offset is not none %}
+<tr id="events-more"><td colspan="4">
+  <button type="button" hx-get="/runs/{{ run_id }}/events?offset={{ next_offset }}&type={{ etype }}"
+          hx-target="#events-more" hx-swap="outerHTML">Load more events</button>
+</td></tr>
+{% endif %}
+{% if not events %}<tr><td colspan="4" class="empty">No events.</td></tr>{% endif %}

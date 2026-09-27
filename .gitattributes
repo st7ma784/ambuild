@@ -8,3 +8,4 @@ Dockerfile text eol=lf
 
 # Vendored files are checked against recorded checksums: never convert them
 services/web/ambuild_web/static/*.min.js -text
+services/web/ambuild_web/static/*.min.css -text
