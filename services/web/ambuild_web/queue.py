@@ -122,10 +122,12 @@ def listSubmissions(conn, states=(), limit=200):
         args.append(list(states))
     return conn.execute(
         "SELECT s.submission_id, s.name, s.recipe_sha256, s.seed, s.backend, s.state, s.priority, s.owner, "
+        "s.sweep_id, sw.name AS sweep_name, s.point, "
         "coalesce(s.seed, (s.recipe->>'seed')::bigint) AS seed_used, "
         "s.external_id, s.run_id, s.attempts, s.error, s.created, s.claimed, s.started, s.finished, "
         "a.name AS agent, (r.run_id IS NOT NULL) AS uploaded, r.status AS run_status "
         "FROM submissions s LEFT JOIN agents a USING (agent_id) LEFT JOIN runs r ON r.run_id = s.run_id "
+        "LEFT JOIN sweeps sw ON sw.sweep_id = s.sweep_id "
         "{0} ORDER BY (s.state IN ('finished', 'failed', 'cancelled')), s.priority DESC, s.created DESC, "
         "s.submission_id DESC LIMIT %s".format(where), args + [limit]).fetchall()
 
@@ -134,6 +136,7 @@ def getSubmission(conn, submissionId):
     return conn.execute(
         "SELECT s.*, a.name AS agent, (r.run_id IS NOT NULL) AS uploaded, r.status AS run_status "
         "FROM submissions s LEFT JOIN agents a USING (agent_id) LEFT JOIN runs r ON r.run_id = s.run_id "
+        "LEFT JOIN sweeps sw ON sw.sweep_id = s.sweep_id "
         "WHERE s.submission_id = %s", (submissionId,)).fetchone()
 
 
@@ -293,3 +296,85 @@ def agentUpdate(conn, agent, submissionId, state, externalId=None, error=None):
         "finished = CASE WHEN %s IN ('finished', 'failed', 'cancelled') THEN now() END, updated = now() "
         "WHERE submission_id = %s RETURNING *",
         (state, externalId, error, state, state, submissionId)).fetchone()
+
+
+def claimBatch(conn, agent, limit=500):
+    """Queued submissions to start together (highest priority, then oldest first): if the
+    first belongs to a sweep, all of that sweep's queued runs (up to limit), for one Slurm
+    array job; otherwise that one. [] when the queue is empty."""
+    requeueExpired(conn)
+    first = conn.execute(
+        "SELECT submission_id, sweep_id FROM submissions WHERE state = 'queued' AND backend = %s "
+        "ORDER BY priority DESC, created, submission_id FOR UPDATE SKIP LOCKED LIMIT 1",
+        (agent["backend"],)).fetchone()
+    if first is None:
+        return []
+    if first["sweep_id"] is None:
+        ids = [first["submission_id"]]
+    else:
+        ids = [r["submission_id"] for r in conn.execute(
+            "SELECT submission_id FROM submissions WHERE state = 'queued' AND backend = %s AND sweep_id = %s "
+            "ORDER BY sweep_index, submission_id FOR UPDATE SKIP LOCKED LIMIT %s",
+            (agent["backend"], first["sweep_id"], limit)).fetchall()]
+    rows = conn.execute(
+        "UPDATE submissions SET state = 'claimed', agent_id = %s, claimed = now(), attempts = attempts + 1, "
+        "lease_expires = now() + make_interval(secs => %s), updated = now() "
+        "WHERE submission_id = ANY(%s) RETURNING *",
+        (agent["agent_id"], LEASE_SECONDS, ids)).fetchall()
+    return sorted(rows, key=lambda r: (r["sweep_index"] if r["sweep_index"] is not None else -1, r["submission_id"]))
+
+
+# --- sweeps
+
+def createSweep(conn, name, recipe, spec, runs, backend, owner, priority=0):
+    """The sweep and a submission per run (ambuild.sweep.expand)"""
+    sweep = conn.execute(
+        "INSERT INTO sweeps (name, recipe, spec, backend, owner) VALUES (%s, %s, %s, %s, %s) RETURNING *",
+        (name, Jsonb(recipe), Jsonb(spec), backend, owner)).fetchone()
+    with conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO submissions (name, recipe, recipe_sha256, seed, backend, resources, priority, owner, run_id, "
+            "sweep_id, point, sweep_index) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            [("{0} #{1}".format(name, run["index"] + 1), Jsonb(run["recipe"]), ab_recipe.recipeHash(run["recipe"]),
+              run["seed"], backend, Jsonb(run["recipe"].get("resources", {})), priority, owner, str(uuid.uuid4()),
+              sweep["sweep_id"], Jsonb(run["point"]), run["index"]) for run in runs])
+    return sweep
+
+
+def listSweeps(conn, limit=200):
+    return conn.execute(
+        "SELECT sw.sweep_id, sw.name, sw.backend, sw.owner, sw.created, count(s.*) AS runs, "
+        "count(*) FILTER (WHERE s.state = 'finished') AS finished, "
+        "count(*) FILTER (WHERE s.state IN ('failed', 'cancelled')) AS failed, "
+        "count(*) FILTER (WHERE s.state IN ('queued', 'claimed', 'submitted', 'running', 'cancelling')) AS active "
+        "FROM sweeps sw LEFT JOIN submissions s ON s.sweep_id = sw.sweep_id "
+        "GROUP BY sw.sweep_id ORDER BY sw.created DESC LIMIT %s", (limit,)).fetchall()
+
+
+def getSweep(conn, sweepId):
+    return conn.execute("SELECT * FROM sweeps WHERE sweep_id = %s", (sweepId,)).fetchone()
+
+
+def sweepRuns(conn, sweepId):
+    return conn.execute(
+        "SELECT s.submission_id, s.state, s.point, s.sweep_index, s.run_id, s.error, s.external_id, "
+        "coalesce(s.seed, (s.recipe->>'seed')::bigint) AS seed, (r.run_id IS NOT NULL) AS uploaded "
+        "FROM submissions s LEFT JOIN runs r ON r.run_id = s.run_id WHERE s.sweep_id = %s "
+        "ORDER BY s.sweep_index, s.submission_id", (sweepId,)).fetchall()
+
+
+def cancelSweep(conn, sweepId):
+    """Cancel every unfinished run of the sweep; returns how many"""
+    return conn.execute(
+        "UPDATE submissions SET state = CASE WHEN state IN ('queued', 'claimed') THEN 'cancelled' "
+        "ELSE 'cancelling' END, finished = CASE WHEN state IN ('queued', 'claimed') THEN now() END, "
+        "lease_expires = NULL, updated = now() "
+        "WHERE sweep_id = %s AND state IN ('queued', 'claimed', 'submitted', 'running')", (sweepId,)).rowcount
+
+
+def retrySweep(conn, sweepId):
+    """Queue the sweep's failed and cancelled runs again, each as a new run; returns how many"""
+    return conn.execute(
+        "UPDATE submissions SET state = 'queued', run_id = gen_random_uuid(), agent_id = NULL, external_id = NULL, "
+        "error = NULL, lease_expires = NULL, claimed = NULL, started = NULL, finished = NULL, updated = now() "
+        "WHERE sweep_id = %s AND state IN ('failed', 'cancelled')", (sweepId,)).rowcount

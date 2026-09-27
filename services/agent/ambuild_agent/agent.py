@@ -94,7 +94,7 @@ class Config:
             token=env["AMBUILD_AGENT_TOKEN"],
             backend=backend,
             directory=env.get("AMBUILD_AGENT_DIR", "agent"),
-            slots=int(env.get("AMBUILD_AGENT_SLOTS", "1" if backend == "local" else "50")),
+            slots=int(env.get("AMBUILD_AGENT_SLOTS", "1" if backend == "local" else "1000")),
             poll=float(env.get("AMBUILD_AGENT_POLL", "5" if backend == "local" else "15")),
             heartbeat=float(env.get("AMBUILD_AGENT_HEARTBEAT", "30")),
             upload=env.get("AMBUILD_AGENT_UPLOAD", "ambuild-upload"),
@@ -254,6 +254,8 @@ class Agent:
 
     def step(self):
         """One pass: check the runs, heartbeat when due, claim work while there are free slots"""
+        if hasattr(self.backend, "beginPass"):
+            self.backend.beginPass()
         for job in list(self.jobs.values()):
             try:
                 self.check(job)
@@ -284,30 +286,39 @@ class Agent:
                 self.backend.cancel(job)
 
     def claim(self):
-        """Claim and start one submission; False when the queue is empty"""
-        sub = self.api.call("POST", "/api/agent/claim")["submission"]
-        if sub is None:
+        """Claim and start work: one submission, or (for a backend that starts batches, i.e.
+        Slurm) all of a sweep's queued runs as one array job. False when the queue is empty"""
+        if hasattr(self.backend, "startBatch"):
+            limit = max(1, self.config.slots - len(self.jobs))
+            subs = self.api.call("POST", "/api/agent/claim-batch", {"limit": limit})["submissions"]
+        else:
+            sub = self.api.call("POST", "/api/agent/claim")["submission"]
+            subs = [sub] if sub else []
+        if not subs:
             return False
-        logger.info("submission %s: claimed (%s, run %s)", sub["submission_id"], sub["name"], sub["run_id"])
+        logger.info("claimed %s", ", ".join("{0} ({1})".format(s["submission_id"], s["name"]) for s in subs))
         try:
-            self.fetchInputs(sub["recipe"])
-            job = self.backend.start(sub)
+            for sub in subs:
+                self.fetchInputs(sub["recipe"])
+            jobs = self.backend.startBatch(subs) if len(subs) > 1 else [self.backend.start(subs[0])]
         except Exception as exc:
-            logger.exception("submission %s: could not start", sub["submission_id"])
-            self.last_error = "submission {0}: {1}".format(sub["submission_id"], exc)
-            self.report(sub["submission_id"], "failed", error="Could not start: {0}".format(exc))
+            logger.exception("could not start %s", [s["submission_id"] for s in subs])
+            self.last_error = "submissions {0}: {1}".format([s["submission_id"] for s in subs], exc)
+            for sub in subs:
+                self.report(sub["submission_id"], "failed", error="Could not start: {0}".format(exc))
             return True
-        self.jobs[job.id] = job
-        try:
-            self.report(job.id, job.state, external_id=job.external_id)
-        except ApiError as exc:
-            if exc.status != 409:
-                raise
-            logger.info("submission %s: cancelled while starting", job.id)  # state already final
-            job.cancelled = True
-            self.backend.cancel(job)
-            self.backend.forget(job)
-            del self.jobs[job.id]
+        for job in jobs:
+            self.jobs[job.id] = job
+            try:
+                self.report(job.id, job.state, external_id=job.external_id)
+            except ApiError as exc:
+                if exc.status != 409:
+                    raise
+                logger.info("submission %s: cancelled while starting", job.id)  # state already final
+                job.cancelled = True
+                self.backend.cancel(job)
+                self.backend.forget(job)
+                del self.jobs[job.id]
         return True
 
     def fetchInputs(self, recipe):

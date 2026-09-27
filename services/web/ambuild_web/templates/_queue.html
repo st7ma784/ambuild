@@ -11,7 +11,7 @@
       {% for s in submissions %}
       <tr id="s-{{ s.submission_id }}">
         <td><a href="/submissions/{{ s.submission_id }}">{{ s.submission_id }}</a></td>
-        <td><a href="/submissions/{{ s.submission_id }}">{{ s.name }}</a>{% if s.priority %} <span class="note">priority {{ s.priority }}</span>{% endif %}</td>
+        <td><a href="/submissions/{{ s.submission_id }}">{{ s.name }}</a>{% if s.priority %} <span class="note">priority {{ s.priority }}</span>{% endif %}{% if s.sweep_id %} <span class="note">in <a href="/sweeps/{{ s.sweep_id }}">{{ s.sweep_name }}</a></span>{% endif %}</td>
         <td>{{ m.status(s.state) }}{% if s.error %} <span class="note" title="{{ s.error }}">{{ s.error | truncate(40) }}</span>{% endif %}</td>
         <td>{{ s.owner or "–" }}</td>
         <td class="num">{{ s.seed_used if s.seed_used is not none else "random" }}</td>

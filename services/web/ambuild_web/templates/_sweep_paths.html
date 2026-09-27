@@ -1,0 +1,14 @@
+{% if error %}
+<p class="error-box">{{ error }}</p>
+{% else %}
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th scope="col">pointer</th><th scope="col">value now</th></tr></thead>
+    <tbody>
+      {% for path, value in paths %}
+      <tr><td><code>{{ path }}</code></td><td><code>{{ value | tojson }}</code></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

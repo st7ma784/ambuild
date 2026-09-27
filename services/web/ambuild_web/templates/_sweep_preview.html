@@ -1,0 +1,20 @@
+{% if errors %}
+<div class="error-box">
+  <strong>{{ errors | length }} problem{{ "" if errors | length == 1 else "s" }}:</strong>
+  <ul class="errors">{% for e in errors %}<li><code>{{ e }}</code></li>{% endfor %}</ul>
+</div>
+{% else %}
+<p class="ok-box">{{ preview.runs }} run{{ "" if preview.runs == 1 else "s" }}: {{ preview.points }}
+  point{{ "" if preview.points == 1 else "s" }}{% if preview.runs != preview.points %}, each with several seeds{% endif %}.</p>
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th scope="col" class="num">#</th>{% for n in names %}<th scope="col">{{ n }}</th>{% endfor %}<th scope="col" class="num">seed</th></tr></thead>
+    <tbody>
+      {% for r in preview.first %}
+      <tr><td class="num">{{ loop.index }}</td>{% for n in names %}<td><code>{{ r.point.get(n) | tojson }}</code></td>{% endfor %}<td class="num">{{ r.seed if r.seed is not none else "random" }}</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if preview.runs > preview.first | length %}<caption>the first {{ preview.first | length }} of {{ preview.runs }}</caption>{% endif %}
+  </table>
+</div>
+{% endif %}

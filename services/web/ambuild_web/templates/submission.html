@@ -16,6 +16,7 @@
   {% if sub.external_id and sub.external_id.startswith("slurm:") %}{% set jobs = sub.external_id[6:].split("/") %}
   <div><dt>Slurm jobs</dt><dd>build {{ jobs[0] }}, upload {{ jobs[1] }}</dd></div>{% endif %}
   <div><dt>Priority</dt><dd>{{ sub.priority }}</dd></div>
+  {% if sub.sweep_id %}<div><dt>Sweep</dt><dd><a href="/sweeps/{{ sub.sweep_id }}">sweep {{ sub.sweep_id }}</a>{% if sub.point %}: {% for k, v in sub.point.items() %}{{ k }}={{ v | tojson }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</dd></div>{% endif %}
   <div><dt>Attempts</dt><dd>{{ sub.attempts }}</dd></div>
   <div><dt>Submitted</dt><dd>{{ sub.created | when }}</dd></div>
   <div><dt>Started</dt><dd>{{ sub.started | when }}</dd></div>

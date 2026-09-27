@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Sweeps · {{ title }}{% endblock %}
+{% block content %}
+<h1>Sweeps</h1>
+<p class="lede">A sweep runs one recipe over a grid of settings, rows of a CSV file, or a list of
+  seeds. On Slurm, a sweep's runs go in one array job. <a href="/sweeps/new">Start a sweep</a>.</p>
+{% if sweeps %}
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th scope="col">#</th><th scope="col">name</th><th scope="col">owner</th><th scope="col">runs on</th>
+      <th scope="col" class="num">runs</th><th scope="col" class="num">finished</th><th scope="col" class="num">failed</th>
+      <th scope="col" class="num">active</th><th scope="col">created</th></tr></thead>
+    <tbody>
+      {% for s in sweeps %}
+      <tr>
+        <td><a href="/sweeps/{{ s.sweep_id }}">{{ s.sweep_id }}</a></td>
+        <td><a href="/sweeps/{{ s.sweep_id }}">{{ s.name }}</a></td>
+        <td>{{ s.owner or "–" }}</td>
+        <td>{{ s.backend }}</td>
+        <td class="num">{{ s.runs }}</td>
+        <td class="num">{{ s.finished }}</td>
+        <td class="num">{{ s.failed }}</td>
+        <td class="num">{{ s.active }}</td>
+        <td>{{ s.created | when }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty">No sweeps yet.</p>
+{% endif %}
+{% endblock %}

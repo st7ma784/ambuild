@@ -129,7 +129,11 @@ anyway; benchmark before scaling up.
 
 A recipe (`python -m ambuild.recipe`) is submitted the same way:
 `submit_build.sh --recipe recipe.json` (with `AMBUILD_BLOBS` for recipes that
-reference files by sha256, and `AMBUILD_SEED` to override the seed).
+reference files by sha256, and `AMBUILD_SEED` to override the seed). Many recipes go
+in one array job with `submit_array.sh TASKS_FILE`, where each line of the file is
+`RUN_ID RECIPE [SEED]`. At most `AMBUILD_ARRAY_MAX` tasks (default 50) run at once, and
+one upload job follows for all the runs. The Slurm agent uses this for the web GUI's
+sweeps.
 
 ### Slurm agent for the web GUI
 

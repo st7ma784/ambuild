@@ -26,7 +26,7 @@ def currentAgent(request: Request):
 
 def _submissionForAgent(row):
     """What an agent needs to run a submission"""
-    return jsonable_encoder({k: row[k] for k in ("submission_id", "name", "recipe", "recipe_sha256", "seed",
+    return jsonable_encoder({k: row[k] for k in ("submission_id", "name", "recipe", "recipe_sha256", "seed", "sweep_id",
                                                   "resources", "run_id", "attempts", "owner")})
 
 
@@ -56,6 +56,17 @@ def claim(request: Request, agent=Depends(currentAgent)):
     with _connect(request) as conn:
         row = queue.claim(conn, agent)
     return {"submission": _submissionForAgent(row) if row else None}
+
+
+@router.post("/claim-batch")
+def claimBatch(request: Request, payload: dict = Body(default={}), agent=Depends(currentAgent)):
+    """Queued submissions to start together: all of one sweep's queued runs (up to
+    "limit"), for one Slurm array job, or the next single submission; {"submissions": []}
+    when the queue is empty"""
+    limit = max(1, min(int(payload.get("limit") or 500), 1000))
+    with _connect(request) as conn:
+        rows = queue.claimBatch(conn, agent, limit)
+    return {"submissions": [_submissionForAgent(r) for r in rows]}
 
 
 @router.patch("/submissions/{submissionId}")
