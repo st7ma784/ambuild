@@ -127,7 +127,7 @@ def apiRevokeAgent(request: Request, agentId: int):
 def _agentsPage(request, created=None, token=None, error=None, status_code=200):
     with _connect(request) as conn:
         agents = queue.listAgents(conn)
-    page = request.app.state.render(request, "agents.html", agents=agents, backends=queue.BACKENDS,
+    page = request.app.state.render(request, "agents.html", agents=agents, backends=queue.agentKinds(),
                                     created=created, token=token, error=error,
                                     api_url=str(request.base_url).rstrip("/"))
     page.status_code = status_code

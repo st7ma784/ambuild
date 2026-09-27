@@ -1,0 +1,11 @@
+{% if errors %}
+<div class="error-box">
+  <strong>{{ errors | length }} problem{{ "" if errors | length == 1 else "s" }}:</strong>
+  <ul class="errors">{% for e in errors %}<li><code>{{ e }}</code></li>{% endfor %}</ul>
+</div>
+{% else %}
+<p class="ok-box">Ready: {{ spec.parameters | length }} parameters, method {{ spec.method }}, {{ spec.replicates }} seeds per
+  point ({{ seeds | join(", ") }}); a first round of {{ spec.initial_points }} points ({{ spec.initial_points * seeds | length }} runs),
+  then {{ spec.batch_size }} a round, within {{ spec.budget.runs }} runs{% if spec.stop %}; stops at
+  {% for k, v in spec.stop.items() %}{{ k | replace("_", " ") }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}.</p>
+{% endif %}

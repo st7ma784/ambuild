@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ambuild-campaigns"
+version = "0.1.0"
+description = "Steers the Ambuild web GUI's campaigns: proposes each round's points with Optuna."
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.9"
+# It talks only to the web API; ambuild.campaign (standard library) comes from the ambuild
+# package, installed beside it. PyTorch is needed only for the "gp" method.
+dependencies = ["optuna>=5.0", "scipy>=1.10", "numpy"]
+
+[project.optional-dependencies]
+gp = ["torch"]
+test = ["pytest>=7"]
+
+[project.scripts]
+ambuild-campaigns = "ambuild_campaigns.__main__:main"
+
+[tool.setuptools]
+packages = ["ambuild_campaigns"]

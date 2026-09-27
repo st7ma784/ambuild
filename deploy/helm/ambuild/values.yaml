@@ -54,3 +54,13 @@ agent:
   resources:
     requests: {cpu: "1", memory: 1Gi}
     limits: {memory: 4Gi}
+
+# The campaign controller (Optuna): needs AMBUILD_CAMPAIGNS_TOKEN in the Secret
+campaigns:
+  enabled: false
+  image:
+    repository: ghcr.io/st7ma784/ambuild-campaigns
+    tag: ""  # default: the chart's appVersion
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 1Gi}

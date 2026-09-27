@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}New campaign · {{ title }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/campaigns">Campaigns</a> / new</p>
+<h1>New campaign</h1>
+<p class="lede">Choose a recipe, the settings to search (JSON pointers into it, with bounds or choices),
+  and the goal. The campaign runs each point with several seeds, as builds are random, and scores
+  a point by the mean over them; a constraint holds when enough of its seeds meet it. The starting
+  spec below is the Li-ion showcase: the densest network whose pores still let a lithium ion through.</p>
+
+{% if not controller %}
+<p class="error-box" role="status">No campaign controller has checked in, so campaigns other than
+  <code>external</code> ones will wait for one (the <code>campaigns</code> service; see the Agents page).</p>
+{% endif %}
+
+<form class="filters" method="get" action="/campaigns/new">
+  <div class="field grow">
+    <label for="saved">Start from a saved recipe</label>
+    <select id="saved" name="recipe">
+      {% if recipes %}<option value="" disabled selected>choose a recipe…</option>{% endif %}
+      {% for r in recipes %}<option value="{{ r.recipe_id }}">{{ r.name }} (v{{ r.version }})</option>
+      {% else %}<option value="" disabled selected>none saved yet</option>{% endfor %}
+    </select>
+  </div>
+  <div class="actions"><button type="submit" {% if not recipes %}disabled{% endif %}>Load</button></div>
+</form>
+
+{% if errors %}
+<div class="error-box" role="alert">
+  <strong>The campaign cannot start:</strong>
+  <ul class="errors">{% for e in errors %}<li><code>{{ e }}</code></li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" action="/campaigns" class="submit-form">
+  <label for="recipe" class="field-label">Base recipe (JSON)</label>
+  <textarea id="recipe" name="recipe" rows="14" spellcheck="false" autocomplete="off">{{ recipe_text }}</textarea>
+  <p class="note"><button type="button" hx-post="/sweeps/paths" hx-include="#recipe" hx-target="#paths">Show the recipe's settings</button>
+    to see each setting's pointer.</p>
+  <div id="paths"></div>
+
+  <label for="spec" class="field-label">Campaign (JSON)</label>
+  <textarea id="spec" name="spec" rows="22" spellcheck="false" autocomplete="off">{{ spec_text }}</textarea>
+  <details class="op">
+    <summary>What goes in a campaign</summary>
+    <ul class="note">
+      <li><code>parameters</code>: each <code>{"name", "path", "type": "float" | "int" | "choice", "low", "high", "log"}</code>
+        or <code>"choices": [...]</code>; <code>"all": true</code> sets every element of a list.</li>
+      <li><code>constraints</code>: each <code>{"metric", "min", "max"}</code>; <code>objective</code>:
+        <code>{"maximise": metric}</code>, <code>{"minimise": metric}</code> or <code>{"target": {"metric", "value"}}</code>.
+        Metrics: {{ metrics | join(", ") }}.</li>
+      <li><code>replicates</code> (seeds per point, default 3), <code>feasible_fraction</code> (of a point's seeds that
+        must meet a constraint, default 0.5), <code>method</code> ({{ methods | join(", ") }}; <code>external</code>: points
+        come from outside, e.g. an LLM agent or a person), <code>initial_points</code>, <code>batch_size</code> (points per round),
+        <code>budget</code> <code>{"runs"}</code>, <code>stop</code> <code>{"feasible_points", "no_improvement_rounds", "max_rounds"}</code>.</li>
+    </ul>
+  </details>
+
+  <div class="filters">
+    <div class="field grow">
+      <label for="name">Name</label>
+      <input id="name" name="name" value="{{ name }}" placeholder="default: the recipe's name" maxlength="200">
+    </div>
+    <div class="field">
+      <label for="backend">Run on</label>
+      {% set online = agents | selectattr("live") | map(attribute="backend") | list %}
+      <select id="backend" name="backend">{% for b in backends %}<option value="{{ b }}" {% if b == backend %}selected{% endif %}>{{ b }}{% if b not in online %} (no agent online){% endif %}</option>{% endfor %}</select>
+    </div>
+    <div class="actions">
+      <button type="button" hx-post="/campaigns/check" hx-include="closest form" hx-target="#check">Check</button>
+      <button type="submit">Start the campaign</button>
+    </div>
+  </div>
+  <div id="check" aria-live="polite"></div>
+</form>
+{% endblock %}

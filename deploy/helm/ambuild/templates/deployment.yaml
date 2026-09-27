@@ -15,15 +15,18 @@ spec:
     spec:
       securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000}
       initContainers:
-        # The web GUI's tables (idempotent), and the K3s agent's token registered
+        # The web GUI's tables (idempotent), and the K3s agent's and campaign controller's tokens
         - name: init
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.agent.enabled }}
-          args: ["init", "--agent", "{{ .Release.Name }}-k3s:local:$(AMBUILD_AGENT_TOKEN)"]
-          {{- else }}
-          args: ["init"]
-          {{- end }}
+          args:
+            - init
+            {{- if .Values.agent.enabled }}
+            - --agent={{ .Release.Name }}-k3s:local:$(AMBUILD_AGENT_TOKEN)
+            {{- end }}
+            {{- if .Values.campaigns.enabled }}
+            - --agent={{ .Release.Name }}-campaigns:campaigns:$(AMBUILD_CAMPAIGNS_TOKEN)
+            {{- end }}
           envFrom:
             - configMapRef: {name: {{ include "ambuild.name" . }}}
             - secretRef: {name: {{ .Values.existingSecret }}}

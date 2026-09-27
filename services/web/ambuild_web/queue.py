@@ -9,12 +9,19 @@ import uuid
 
 from psycopg.types.json import Jsonb
 
+from ambuild import campaign as ab_campaign
 from ambuild import recipe as ab_recipe
 
 SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
 LEASE_SECONDS = 120  # a claimed submission returns to the queue if its agent goes quiet this long
 MAX_BLOB_BYTES = 20 * 1024 * 1024
-BACKENDS = ["local", "slurm"]
+BACKENDS = ["local", "slurm"]  # where runs run
+CONTROLLER = "campaigns"  # the campaign controller's kind of agent token (it runs nothing)
+
+
+def agentKinds():
+    return BACKENDS + [CONTROLLER]
+
 
 ACTIVE = ("queued", "claimed", "submitted", "running", "cancelling")
 FINAL = ("finished", "failed", "cancelled")
@@ -191,8 +198,8 @@ def registerAgent(conn, name, backend, token):
 def createAgent(conn, name, backend):
     """A new agent and its token (returned once; stored hashed). A revoked agent's name can
     be used again, with a new token; a current agent's cannot."""
-    if backend not in BACKENDS:
-        raise Conflict("backend must be one of {0}".format(", ".join(BACKENDS)))
+    if backend not in agentKinds():
+        raise Conflict("backend must be one of {0}".format(", ".join(agentKinds())))
     existing = conn.execute("SELECT revoked FROM agents WHERE name = %s", (name,)).fetchone()
     if existing is not None and not existing["revoked"]:
         raise Conflict("An agent called {0} exists; revoke it first to replace its token".format(name))
@@ -378,3 +385,94 @@ def retrySweep(conn, sweepId):
         "UPDATE submissions SET state = 'queued', run_id = gen_random_uuid(), agent_id = NULL, external_id = NULL, "
         "error = NULL, lease_expires = NULL, claimed = NULL, started = NULL, finished = NULL, updated = now() "
         "WHERE sweep_id = %s AND state IN ('failed', 'cancelled')", (sweepId,)).rowcount
+
+
+# --- campaigns
+
+def createCampaign(conn, name, recipe, spec, backend, owner):
+    return conn.execute(
+        "INSERT INTO campaigns (name, recipe, spec, backend, owner) VALUES (%s, %s, %s, %s, %s) RETURNING *",
+        (name, Jsonb(recipe), Jsonb(spec), backend, owner)).fetchone()
+
+
+def listCampaigns(conn, states=(), limit=200):
+    where, args = "", []
+    if states:
+        where, args = "WHERE c.state = ANY(%s)", [list(states)]
+    return conn.execute(
+        "SELECT c.campaign_id, c.name, c.backend, c.state, c.message, c.owner, c.created, c.finished, "
+        "c.spec->>'method' AS method, (c.spec->'budget'->>'runs')::int AS budget, "
+        "(SELECT count(*) FROM trials t WHERE t.campaign_id = c.campaign_id) AS trials, "
+        "(SELECT count(*) FROM submissions s JOIN trials t USING (trial_id) WHERE t.campaign_id = c.campaign_id) "
+        "AS runs FROM campaigns c {0} ORDER BY c.created DESC LIMIT %s".format(where), args + [limit]).fetchall()
+
+
+def getCampaign(conn, campaignId):
+    return conn.execute("SELECT * FROM campaigns WHERE campaign_id = %s", (campaignId,)).fetchone()
+
+
+def campaignTrials(conn, campaignId):
+    return conn.execute("SELECT * FROM trials WHERE campaign_id = %s ORDER BY number", (campaignId,)).fetchall()
+
+
+def campaignRuns(conn, campaignId):
+    """Every run of the campaign's trials"""
+    return conn.execute(
+        "SELECT s.submission_id, s.trial_id, s.state, s.run_id, s.error, "
+        "coalesce(s.seed, (s.recipe->>'seed')::bigint) AS seed, (r.run_id IS NOT NULL) AS uploaded "
+        "FROM submissions s JOIN trials t USING (trial_id) LEFT JOIN runs r ON r.run_id = s.run_id "
+        "WHERE t.campaign_id = %s ORDER BY t.number, s.sweep_index", (campaignId,)).fetchall()
+
+
+def createRound(conn, campaign, points, runs, proposedBy):
+    """Queue a round: a sweep of the points (runs: ambuild.sweep-style dicts, len(points)
+    times the replicate seeds, in point order) and a trial per point; returns (round, sweep, trials)"""
+    last = conn.execute("SELECT coalesce(max(round), 0) AS r, coalesce(max(number), -1) AS n FROM trials "
+                        "WHERE campaign_id = %s", (campaign["campaign_id"],)).fetchone()
+    rnd, number = last["r"] + 1, last["n"] + 1
+    spec = campaign["spec"]
+    sweepSpec = {"parameters": [{k: p[k] for k in ("name", "path", "all") if k in p} for p in spec["parameters"]],
+                 "rows": points, "seeds": ab_campaign.seeds(spec)}
+    sweep = createSweep(conn, "{0} · round {1}".format(campaign["name"], rnd), campaign["recipe"], sweepSpec, runs,
+                        campaign["backend"], campaign["owner"])
+    perPoint = len(runs) // len(points)
+    trials = []
+    for i, params in enumerate(points):
+        t = conn.execute(
+            "INSERT INTO trials (campaign_id, number, round, params, proposed_by, sweep_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s) RETURNING *",
+            (campaign["campaign_id"], number + i, rnd, Jsonb(params), proposedBy, sweep["sweep_id"])).fetchone()
+        conn.execute("UPDATE submissions SET trial_id = %s WHERE sweep_id = %s AND sweep_index BETWEEN %s AND %s",
+                     (t["trial_id"], sweep["sweep_id"], i * perPoint, (i + 1) * perPoint - 1))
+        trials.append(t)
+    return rnd, sweep, trials
+
+
+def setCampaignState(conn, campaignId, state, message=None):
+    """pause, resume, stop (cancelling its unfinished runs) or finish a campaign"""
+    allowed = {"paused": ("active",), "active": ("paused", "finished"), "stopped": ("active", "paused"),
+               "finished": ("active",)}[state]
+    row = conn.execute(
+        "UPDATE campaigns SET state = %s, message = coalesce(%s, message), "
+        "finished = CASE WHEN %s IN ('stopped', 'finished') THEN now() END "
+        "WHERE campaign_id = %s AND state = ANY(%s) RETURNING *",
+        (state, message, state, campaignId, list(allowed))).fetchone()
+    if row is None:
+        raise Conflict("A campaign cannot go to {0} from its state".format(state))
+    if state == "stopped":
+        for s in conn.execute("SELECT DISTINCT sweep_id FROM trials WHERE campaign_id = %s AND sweep_id IS NOT NULL",
+                              (campaignId,)).fetchall():
+            cancelSweep(conn, s["sweep_id"])
+    return row
+
+
+def extendCampaign(conn, campaignId, runs):
+    """Add runs to the budget; a finished campaign becomes active again"""
+    row = conn.execute(
+        "UPDATE campaigns SET spec = jsonb_set(spec, '{budget,runs}', to_jsonb((spec->'budget'->>'runs')::int + %s)), "
+        "state = CASE WHEN state = 'finished' THEN 'active' ELSE state END, "
+        "finished = CASE WHEN state = 'finished' THEN NULL ELSE finished END "
+        "WHERE campaign_id = %s AND state <> 'stopped' RETURNING *", (runs, campaignId)).fetchone()
+    if row is None:
+        raise Conflict("A stopped campaign cannot be extended")
+    return row

@@ -181,3 +181,5 @@ tr.just-added td { background: var(--highlight); }
 .token-box { background: var(--panel); border: 1px solid var(--accent); border-left-width: 4px; border-radius: 6px; padding: 4px 16px 10px; margin: 0 0 16px; }
 .token-box h2 { margin-top: 12px; }
 .live-note { color: var(--run); font-size: 12px; font-weight: 600; }
+.inline-form { display: flex; gap: 6px; align-items: center; }
+.inline-form input { font: inherit; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 4px; background: var(--bg); color: var(--ink); }

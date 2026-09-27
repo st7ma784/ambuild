@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ c.name }} · Campaign {{ c.campaign_id }} · {{ title }}{% endblock %}
+{% block content %}
+{% set live = c.state == "active" %}
+{% set names = spec.parameters | map(attribute="name") | list %}
+<p class="crumbs"><a href="/campaigns">Campaigns</a> / campaign {{ c.campaign_id }}</p>
+<div id="campaign-live" {% if live %}hx-get="/campaigns/{{ c.campaign_id }}" hx-trigger="every 10s" hx-select="#campaign-live" hx-swap="outerHTML"{% endif %}>
+<h1>{{ c.name }} {{ m.status({"active": "running", "paused": "queued", "stopped": "cancelled", "finished": "finished"}[c.state]) }}
+  {% if live %}<span class="live-note">refreshed every 10 s</span>{% endif %}</h1>
+{% if c.message %}<p class="{{ 'ok-box' if c.state == 'finished' and c.message.startswith('goal met') else 'lede' }}">{{ c.message }}</p>{% endif %}
+
+<p class="lede">Goal:
+  {% for k in spec.constraints %}{{ label(k.metric) }}{% if k.min is defined %} ≥ {{ k.min }}{% endif %}{% if k.max is defined %} ≤ {{ k.max }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% if spec.constraints and spec.objective %}; {% endif %}
+  {% if spec.objective %}{% if spec.objective.maximise %}the highest {{ label(spec.objective.maximise) }}{% elif spec.objective.minimise %}the lowest {{ label(spec.objective.minimise) }}{% else %}{{ label(spec.objective.target.metric) }} as close as possible to {{ spec.objective.target.value }}{% endif %}{% endif %}.
+  Varying {{ names | join(", ") }}.</p>
+
+<dl class="facts">
+  <div><dt>Method</dt><dd>{{ spec.method }}{% if spec.method != "external" and live and not controller %} <span class="note">(no controller online)</span>{% endif %}</dd></div>
+  <div><dt>Runs</dt><dd>{{ detail.runs_used }} of {{ spec.budget.runs }}</dd></div>
+  <div><dt>Trials</dt><dd>{{ trials | length }}{% if trials %} in {{ trials | map(attribute="round") | max }} rounds{% endif %}</dd></div>
+  <div><dt>Seeds per point</dt><dd>{{ spec.replicates }} (feasible when {{ (spec.feasible_fraction * 100) | round | int }}% meet a constraint)</dd></div>
+  <div><dt>Runs on</dt><dd>{{ c.backend }}</dd></div>
+  <div><dt>Next</dt><dd>{% if not live %}–{% elif detail.decision.stop %}stop: {{ detail.decision.stop }}{% elif detail.decision.propose %}{{ "propose " ~ detail.decision.propose ~ " points" if spec.method != "external" else "waiting for points (external)" }}{% else %}waiting for the round's runs{% endif %}</dd></div>
+</dl>
+
+<div class="button-row">
+  {% if c.state == "active" %}<form method="post" action="/campaigns/{{ c.campaign_id }}/pause"><button type="submit">Pause</button></form>{% endif %}
+  {% if c.state == "paused" %}<form method="post" action="/campaigns/{{ c.campaign_id }}/resume"><button type="submit">Resume</button></form>{% endif %}
+  {% if c.state in ("active", "paused") %}<form method="post" action="/campaigns/{{ c.campaign_id }}/stop" onsubmit="return confirm('Stop the campaign and cancel its unfinished runs?')"><button type="submit" class="danger">Stop</button></form>{% endif %}
+  {% if c.state != "stopped" %}<form method="post" action="/campaigns/{{ c.campaign_id }}/budget" class="inline-form">
+    <input name="runs" inputmode="numeric" size="4" value="30" aria-label="Runs to add"> <button type="submit">Add runs to the budget</button></form>{% endif %}
+  <a class="button" href="/campaigns/new?campaign={{ c.campaign_id }}">New campaign like this…</a>
+</div>
+
+<h2>Best so far</h2>
+{% if best %}
+<div class="ok-box">
+  <p>Trial {{ best.number }} (round {{ best.round }}, proposed by {{ best.proposed_by }}): <code>{{ best.params | point }}</code></p>
+  <p>{% for k, v in best.score.means.items() %}{{ label(k) }} {{ v | number(3) }}{% if not loop.last %} · {% endif %}{% endfor %}
+    — {{ best.score.finished }} of {{ best.score.replicates }} seeds built.
+    Runs: {% for r in best.runs %}{% if r.uploaded %}<a href="/runs/{{ r.run_id }}">seed {{ r.seed }}</a>{% else %}seed {{ r.seed }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+</div>
+{% else %}
+<p class="empty">No point meets the goal yet.</p>
+{% endif %}
+
+{% if charts %}
+<div class="charts">{% for ch in charts %}{{ m.chart(ch, 260) }}{% endfor %}</div>
+{% endif %}
+
+<h2>Trials</h2>
+{% if trials %}
+<div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr><th scope="col" class="num">#</th><th scope="col" class="num">round</th>{% for n in names %}<th scope="col">{{ n }}</th>{% endfor %}
+        <th scope="col">by</th><th scope="col">state</th>{% for k in metrics %}<th scope="col" class="num">{{ label(k) }}</th>{% endfor %}
+        <th scope="col">feasible</th><th scope="col">runs</th></tr>
+    </thead>
+    <tbody>
+      {% for t in trials | reverse %}
+      <tr {% if best and t.number == best.number %}class="just-added"{% endif %}>
+        <td class="num">{{ t.number }}</td>
+        <td class="num">{{ t.round }}</td>
+        {% for n in names %}<td><code>{{ t.params.get(n) | short | truncate(24) }}</code></td>{% endfor %}
+        <td>{{ t.proposed_by }}</td>
+        <td>{{ m.status({"running": "running", "complete": "finished", "failed": "failed"}[t.score.state]) }}</td>
+        {% for k in metrics %}<td class="num">{{ (t.score.means or {}).get(k) | number(3) }}</td>{% endfor %}
+        <td>{% if t.score.state == "complete" %}{{ "yes" if t.score.feasible else "no" }}{% else %}–{% endif %}</td>
+        <td>{% for r in t.runs %}{% if r.uploaded %}<a href="/runs/{{ r.run_id }}" title="seed {{ r.seed }}: {{ r.state }}">{{ r.seed }}</a>{% else %}<span class="note" title="{{ r.state }}">{{ r.seed }}</span>{% endif %}{% if not loop.last %} {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty">No trials yet{% if live and spec.method != "external" %}: the controller proposes the first round when it next checks{% endif %}.</p>
+{% endif %}
+</div>
+
+{% if c.state == "active" %}
+<details class="op" {% if spec.method == "external" %}open{% endif %}>
+  <summary>Propose points yourself{% if spec.method == "external" %} (this campaign takes its points from outside){% endif %}</summary>
+  <p class="note">A round of points as JSON, one object of parameter values per point; each is run with the
+    campaign's seeds. An LLM agent can do the same through <code>POST /api/campaigns/{{ c.campaign_id }}/rounds</code>.</p>
+  <form method="post" action="/campaigns/{{ c.campaign_id }}/propose" class="submit-form">
+    <textarea name="points" rows="4" spellcheck="false">{{ example_point }}</textarea>
+    <div class="filters"><div class="field grow"><label for="proposed_by">Proposed by</label>
+      <input id="proposed_by" name="proposed_by" placeholder="your name, or the agent's"></div>
+      <div class="actions"><button type="submit">Queue these points</button></div></div>
+  </form>
+</details>
+{% endif %}
+{% endblock %}

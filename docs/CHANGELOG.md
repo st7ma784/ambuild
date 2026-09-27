@@ -16,6 +16,11 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Web GUI, milestone 6: campaigns, sweeps that aim at a goal.
+  - `ambuild/campaign.py` checks a campaign (parameters as recipe pointers with bounds or choices; constraints and an objective over the run results; replicate seeds; budget; stop rules), scores trials from their replicate runs, and decides when to stop or propose more.
+  - The web GUI queues each round as a sweep (one Slurm array job), with campaign pages (progress, each parameter against the objective, the trials and their runs, pause, resume, stop, and extending the budget) and `/api/campaigns`, including `/rounds` for points proposed from outside (method `external`: a person or an LLM agent).
+  - The controller, `services/campaigns` (`ambuild-campaigns`), proposes each round with Optuna 5 (TPE by default, GP, random) or by grid or Sobol sequence. It keeps no state, has a token of kind `campaigns`, and runs in the Compose demo and, optionally, the Helm chart.
+  - The Slurm test runs a real campaign to a density goal: 32 runs against the grid's 72.
 - Example recipes shipped with Ambuild (`ambuild/recipes/`; `python -m ambuild.recipe examples`, `example NAME`; `ambuild.recipe.example()`), saved in the web demo on start.
   - The first, `li_ion_carbon`: benzene rings linked at 1,3,5 through alkyne (ethynylene) linkers, grown and zipped into a network, then analysed with Poreblazer.
   - `tests/testLiIonCarbon.py` checks the network and, with Poreblazer, that its pores let lithium ions through: PLD above a bare Li⁺'s 1.52 Å, and percolating. The default build gives 12.8 Å at 0.26 g/cm³.

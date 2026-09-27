@@ -132,9 +132,13 @@ def checkAgents(settings):
                       "(add one on the Agents page)", {}, time.monotonic() - start)]
     cards = []
     for a in agents:
-        facts = {"runs on": a["backend"], "host": a["host"] or "–", "version": a["version"] or "–",
-                 "running": a["active"], "queued for {0}".format(a["backend"]): queued.get(a["backend"], 0)}
         summary = a["summary"] or {}
+        if a["backend"] == queue.CONTROLLER:
+            facts = {"kind": "campaign controller", "host": a["host"] or "–", "version": a["version"] or "–",
+                     "campaigns steered": summary.get("campaigns", "–"), "methods": summary.get("methods", "–")}
+        else:
+            facts = {"runs on": a["backend"], "host": a["host"] or "–", "version": a["version"] or "–",
+                     "running": a["active"], "queued for {0}".format(a["backend"]): queued.get(a["backend"], 0)}
         for name, p in sorted((summary.get("partitions") or {}).items()):
             nodes = ", ".join("{0} {1}".format(n, s) for s, n in sorted(p.get("nodes", {}).items()))
             facts["partition " + name + (" (default)" if p.get("default") else "")] = "{0}; {1}".format(

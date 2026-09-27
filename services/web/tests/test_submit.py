@@ -2,6 +2,7 @@
 agent API. Agents here use a "test" backend, so an agent of the demo stack running
 against the same database never takes these submissions."""
 import hashlib
+from html import unescape
 import json
 import os
 import re
@@ -42,6 +43,7 @@ def conn(client):
         yield c
         c.execute("DELETE FROM submissions WHERE backend = 'test' OR name LIKE %s", ("%" + TOKEN + "%",))
         c.execute("DELETE FROM agents WHERE name LIKE %s", ("%" + TOKEN + "%",))
+        c.execute("DELETE FROM campaigns WHERE name LIKE %s", ("%" + TOKEN + "%",))
         c.execute("DELETE FROM sweeps WHERE name LIKE %s", ("%" + TOKEN + "%",))
         c.execute("DELETE FROM recipes WHERE name LIKE %s", ("%" + TOKEN + "%",))
         c.execute("DELETE FROM blobs WHERE name LIKE %s", ("%" + TOKEN + "%",))
@@ -482,3 +484,93 @@ def test_sweep_form_with_csv_rows(client, blobs):
     paths = client.post("/sweeps/paths", data={"recipe": form["recipe"]}).text
     assert "<code>/cell/box</code>" in paths and "<code>/stages/1/repeat</code>" in paths
     client.post("/api/sweeps/{0}/cancel".format(sweepId))
+
+
+# --- milestone 6: campaigns
+
+def campaignSpec(**changes):
+    s = {"parameters": [{"name": "box", "path": "/cell/box", "all": True, "type": "float", "low": 20, "high": 30},
+                        {"name": "grow", "path": "/stages/1/stages/0/count", "type": "int", "low": 1, "high": 3}],
+         "constraints": [{"metric": "density", "min": 0.1}], "objective": {"maximise": "surface_area_m2_g"},
+         "replicates": 1, "initial_points": 2, "batch_size": 2, "budget": {"runs": 3}}
+    s.update(changes)
+    return s
+
+
+def makeCampaign(client, blobs, name="campaign", **spec):
+    r = client.post("/api/campaigns", json={"recipe": recipe(blobs, name), "spec": campaignSpec(**spec),
+                                            "backend": "test", "name": "{0}-{1}".format(name, TOKEN)})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def test_campaign_checks(client, blobs):
+    ok = client.post("/api/campaigns", json={"recipe": recipe(blobs), "spec": campaignSpec(), "preview": True}).json()
+    assert ok["valid"] and ok["first_round_runs"] == 2 and ok["spec"]["method"] == "tpe"
+    bad = client.post("/api/campaigns", json={"recipe": recipe(blobs), "spec": campaignSpec(method="guess"),
+                                              "preview": True})
+    assert bad.status_code == 422 and bad.json()["errors"][0].startswith("method:")
+    bad = client.post("/api/campaigns", json={"recipe": recipe(blobs), "backend": "moon", "spec": campaignSpec()})
+    assert bad.status_code == 422 and "backend" in bad.json()["errors"][0]
+
+
+def test_campaign_rounds_scores_and_states(client, blobs, conn, recorded):
+    c = makeCampaign(client, blobs)
+    cid = c["campaign_id"]
+    detail = client.get("/api/campaigns/{0}".format(cid)).json()
+    assert detail["trials"] == [] and detail["decision"] == {"stop": None, "propose": 2}
+    bad = client.post("/api/campaigns/{0}/rounds".format(cid), json={"points": [{"box": 50, "grow": 1}]})
+    assert bad.status_code == 409 and "box: must be a number from 20 to 30" in bad.json()["errors"][0]
+    r = client.post("/api/campaigns/{0}/rounds".format(cid),
+                    json={"points": [{"box": 22.5, "grow": 1}, {"box": 27.0, "grow": 3}], "proposed_by": "tester"})
+    assert r.status_code == 201 and r.json()["round"] == 1 and r.json()["trials"] == [0, 1]
+    detail = client.get("/api/campaigns/{0}".format(cid)).json()
+    assert [t["score"]["state"] for t in detail["trials"]] == ["running", "running"]
+    assert detail["decision"] == {"stop": None, "propose": 0} and detail["runs_used"] == 2
+    assert detail["trials"][1]["runs"][0]["seed"] == 1
+    assert client.post("/api/campaigns/{0}/rounds".format(cid),
+                       json={"points": [{"box": 21, "grow": 2}, {"box": 22, "grow": 2}]}).status_code == 409  # budget
+    # the two runs "finish" as recorded runs a (density 0.15, SA 1500) and c (0.2, 2600)
+    for t, runId in zip(detail["trials"], (recorded["a"], recorded["c"])):
+        conn.execute("UPDATE submissions SET state = 'finished', run_id = %s WHERE submission_id = %s",
+                     (runId, t["runs"][0]["submission_id"]))
+    detail = client.get("/api/campaigns/{0}".format(cid)).json()
+    assert [t["score"]["value"] for t in detail["trials"]] == [1500.0, 2600.0]
+    assert all(t["score"]["feasible"] for t in detail["trials"]) and detail["best"] == 1
+    assert detail["decision"] == {"stop": None, "propose": 1}  # one run of budget left
+    html = client.get("/campaigns/{0}".format(cid)).text
+    assert 'id="campaign-progress-data"' in html and 'id="campaign-box-data"' in html
+    assert "Trial 1 (round 1, proposed by tester)" in html
+    # states
+    assert client.post("/api/campaigns/{0}/pause".format(cid)).json() == {"state": "paused"}
+    assert client.get("/api/campaigns/{0}".format(cid)).json()["decision"] is None
+    assert client.post("/api/campaigns/{0}/rounds".format(cid), json={"points": [{"box": 21, "grow": 2}]}).status_code == 409
+    assert client.post("/api/campaigns/{0}/resume".format(cid)).json() == {"state": "active"}
+    assert client.post("/api/campaigns/{0}/finish".format(cid), json={"reason": "goal met"}).json() == {"state": "finished"}
+    assert client.post("/api/campaigns/{0}/budget".format(cid), json={"runs": 4}).json() == {"state": "active", "budget": 7}
+    assert client.post("/api/campaigns/{0}/stop".format(cid)).json() == {"state": "stopped"}
+    assert client.post("/api/campaigns/{0}/budget".format(cid), json={"runs": 4}).status_code == 409
+    listed = client.get("/api/campaigns", params={"state": "stopped"}).json()["campaigns"]
+    assert any(x["campaign_id"] == cid and x["trials"] == 2 and x["runs"] == 2 for x in listed)
+
+
+def test_campaign_pages_and_external_points(client, blobs, conn):
+    html = unescape(client.get("/campaigns/new").text)
+    assert "pore_limiting_diameter_a" in html and '"maximise": "density"' in html  # the Li-ion showcase
+    form = {"recipe": json.dumps(recipe(blobs, "form")), "spec": json.dumps(campaignSpec(method="external")),
+            "name": "external-" + TOKEN, "backend": "test"}
+    assert "Ready: 2 parameters, method external" in client.post("/campaigns/check", data=form).text
+    r = client.post("/campaigns", data=form, follow_redirects=False)
+    assert r.status_code == 303
+    cid = int(r.headers["location"].rsplit("/", 1)[1])
+    page = client.get("/campaigns/{0}".format(cid)).text
+    assert "Propose points yourself" in page and "waiting for points (external)" in page
+    r = client.post("/campaigns/{0}/propose".format(cid), data={"points": '[{"box": 25, "grow": 2}]',
+                                                                "proposed_by": "an agent"}, follow_redirects=False)
+    assert r.status_code == 303
+    trials = client.get("/api/campaigns/{0}".format(cid)).json()["trials"]
+    assert [(t["params"], t["proposed_by"]) for t in trials] == [({"box": 25, "grow": 2}, "an agent")]
+    assert "external-" + TOKEN in client.get("/campaigns").text
+    client.post("/api/campaigns/{0}/stop".format(cid))
+    created = client.post("/api/agents", json={"name": "controller-" + TOKEN, "backend": "campaigns"})
+    assert created.status_code == 201

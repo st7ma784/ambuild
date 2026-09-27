@@ -34,8 +34,12 @@
       scales: {x: {time: false}},
       axes: [axis(spec.xlabel), axis(spec.ylabel)],
       series: [{label: spec.xlabel}].concat(series.map(function (s, i) {
-        return {label: s.label, stroke: cssVar(PALETTE[i % PALETTE.length], "#0b6f7f"), width: 2,
-                spanGaps: true, points: {show: s.x.length < 60}};
+        var colour = cssVar(PALETTE[i % PALETTE.length], "#0b6f7f");
+        if (s.scatter) {  // points only
+          return {label: s.label, stroke: colour, fill: colour, paths: function () { return null; },
+                  points: {show: true, size: 7, fill: colour}};
+        }
+        return {label: s.label, stroke: colour, width: 2, spanGaps: true, points: {show: s.x.length < 60}};
       })),
       legend: {show: series.length > 1 || !!spec.legend},
     };

@@ -1,0 +1,38 @@
+{{- if .Values.campaigns.enabled }}
+# The campaign controller: proposes each campaign round's points (Optuna) through the web
+# API. Its token (AMBUILD_CAMPAIGNS_TOKEN) is in the Secret; the web pod's init container
+# registers it. It keeps no state.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-campaigns
+  labels:
+    app.kubernetes.io/name: ambuild-campaigns
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: ambuild
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: ambuild-campaigns, app.kubernetes.io/instance: {{ .Release.Name }}}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: ambuild-campaigns, app.kubernetes.io/instance: {{ .Release.Name }}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000}
+      containers:
+        - name: campaigns
+          image: "{{ .Values.campaigns.image.repository }}:{{ .Values.campaigns.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - {name: AMBUILD_API_URL, value: "http://{{ include "ambuild.name" . }}:{{ .Values.service.port }}"}
+            - name: AMBUILD_CAMPAIGNS_TOKEN
+              valueFrom: {secretKeyRef: {name: {{ .Values.existingSecret }}, key: AMBUILD_CAMPAIGNS_TOKEN}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts: [{name: tmp, mountPath: /tmp}]
+          resources: {{- toYaml .Values.campaigns.resources | nindent 12 }}
+      volumes: [{name: tmp, emptyDir: {}}]
+{{- end }}

@@ -85,3 +85,31 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS sweep_id bigint REFERENCES swee
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS point jsonb;         -- the sweep point's values
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS sweep_index integer; -- its place in the sweep
 CREATE INDEX IF NOT EXISTS submissions_sweep_idx ON submissions (sweep_id);
+
+-- Campaigns: sweeps that aim at a goal (ambuild.campaign); a controller (or an outside
+-- decision-maker) proposes points in rounds, each round queued as a sweep
+CREATE TABLE IF NOT EXISTS campaigns (
+    campaign_id  bigserial PRIMARY KEY,
+    name         text NOT NULL,
+    recipe       jsonb NOT NULL,          -- the base recipe
+    spec         jsonb NOT NULL,          -- parameters, goal, budget (normalised)
+    backend      text NOT NULL,
+    state        text NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'paused', 'stopped', 'finished')),
+    message      text,                    -- why it stopped or finished
+    owner        text,
+    created      timestamptz NOT NULL DEFAULT now(),
+    finished     timestamptz
+);
+CREATE TABLE IF NOT EXISTS trials (
+    trial_id     bigserial PRIMARY KEY,
+    campaign_id  bigint NOT NULL REFERENCES campaigns ON DELETE CASCADE,
+    number       integer NOT NULL,        -- 0, 1, ... within the campaign
+    round        integer NOT NULL,        -- 1, 2, ...
+    params       jsonb NOT NULL,          -- the point
+    proposed_by  text,                    -- tpe, gp, qmc, random, grid, or who (external)
+    sweep_id     bigint REFERENCES sweeps ON DELETE SET NULL,
+    created      timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (campaign_id, number)
+);
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS trial_id bigint REFERENCES trials ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS submissions_trial_idx ON submissions (trial_id);
