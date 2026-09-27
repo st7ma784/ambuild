@@ -2,8 +2,8 @@
 import os
 from ambuild import ab_util
 
-paramsDir = os.environ.get("AMBUILD_PARAMS_DIR", "/opt/paramsDir")
+paramsDir = ab_util.paramsDir()
 mycell = ab_util.cellFromPickle('step_1.pkl.gz', paramsDir=paramsDir)
 
-poreblazerExe = os.environ.get("POREBLAZER_EXE", "/opt/poreblazer/src/poreblazer.exe")
+poreblazerExe = ab_util.poreblazerExe()
 mycell.poreblazer(poreblazerExe)

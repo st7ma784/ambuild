@@ -1,9 +1,10 @@
+import collections
 import csv
 import time
 
 # Event types sent to sinks. Each event is a dict:
 #   {"type": <event type>, "step": <step number>, "timestamp": <time.time()>, "data": {...}}
-STEP = "step"  # data: the row written to the csv file
+STEP = "step"  # data: the row written to the csv file (fragment_types as a dict)
 ARTIFACT = "artifact"  # data: path, kind, size, sha256
 PORE_RESULT = "pore_result"  # data: the results of Cell.poreblazer()
 
@@ -35,7 +36,11 @@ class CsvSink:
 
     def handle(self, event):
         if event["type"] == STEP:
-            self._logWriter.writerow(event["data"])
+            row = event["data"]
+            if isinstance(row.get("fragment_types"), dict):
+                # the csv keeps the format it always had: the repr of Cell.fragmentTypes()
+                row = dict(row, fragment_types=str(collections.defaultdict(list, row["fragment_types"])))
+            self._logWriter.writerow(row)
             self._logHandle.flush()
 
     def close(self):
@@ -122,7 +127,7 @@ class Analyse:
             elif f == "density":
                 new[f] = self.cell.density()
             elif f == "fragment_types":
-                new[f] = str(self.cell.fragmentTypes())
+                new[f] = dict(self.cell.fragmentTypes())
             elif f == "file_count":
                 new[f] = self.cell._fileCount
             elif f in d:

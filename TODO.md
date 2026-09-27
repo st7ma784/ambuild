@@ -6,12 +6,14 @@ runtime rather than on the current developer machines.
 
 ## 1. Portability and packaging
 
-- [ ] Replace `/opt/ambuild.git`, `/opt/paramsDir`, Dropbox paths, and absolute
+- [x] Replace `/opt/ambuild.git`, `/opt/paramsDir`, Dropbox paths, and absolute
   interpreter paths in `standard_inputs/` and `ambuild/`.
-  - Partly done: example scripts read `AMBUILD_PARAMS_DIR`, `AMBUILD_BLOCKS_DIR`
-    and `POREBLAZER_EXE` (defaults still `/opt/...`).
-    `ab_util.py` still inserts the repo root into `sys.path` for legacy pickles.
-- [ ] Resolve repository data with `pathlib` where data is part of the
+  - The scripts call `ab_util.paramsDir()`, `blocksDir()` and `poreblazerExe()`:
+    `AMBUILD_PARAMS_DIR`, `AMBUILD_BLOCKS_DIR` and `POREBLAZER_EXE` when set, else
+    the checkout's `tests/params` and `tests/blocks` and Poreblazer on the `PATH`,
+    else an error naming the variable. `ab_util.py` still inserts the repo root
+    into `sys.path` for legacy pickles.
+- [x] Resolve repository data with `pathlib` where data is part of the
   checkout; pass user data, parameter directories, and external executables as
   command-line arguments or environment variables.
 - [x] Stop modifying `sys.path` in example scripts; make the package importable
@@ -188,7 +190,9 @@ runtime rather than on the current developer machines.
   and `testCat2Paf2` need the missing `hc-cp-cp` angle parameter for some
   layouts, and `testCell.testCat2Paf2` fails with "Error computing cell list"
   for others. All three are skipped.
-- [ ] Fix `Cell.writeCar()`, which indexes `CellData` like a dict.
+- [x] Fix `Cell.writeCar()`, which indexed `CellData` like a dict: it writes the
+  blocks' atoms with their labels, types, symbols and charges (or a `CellData`'s),
+  and honours `skipDummy`.
 - [x] In-process HOOMD-blue 2 parses the build script's command line in
   `hoomd.context.initialize()`, so scripts that take their own arguments fail
   ("no such option"). Resolved by dropping HOOMD 2; HOOMD-blue 4+ does not.
@@ -245,9 +249,9 @@ runtime rather than on the current developer machines.
 - [ ] Make builds reproducible from a seed: `Cell` keeps blocks and end groups
   in sets ordered by memory address, so the same seeds give different
   structures. Needed before a recorded seed means anything.
-- [ ] Emit `step` events for `joinBlocks` and `zipBlocks`, which write no CSV
-  row today, and record `fragment_types` as a dict rather than a
-  `defaultdict` repr (in the JSON sink; the CSV format stays as it is).
+- [x] Emit `step` events for `joinBlocks` and `zipBlocks` (`join` and `zip`, on
+  every return path), and record `fragment_types` as a dict in step events (the
+  CSV keeps its `defaultdict` repr; the ingest service stores the dict as JSON).
 - [x] Resume recording when a cell is restored from a pickle, as a new run
   that links to its parent run id (`Cell.startRecording()`).
 - [ ] Decide what `run.json` exposes through the API: it records the host name

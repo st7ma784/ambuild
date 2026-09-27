@@ -9,6 +9,8 @@ Utility functions
 import gzip
 import logging
 import os
+import pathlib
+import shutil
 import numpy as np
 import subprocess
 import sys
@@ -26,6 +28,37 @@ sys.path.insert(0, AMBUILD_DIR)
 from ambuild import xyz_util
 
 PARAMS_DIR = os.path.join(AMBUILD_DIR, "tests", "params")
+
+
+def _dataDir(envVar, checkoutPath):
+    """A data directory: envVar if set, else checkoutPath in this checkout of Ambuild"""
+    if os.environ.get(envVar):
+        return os.environ[envVar]
+    path = pathlib.Path(AMBUILD_DIR).resolve().joinpath(*checkoutPath.split("/"))
+    if path.is_dir():
+        return str(path)
+    raise RuntimeError(
+        "Set {0} to the directory of {1} (it is not in this installation of Ambuild, "
+        "which has no {2})".format(envVar, checkoutPath.split("/")[-1], checkoutPath)
+    )
+
+
+def paramsDir():
+    """The force-field parameter directory: AMBUILD_PARAMS_DIR, else tests/params in the checkout"""
+    return _dataDir("AMBUILD_PARAMS_DIR", "tests/params")
+
+
+def blocksDir():
+    """The building-block directory: AMBUILD_BLOCKS_DIR, else tests/blocks in the checkout"""
+    return _dataDir("AMBUILD_BLOCKS_DIR", "tests/blocks")
+
+
+def poreblazerExe():
+    """The Poreblazer executable: POREBLAZER_EXE, else poreblazer.exe or poreblazer on the PATH"""
+    exe = os.environ.get("POREBLAZER_EXE") or shutil.which("poreblazer.exe") or shutil.which("poreblazer")
+    if not exe:
+        raise RuntimeError("Set POREBLAZER_EXE to the Poreblazer executable (none on the PATH)")
+    return exe
 
 
 def parseHoomdVersion(version):
