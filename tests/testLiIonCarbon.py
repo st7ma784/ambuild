@@ -14,7 +14,7 @@ import shutil
 import tempfile
 import unittest
 
-from context import BLOCKS_DIR
+from context import BLOCKS_DIR, PARAMS_DIR
 from ambuild import recipe as ab_recipe
 
 LITHIUM_ION_DIAMETER = 2 * 0.76  # A, bare Li+ (Shannon radius, six-coordinate)
@@ -33,6 +33,8 @@ class LiIonCarbon(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp)
         self.recipe = ab_recipe.example("li_ion_carbon", blocksDir=BLOCKS_DIR)
+        # the checkout's parameters, which an installed (not editable) Ambuild cannot find itself
+        self.recipe["params"] = {name: os.path.join(PARAMS_DIR, name) for name in ab_recipe.PARAMS_FILES}
 
     def testIsAShippedExample(self):
         self.assertIn("li_ion_carbon", ab_recipe.examples())
