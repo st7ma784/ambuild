@@ -28,5 +28,8 @@ Homepage = "https://github.com/linucks/ambuild"
 [tool.setuptools.packages.find]
 include = ["ambuild"]
 
+[tool.setuptools.package-data]
+ambuild = ["recipes/*.json"]  # example recipes (ambuild.recipe.example)
+
 [tool.setuptools.dynamic]
 version = { attr = "ambuild.version.__version__" }

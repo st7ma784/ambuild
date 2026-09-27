@@ -16,6 +16,12 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Example recipes shipped with Ambuild (`ambuild/recipes/`; `python -m ambuild.recipe examples`, `example NAME`; `ambuild.recipe.example()`), saved in the web demo on start.
+  - The first, `li_ion_carbon`: benzene rings linked at 1,3,5 through alkyne (ethynylene) linkers, grown and zipped into a network, then analysed with Poreblazer.
+  - `tests/testLiIonCarbon.py` checks the network and, with Poreblazer, that its pores let lithium ions through: PLD above a bare Li⁺'s 1.52 Å, and percolating. The default build gives 12.8 Å at 0.26 g/cm³.
+- Building blocks `benzene_135` (benzene linked at 1,3,5; C–C 1.39 Å, C–H 1.08 Å) and `acetylene` (C≡C 1.203 Å, C–H 1.063 Å).
+- Bond lengths for sp carbon (type `c1`) in the bundled parameters: c1–c1, c1–hc, c1–cp. They carry r0 only, with k = 0, for building; HOOMD-blue stops with a list of the missing angle and pair terms if an optimisation is attempted.
+- Planned: chat over experiments (docs/web-gui.md, milestone 7). An MCP server over the web API, and a chat page using the same tools, to search, compare and explain runs and to propose runs, sweeps and campaigns that the engineer confirms. Later milestones move up one number.
 - Web GUI, milestone 5: sweeps.
   - `ambuild/sweep.py` expands a recipe over a grid of parameter values (JSON pointers into the recipe), rows of a CSV file, and seed lists, checking every point.
   - The web GUI queues a sweep as one submission per run, with a New sweep page (preview, and the recipe's settings with their pointers), a sweeps list, and a sweep page. The sweep page plots any result against each parameter (one line per value of the others) above a table of the runs and their results. There are cancel and retry for a whole sweep, and `/api/sweeps`.

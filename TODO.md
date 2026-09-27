@@ -67,8 +67,9 @@ runtime rather than on the current developer machines.
 ## 3. Service suitable for Rancher
 
 The web GUI and its API are planned in [docs/web-gui.md](docs/web-gui.md): milestones
-0–9, from the status page and run browser to submission through a Slurm agent, sweeps,
-goal-directed campaigns (Bayesian search for structures meeting a target),
+0–10, from the status page and run browser to submission through a Slurm agent, sweeps,
+goal-directed campaigns (Bayesian search for structures meeting a target), chat
+over experiments (an MCP server and a chat page),
 the checkpoint cache, a Fleet-deployed Helm chart and, last, accounts. The items below
 are covered there.
 
@@ -360,6 +361,15 @@ In order:
   with Bayesian optimisation (Optuna TPE or GP, ask-and-tell, replicates per
   point for noise) for structures meeting constraints on their results, e.g. a
   pore limiting diameter above an ion's size, each round queued on Slurm.
+  Showcase: the densest `li_ion_carbon` network (benzene + alkyne linkers)
+  whose pores still admit Li+ (PLD >= 1.52 A, percolating).
+- [ ] Chat over experiments (web GUI milestone 7): an MCP server over the web
+  API (search, compare and explain runs; propose runs, sweeps and campaigns,
+  confirmed before they run) and a chat page using the same tools.
+- [ ] Force-field parameters for sp (alkyne) carbon, type `c1`: the bundled
+  parameters give its bond lengths only (k = 0), so `li_ion_carbon` cannot be
+  optimised or run through MD until angle, dihedral and pair terms (e.g. from
+  GAFF) are added and checked.
 - [x] Sweeps and ensembles: one recipe over many seeds or parameters as an
   array job, each run tagged with a `sweep_id` in `run.json` and the database.
   - Web GUI milestone 5 (`ambuild/sweep.py`): grids of JSON-pointer parameters,

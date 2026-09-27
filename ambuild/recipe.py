@@ -29,6 +29,7 @@ pass of a top-level repeat. The same recipe and seed give the same structure.
     python -m ambuild.recipe validate recipe.json
     python -m ambuild.recipe describe          # the operations and their arguments, as JSON
     python -m ambuild.recipe hash recipe.json
+    python -m ambuild.recipe examples          # example recipes; "example NAME" prints one
 
 This module imports only the standard library until a recipe is run, so services that
 only validate recipes (the web GUI) need not install NumPy or HOOMD-blue.
@@ -460,6 +461,46 @@ def countSteps(stages):
     return total
 
 
+EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recipes")
+
+
+def examples():
+    """{name: description} of the example recipes shipped with Ambuild"""
+    out = {}
+    for fname in sorted(os.listdir(EXAMPLES_DIR)) if os.path.isdir(EXAMPLES_DIR) else []:
+        if fname.endswith(".json"):
+            with open(os.path.join(EXAMPLES_DIR, fname), encoding="utf-8") as f:
+                out[fname[:-5]] = json.load(f).get("description", "")
+    return out
+
+
+def example(name, blocksDir=None):
+    """An example recipe, with its files (named in it by file name alone) as paths in
+    blocksDir (default: this installation's building blocks, ab_util.blocksDir())"""
+    path = os.path.join(EXAMPLES_DIR, name + ".json")
+    if not os.path.isfile(path):
+        raise ValueError("No example recipe {0!r}; there are: {1}".format(name, ", ".join(examples())))
+    with open(path, encoding="utf-8") as f:
+        recipe = json.load(f)
+    if blocksDir is None:
+        from ambuild import ab_util
+
+        blocksDir = ab_util.blocksDir()
+
+    def place(block):
+        for key in ("car", "csv", "ambody"):
+            value = block.get(key)
+            if isinstance(value, str) and not isRef(value) and os.path.basename(value) == value:
+                block[key] = os.path.join(blocksDir, value)
+
+    for frag in recipe.get("fragments", []):
+        place(frag)
+    for stage in _allStages(recipe.get("stages", [])):
+        if isinstance(stage.get("block"), dict):
+            place(stage["block"])
+    return recipe
+
+
 def describe():
     """The recipe format as JSON-friendly data, for forms and documentation"""
     return {
@@ -674,10 +715,21 @@ def main(argv=None):
     p.add_argument("recipe")
     p.add_argument("--references-only", action="store_true", help="reject file paths, as the web GUI does")
     sub.add_parser("describe", help="print the operations and their arguments as JSON")
+    sub.add_parser("examples", help="list the example recipes shipped with Ambuild")
+    p = sub.add_parser("example", help="print an example recipe, with paths to this installation's building blocks")
+    p.add_argument("name")
     p = sub.add_parser("hash", help="print the recipe's sha256")
     p.add_argument("recipe")
     args = parser.parse_args(argv)
 
+    if args.command == "examples":
+        for name, description in examples().items():
+            print("{0}: {1}".format(name, description))
+        return 0
+    if args.command == "example":
+        json.dump(example(args.name), sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 0
     if args.command == "describe":
         json.dump(describe(), sys.stdout, indent=2)
         sys.stdout.write("\n")
