@@ -318,9 +318,10 @@ In order:
   runner that executes it step by step with a checkpoint after each step.
 - [ ] Checkpoint/resume: the runner resumes a recipe from its last checkpoint
   as a child run; on SIGTERM it dumps and exits so Slurm `--requeue` (and
-  preemptible partitions) resume rather than restart. Pickles do not hold the
-  random number generator's state yet: save it with each checkpoint, so a resumed
-  build continues the same random sequence as an uninterrupted one.
+  preemptible partitions) resume rather than restart.
+  - Done: pickles save the random number generator's state and
+    `ab_util.cellFromPickle()` restores it, so a build resumed from a checkpoint
+    ends as the uninterrupted build would (`tests/testReproducible.py`).
 - [ ] Stage-chained Slurm submission: split long recipes into jobs of N steps
   or a time budget, each resuming from the previous stage's checkpoint, so
   jobs stay short and stages can target CPU or GPU partitions.

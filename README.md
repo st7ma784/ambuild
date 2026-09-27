@@ -255,6 +255,7 @@ Every random choice in a build uses Python's random number generator, so a seed 
 ```python
 cell = ab_cell.Cell([30, 30, 30], paramsDir=params, outputDir="runs/replay", randomState="runs/my-build")
 ```
+Pickles (`cell.dump()`) save the generator's state too, and `ab_util.cellFromPickle()` restores it (unless `restoreRandomState=False`), so a build resumed from a checkpoint ends exactly as the uninterrupted build would.
 
 ## Running the tests
 With Ambuild installed, the CPU test suite runs without HOOMD-Blue:

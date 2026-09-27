@@ -105,10 +105,13 @@ GZIP_PKL_SUFFIX = ".pkl.gz"
 logger = logging.getLogger()
 
 
-def cellFromPickle(pickleFile, paramsDir=None, outputDir=None):
+def cellFromPickle(pickleFile, paramsDir=None, outputDir=None, restoreRandomState=True):
     """Recreate a cell from a pickled file and apply any hacks so that we can work with older versions
 
     outputDir - write the restored cell's output here instead of its saved outputDir
+    restoreRandomState - set the random number generator to its state when the cell was
+                         pickled, so a resumed build continues exactly as an uninterrupted one
+                         would (Cell.restoreRandomState). False leaves the generator alone.
     """
 
     def fixFragment(fragment):
@@ -232,6 +235,8 @@ def cellFromPickle(pickleFile, paramsDir=None, outputDir=None):
             del block._fragments
         for fragment in block.fragments:
             fixFragment(fragment)
+    if restoreRandomState and not myCell.restoreRandomState():
+        logger.info("%s has no random number generator state (pickled before it was saved)", pickleFile)
     return myCell
 
 
