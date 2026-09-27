@@ -195,7 +195,7 @@ OPERATIONS = {
 }
 
 _FRAGMENT_KEYS = {"type", "car", "csv", "ambody", "name", "solvent", "catalyst", "mark_bonded"}
-_CELL_KEYS = {"box": None, "atom_margin": 0.5, "bond_margin": 0.5, "bond_angle_margin": 15}
+_CELL_KEYS = {"box": None, "atom_margin": 0.5, "bond_margin": 0.5, "bond_angle_margin": 15, "typed_bond_lengths": False}
 _TOP_KEYS = {"recipe_version", "name", "description", "cell", "fragments", "params", "bond_types", "max_bonds",
              "stages", "seed", "resources"}
 _RESOURCE_KEYS = {"cpus", "gpus", "memory_mb", "time"}
@@ -336,6 +336,8 @@ def validate(recipe, allowPaths=False):
         for key in ("atom_margin", "bond_margin", "bond_angle_margin"):
             if key in cell and not (_isNumber(cell[key]) and cell[key] >= 0):
                 errors.append("cell.{0}: must be a number, at least 0".format(key))
+        if "typed_bond_lengths" in cell and not isinstance(cell["typed_bond_lengths"], bool):
+            errors.append("cell.typed_bond_lengths: must be true or false")
 
     fragments = recipe.get("fragments")
     types = set()
@@ -475,8 +477,9 @@ def examples():
 
 
 def example(name, blocksDir=None):
-    """An example recipe, with its files (named in it by file name alone) as paths in
-    blocksDir (default: this installation's building blocks, ab_util.blocksDir())"""
+    """An example recipe, with its files as paths: building blocks (named in it by file name
+    alone) in blocksDir (default: this installation's, ab_util.blocksDir()), and parameter
+    files relative to the examples directory (ambuild/recipes/params/...)"""
     path = os.path.join(EXAMPLES_DIR, name + ".json")
     if not os.path.isfile(path):
         raise ValueError("No example recipe {0!r}; there are: {1}".format(name, ", ".join(examples())))
@@ -498,6 +501,9 @@ def example(name, blocksDir=None):
     for stage in _allStages(recipe.get("stages", [])):
         if isinstance(stage.get("block"), dict):
             place(stage["block"])
+    for name, value in list((recipe.get("params") or {}).items()):  # parameter sets shipped beside it
+        if isinstance(value, str) and not isRef(value) and not os.path.isabs(value):
+            recipe["params"][name] = os.path.join(EXAMPLES_DIR, value)
     return recipe
 
 
@@ -665,6 +671,7 @@ def run(recipe, outputDir, blobDirs=(), baseDir=None, runId=None, parentRunId=No
             atomMargin=cellSpec.get("atom_margin", _CELL_KEYS["atom_margin"]),
             bondMargin=cellSpec.get("bond_margin", _CELL_KEYS["bond_margin"]),
             bondAngleMargin=cellSpec.get("bond_angle_margin", _CELL_KEYS["bond_angle_margin"]),
+            typedBondLengths=cellSpec.get("typed_bond_lengths", False),
             outputDir=outputDir,
             seed=seed,
         )

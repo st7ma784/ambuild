@@ -96,7 +96,7 @@ their arguments comes from `api format`.
 
 - **Fragments**: each needs a `.car` file (coordinates, atom types) and a `.csv` defining its end groups. Local paths are uploaded by the helper and replaced by `sha256:` references. `type` is a short name, and `bond_types` say which end groups may bond (`A:a-B:a` means end group `a` of A with end group `a` of B).
 - **Operations**: `seed`, `grow`, `join`, `zip`, `optimise`, `md`, `md_optimise`, `delete_blocks`, `cap`, `poreblazer`, and `{"repeat": n, "stages": [...]}`. A checkpoint (structure and pickle) is written after each top-level stage and each pass of a top-level repeat.
-- **Parameters**: `"params": null` means the server's bundled force-field files. `optimise` and `md` need parameters for every atom type in the recipe. Alkyne (sp) carbon, type `c1`, has bond lengths only, so recipes with acetylene cannot be optimised yet.
+- **Parameters**: `"params": null` means the server's bundled force-field files, a small test set. `optimise` and `md` need parameters for every atom type in the recipe; HOOMD-blue lists any missing. For benzene rings and alkyne linkers use the GAFF 1.81 set the `li_ion_carbon` example uses (saved recipes carry it), with `"typed_bond_lengths": true` in `cell` so blocks join at GAFF's bond lengths.
 - **Seed**: set `seed` for a reproducible build (the same recipe and seed give the same structure). With no seed, the random state is recorded, so the run can still be replayed.
 - `resources` (`cpus`, `gpus`, `memory_mb`, `time`, e.g. "02:00:00") become Slurm requests.
 

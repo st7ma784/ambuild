@@ -748,13 +748,29 @@ def momentOfInertia(coords, masses):
         I[x, x] = np.sum((np.square(coords[:, y]) + np.square(coords[:, z])) * masses)
         I[y, y] = np.sum((np.square(coords[:, x]) + np.square(coords[:, z])) * masses)
         I[z, z] = np.sum((np.square(coords[:, x]) + np.square(coords[:, y])) * masses)
-        I[x, y] = np.sum(coords[:, x] * coords[:, y] * masses)
+        # products of inertia are negative: I_xy = -sum(m x y)
+        I[x, y] = -np.sum(coords[:, x] * coords[:, y] * masses)
         I[y, x] = I[x, y]
-        I[y, z] = np.sum(coords[:, y] * coords[:, z] * masses)
+        I[y, z] = -np.sum(coords[:, y] * coords[:, z] * masses)
         I[z, y] = I[y, z]
-        I[x, z] = np.sum(coords[:, x] * coords[:, z] * masses)
+        I[x, z] = -np.sum(coords[:, x] * coords[:, z] * masses)
         I[z, x] = I[x, z]
     return I
+
+
+def principalAxes(coords, masses):
+    """(moments, axes): the principal moments of inertia, and the principal axes as the
+    columns of a proper rotation matrix (right-handed). Coordinates multiplied by axes
+    (coords @ axes) are in the principal frame, where the inertia tensor is diag(moments).
+    Moments that are zero to rounding (e.g. about the axis of a linear molecule) are set to
+    exactly zero, as HOOMD-blue's rigid bodies need."""
+    I = momentOfInertia(coords, masses)
+    moments, axes = np.linalg.eigh(I)  # symmetric: real eigenvalues, orthonormal vectors
+    scale = max(float(np.max(np.abs(moments))), 1e-12)
+    moments = np.where(np.abs(moments) < 1e-8 * scale, 0.0, moments)
+    if np.linalg.det(axes) < 0:
+        axes[:, 2] = -axes[:, 2]
+    return moments, axes
 
 
 def orientationQuaternion(mobileCoords, refCoords):
@@ -770,9 +786,8 @@ def orientationQuaternion(mobileCoords, refCoords):
 def principalMoments(coords, masses):
     """http://farside.ph.utexas.edu/teaching/336k/Newtonhtml/node67.html
     """
-    I = momentOfInertia(coords, masses)
-    eigval, eigvec = np.linalg.eig(I)
-    return np.sort(eigval)
+    moments, _ = principalAxes(coords, masses)
+    return np.sort(moments)
 
 
 def quaternion_from_matrix(M):
@@ -827,6 +842,8 @@ def q_mult(q1, q2):
 
 
 def q_conjugate(q):
+    """The conjugate of quaternion q (a new array: q is left as it is)"""
+    q = np.array(q, dtype=float)
     q[1:] *= -1
     return q
 

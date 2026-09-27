@@ -1,310 +1,257 @@
 # Amorphous Builder (Ambuild)
-Ambuild is a python program for creating polymeric molecular structures.
-Please feel free to follow Ambuild on [twitter](https://twitter.com/Ambuild2).
 
-The code is developed by [Abbie Trewin's](https://twitter.com/AbbieTrewin) group at the [University of Lancaster](https://www.lancaster.ac.uk/sci-tech/about-us/people/abbie-trewin). 
+Ambuild builds amorphous polymer networks, such as porous organic polymers and carbon
+frameworks, from rigid building blocks, and measures the pores of what it builds.
 
-Ambuild has previously been tested on Ubuntu/Debian machines, but should work for other Linux environments too. The instructions given below relate to installation on a Ubuntu/Debian Linux environment. We explain here how to install each component required to run Ambuild onto a new machine. Please feel free to skip any steps describing how to install any components which you have already installed.
+It places **fragments** (e.g. benzene rings, alkyne linkers) in a periodic cell, then
+repeatedly:
+- **seeds** blocks at random positions;
+- **grows** new ones onto free end groups;
+- **zips** nearby end groups together;
+- relaxes the structure by **geometry optimisation** or **molecular dynamics** with [HOOMD-blue](https://glotzerlab.engin.umich.edu/hoomd-blue/).
 
-Copy each section in a grey box in its entirety, and paste these into your terminal in sequence to install the code. We recommend that Ambuild is installed in /opt, as we have done ourselves. This will allow the commands we use to run Ambuild (as seen in our [wiki page](https://github.com/linucks/ambuild/wiki/08_Running_Ambuild)) to match the commands you will run.
+[Poreblazer](https://github.com/st7ma784/poreblazer) then gives the surface area, pore
+sizes and pore volume. Builds are random, but a seed makes them exactly reproducible.
 
-## Installation
+Ambuild is developed by [Abbie Trewin's](https://www.lancaster.ac.uk/sci-tech/about-us/people/abbie-trewin)
+group at Lancaster University. Follow it on [Twitter](https://twitter.com/Ambuild2).
 
-#### 1. Install Numpy
-In order to run at all, Ambuild requires [numpy](https://numpy.org/), which is easily installed into any Python installation with a command such as:
-```
-pip install numpy
-```
+**What you can do with it**
 
-With numpy installed Ambuild can be used to create molecular structures, but cannot run any Molecular Dynamics or Optimisation steps. In order to do that, [HOOMD-Blue](http://glotzerlab.engin.umich.edu/hoomd-blue/) is required.
+- Build from a **Python script** (`ambuild.ab_cell.Cell`) or from a **recipe**, a JSON description of the build that can be validated, shared and submitted.
+- **Record** every build as a self-contained run directory (provenance, every step, inputs), and **replay** any recorded run.
+- **Analyse** pores with Poreblazer: surface area, pore limiting diameter, pore size distribution, percolation.
+- **Run many builds** through a web GUI: submit to a Slurm cluster or a local worker, browse runs and their 3D structures, **sweep** parameters, and run **campaigns** that search settings for structures meeting a goal (Bayesian optimisation).
+- Let an **AI assistant** (e.g. Claude Code) drive all of that through a skill file.
 
-#### HOOMD-blue from conda-forge (recommended)
-Ambuild supports HOOMD-blue 4.0 and later (tested with 7.2); HOOMD-blue 1 and 2 are no longer supported. HOOMD-blue is not on PyPI; install it from conda-forge, for example with [micromamba](https://mamba.readthedocs.io/):
-```
-micromamba create -n ambuild -c conda-forge python=3.12 "hoomd=7.2=cpu*" numpy
-micromamba activate ambuild
-pip install ./ambuild
-```
-Use `"hoomd=7.2=gpu*"` for the CUDA build. conda-forge does not publish MPI builds, so running HOOMD-blue across MPI ranks (`AMBUILD_HOOMD_LAUNCHER`) needs HOOMD-blue built from source. `tests/docker/hoomd7.Dockerfile` builds a container with this environment.
+## Quick start
 
-#### Docker
-The repository's `Dockerfile` builds the Ambuild runtime image (~590 MB): HOOMD-blue 7 from conda-forge, [Ambuild's Poreblazer fork](https://github.com/st7ma784/poreblazer) (OpenMP; set the threads with `OMP_NUM_THREADS` or `Cell.poreblazer(exe, threads=N)`) and Ambuild installed, running as a non-root user:
-```
+The Docker image has Ambuild, HOOMD-blue and Poreblazer. Build it and run the example
+recipe, a benzene-alkyne carbon network whose pores should let lithium ions through:
+
+```sh
 docker build -t ambuild .
-docker run --rm -v "$PWD:/work" -w /work --user "$(id -u):$(id -g)" ambuild python build.py
-```
-`--target ambuild` leaves out Poreblazer, and `--build-arg HOOMD_VARIANT=gpu` builds the CUDA variant. Inside the image, `AMBUILD_PARAMS_DIR`, `AMBUILD_BLOCKS_DIR` and `POREBLAZER_EXE` point at the bundled parameter files, example blocks and Poreblazer.
-
-For development, `tests/docker/hoomd7.Dockerfile` builds just the HOOMD-blue environment (~580 MB), for running this checkout's code without installing it:
-```
-docker build -f tests/docker/hoomd7.Dockerfile -t ambuild-hoomd7 .
-docker build -f tests/docker/hoomd7.Dockerfile --build-arg HOOMD_VARIANT=gpu -t ambuild-hoomd7-gpu .
-```
-`misc/run_ambuild_docker.sh script.py` runs a build script in it with this checkout's `ambuild` package (`AMBUILD_IMAGE` picks the image, `AMBUILD_GPU=1` passes the GPUs through). The steps below install Docker and, for the GPU image, the NVIDIA drivers and container runtime.
-
-
-#### 2. Install Docker
-
-Instructions from: https://docs.docker.com/engine/install/ubuntu/
-
-1. Firstly, remove any old versions with the command:
-  ```
-sudo apt-get remove docker docker-engine docker.io containerd runc
+docker run --rm -v "$PWD:/work" -w /work --user "$(id -u):$(id -g)" ambuild sh -c \
+  'python -m ambuild.recipe example li_ion_carbon > li.json && python -m ambuild.recipe run li.json --output runs/li'
 ```
 
-Update the list of packages and install those required to install Docker with the following two commands:
-  ```
-sudo apt-get update
-  ```
-  ```
-sudo apt-get install \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg-agent \
-    software-properties-common
-```
+`runs/li` then holds the run:
+- `run.json`: status, versions, inputs and seed;
+- `events.jsonl`: every step and the Poreblazer result;
+- one `step_N.xyz` structure and one pickle per checkpoint;
+- the log and step table.
 
-2. Add Docker’s official GPG key (so that the downloaded packages can be validated) with the command:
-```
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-```
-3. Add the Docker 'stable' repository to the list of available repositories, so that apt can download from it:
-```
-sudo add-apt-repository \
-   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-   $(lsb_release -cs) \
-   stable"
-```
-4. With the Docker repository added to the list, update the list of packages, and then install docker:
-```
-sudo apt-get update
-  ```
-  ```
-sudo apt-get install docker-ce docker-ce-cli containerd.io
-```
+Without Docker, see [Installation](#installation).
 
-#### 3. Create Docker Group
-Non-root users cannot run Docker by default, so it usually needs to be run under sudo; however this means any files created are owned by root, which is not a good idea. To allow users to run docker/ambuild without having sudo access, create docker group and add any users to it who will be required to run docker/ambuild.
+## Your first build
 
-1. First create the group for all users of docker. This may have already been done with the docker installation command, so it may not be required, but it's not a problem to run this command again.
-```
-sudo groupadd docker
-```
+### As a Python script
 
-2. Add the current logged in user (specified by the $USER environment variable) to this group. Any other users can be added by replacing $USER in the below command with the Unix username.
-```
-sudo usermod -aG docker $USER
-````
-3. Activate the group (this just saves logging out/in again)
-```
-newgrp docker
-```
-4. With Docker installed, the docker group set up and the current user added, test if you can run docker without using sudo:
-```
-docker run hello-world
-```
-If you see the following output when running the line above, you have a working Docker installation! If you do not see the output below please contact your local Linux specialist or visit the [Docker website](https://docs.docker.com/).
-
-```
-Hello from Docker!
-This message shows that your installation appears to be working correctly.
-
-To generate this message, Docker took the following steps:
-1. The Docker client contacted the Docker daemon.
-2. The Docker daemon pulled the "hello-world" image from the Docker Hub. (amd64)
-3. The Docker daemon created a new container from that image which runs the executable that produces the output you are currently reading.
-4. The Docker daemon streamed that output to the Docker client, which sent it to your terminal.
-To try something more ambitious, you can run an Ubuntu container with: $ docker run -it ubuntu bash
-Share images, automate workflows, and more with a free Docker ID: https://hub.docker.com/
-For more examples and ideas, visit: https://docs.docker.com/get-started/
-```
-
-#### 4. Install NVIDIA Drivers
-In order for applications within the Docker container to take advantage of GPU acceleration, you will need to install the NVIDIA GPU drivers for your card - the drivers are the piece of software that allow different programmes to communicate with the GPU card. There are instructions for how to do this on the [NVIDIA website](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
-
-On Ubuntu, the easiest way to do this seems to be with the command:
-```
-sudo ubuntu-drivers autoinstall
-```
-
-#### 5. Install NVIDIA Docker Runtime
-Instructions from: https://github.com/NVIDIA/nvidia-docker
-
-1. Run the following commands to install the nvidia-container-toolkit:
-
-  ```
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-  ```
-  ```
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
-  ```
-  ```
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-  ```
-  ```
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-  ```
-  ```
-sudo systemctl restart docker
-  ```
-
-2. Test nvidia-smi with the latest official CUDA image
-
-  ```docker run --gpus all nvidia/cuda:10.0-base nvidia-smi```
-
-3. Install the nvidia-container-runtime
-```
-sudo apt install nvidia-container-runtime
-```
-There is currently a bug with the nvidia docker container runtime as detailed here: https://github.com/docker/compose/issues/6691
-
-To work around the bug, carry out the following additional step:
-
-4. Create a file called /etc/docker/daemon.json with the following content by typing the following (cut and paste the following command from 'sudo' to the second 'EOF' into the terminal):
-
-```
-sudo tee -a /etc/docker/daemon.json << EOF
-{
-    "runtimes": {
-        "nvidia": {
-            "path": "/usr/bin/nvidia-container-runtime",
-            "runtimeArgs": []
-        }
-    }
-}
-EOF
-```
-5. Restart docker:
-```
-sudo systemctl restart docker
-```
-
-#### 6. Disable secondary video GPU card
-If you have more than one GPU card (e.g. you have a card specifically for running jobs), then you may need to disable your video GPU card for running jobs so that any GPU jobs are placed on the specialised card rather than using the video card. This will not disable the video card for viewing your screen - it will just prevent it being used to run computational simulation jobs.
-
-1. Find ID of card to disable (this will print the UUID string as is seen in the example below, that you can then use in step 2).
-```
-nvidia-smi -L
-```
-An example output of ```nvidia-smi -L``` is given here:
-```
-GPU 0: Tesla K40c (UUID: GPU-66dc2593-494d-4b44-4574-2b92976db56b)
-```
-
-2. Disable video GPU by setting mode to 2/PROHIBITED for the GPU card who's UUID we identified with the command above. 
-```
-sudo nvidia-smi -c 2 -i GPU-4030396e-e7b4-aa4d-e035-22758536dba5
-```
-E.g. in the example output above, the UUID string will be: ```GPU-66dc2593-494d-4b44-4574-2b92976db56b```, making the command in step 2 read:  ```sudo nvidia-smi -c 2 -i GPU-66dc2593-494d-4b44-4574-2b92976db56b```
-
-If you do not see an output like the one given as an example in step 1, we advise you to firstly try running the three commands immediately below. If you still do not see an output as in the example given with step 1, we suggest contacting your local Linux specialist.
-
-```
-sudo apt-get --purge remove "*cublas*" "cuda" "nsight"
-```
-```
-sudo apt-get --purge remove "*nvidia*"
-```
-```
-sudo apt-get autoremove
-```
-```
-sudo ubuntu-drivers autoinstall
-```
-
-#### 7. Get Ambuild
-
-1. Download Ambuild from the Releases section or enter the following into your terminal:
-```
-curl -OL https://github.com/linucks/ambuild/archive/2.0.0.tar.gz
-```
-
-2. Extract files using:
-```
-tar -xzf 2.0.0.tar.gz
-```
-Which will give a folder named ambuild-2.0.0 containing the Ambuild code.
-
-3. Install the Ambuild Python package so that scripts can `import ambuild` from anywhere:
-```
-pip install ./ambuild-2.0.0
-```
-Use `pip install -e .` from the repository root instead if you are developing Ambuild.
-
-The example scripts in `standard_inputs` read the following environment variables, falling back to the `/opt` locations shown if they are unset:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `AMBUILD_PARAMS_DIR` | `tests/params` in the checkout | Force-field parameter directory (`ab_util.paramsDir()`) |
-| `AMBUILD_BLOCKS_DIR` | `tests/blocks` in the checkout | Building-block `.car` files (`ab_util.blocksDir()`) |
-| `POREBLAZER_EXE` | `poreblazer.exe` or `poreblazer` on the `PATH` | Poreblazer executable (`ab_util.poreblazerExe()`) |
-
-Without the variable or the default, these raise an error naming the variable to set.
-
-## Recording a run
-Give a cell its own output directory and `recordRun=True` to keep a self-contained record of the build:
 ```python
-with ab_cell.Cell([30, 30, 30], paramsDir=params, outputDir="runs/my-build", recordRun=True) as cell:
+import os
+from ambuild import ab_cell, ab_util, recipe
+
+blocks = ab_util.blocksDir()                                   # the bundled building blocks
+params = os.path.join(recipe.EXAMPLES_DIR, "params", "gaff_benzene_alkyne")
+
+with ab_cell.Cell([30, 30, 30], paramsDir=params, outputDir="runs/first", recordRun=True,
+                  seed=7, typedBondLengths=True) as cell:
+    cell.libraryAddFragment(os.path.join(blocks, "benzene_135.car"), fragmentType="A")
+    cell.libraryAddFragment(os.path.join(blocks, "acetylene.car"), fragmentType="B")
+    cell.addBondType("A:a-B:a")          # end group a of A may bond to end group a of B
+    cell.seed(10, fragmentType="A")
+    for _ in range(6):
+        cell.growBlocks(12, maxTries=50)
+        cell.zipBlocks(bondMargin=1.0, bondAngleMargin=30)
+        cell.optimiseGeometry(rigidBody=True, optCycles=20000)    # needs HOOMD-blue
+        cell.dump()                      # a checkpoint: pickle and structure
+    pores = cell.poreblazer(ab_util.poreblazerExe(), threads=2)
+    print(pores["pore_limiting_diameter_A"], pores["surface_area_m2_g"])
+```
+
+The main operations are:
+- **cell set-up:** `seed`, `growBlocks`, `joinBlocks` (move blocks to bond them) and `zipBlocks`;
+- **editing:** `deleteBlocks` and `capBlocks`;
+- **relaxing** (HOOMD-blue): `optimiseGeometry`, `runMD` and `runMDAndOptimise`;
+- **output:** `poreblazer`, `dump`, and `writeXyz`/`writeCml`/`writeCar`.
+
+`standard_inputs/` has more scripts.
+
+### As a recipe
+
+The same build as data:
+
+```json
+{
+  "recipe_version": 1,
+  "name": "benzene-alkyne network",
+  "cell": {"box": [30, 30, 30], "typed_bond_lengths": true},
+  "fragments": [
+    {"type": "A", "car": "blocks/benzene_135.car", "csv": "blocks/benzene_135.csv"},
+    {"type": "B", "car": "blocks/acetylene.car", "csv": "blocks/acetylene.csv"}
+  ],
+  "params": {"bond_params.csv": "params/bond_params.csv", "angle_params.csv": "params/angle_params.csv",
+             "dihedral_params.csv": "params/dihedral_params.csv", "improper_params.csv": "params/improper_params.csv",
+             "pair_params.csv": "params/pair_params.csv"},
+  "bond_types": ["A:a-B:a"],
+  "stages": [
+    {"op": "seed", "count": 10, "fragment_type": "A"},
+    {"repeat": 6, "stages": [{"op": "grow", "count": 12}, {"op": "zip", "bond_margin": 1.0, "bond_angle_margin": 30},
+                              {"op": "optimise", "cycles": 20000}]},
+    {"op": "poreblazer", "threads": 2}
+  ],
+  "seed": 7
+}
+```
+
+```sh
+python -m ambuild.recipe validate recipe.json     # every problem, with where it is
+python -m ambuild.recipe run recipe.json --output runs/net
+python -m ambuild.recipe describe                 # every operation and its arguments
+python -m ambuild.recipe examples                 # the shipped examples; "example NAME" prints one
+```
+
+File paths are relative to the recipe file. `"params": null` uses the installation's
+parameter files. A checkpoint is written after each top-level stage and each pass of a
+top-level repeat, and the recipe itself is stored with the run's inputs.
+
+## Building blocks and force fields
+
+- **A building block** is a `.car` file (coordinates, atom types, elements) and a `.csv` of the same name listing its **end groups**. Each end group row gives:
+  - the bonding atom;
+  - its cap atom (removed when it bonds);
+  - a dihedral reference atom;
+  - its type (e.g. `a`).
+
+  `bond_types` such as `A:a-B:a` say which end groups may bond. The bundled blocks are in `tests/blocks` (`ab_util.blocksDir()`, or `AMBUILD_BLOCKS_DIR`).
+- **Parameter files** (a directory of `bond_params.csv`, `angle_params.csv`, `dihedral_params.csv`, `improper_params.csv` and `pair_params.csv`) give force-field terms by atom type, in HOOMD-blue's forms and units (kcal/mol, Å).
+  - Building needs only bond lengths.
+  - Optimisation and MD need every term for every atom type in the cell. HOOMD-blue lists any that are missing.
+  - The bundled set (`tests/params`, `AMBUILD_PARAMS_DIR`) is a small one used by the tests.
+- **`ambuild/recipes/params/gaff_benzene_alkyne`** holds complete GAFF 1.81 parameters for aromatic carbon (`ca`), its hydrogen (`ha`) and sp (alkyne) carbon (`c1`). They are generated from AmberTools' `gaff-1.81.dat` by `scripts/gaff_params.py`, with their source recorded. The `benzene_135` and `acetylene` blocks use these types and measured geometries.
+- **Typed bond lengths** (`Cell(typedBondLengths=True)`, recipe `"typed_bond_lengths": true`) join blocks at the parameter file's bond length for the two atom types, rather than a generic single bond (1.53 Å for C–C).
+  - Use them when that length describes bonds *between* blocks, as GAFF's `ca-c1` (1.44 Å) does for an aryl–alkyne link.
+  - Don't use them when a ring bond (e.g. `cp-cp`, 1.387 Å) also joins rings: a bond between rings is about 1.49 Å.
+  - They are off by default, so existing scripts and recorded runs build as before.
+
+With these, the `li_ion_carbon` network's ring–alkyne junctions come out at 1.445 ± 0.006 Å, with straight alkynes (within 2° of 180°) and trigonal ring carbons (within 2.3° of 120°) after its rigid-body optimisations (`tests/testLiIonCarbon.py`).
+
+## Recording and reproducing runs
+
+Give a cell an output directory and `recordRun=True` (recipes always record):
+
+```python
+with ab_cell.Cell([30, 30, 30], paramsDir=params, outputDir="runs/my-build", recordRun=True, seed=42) as cell:
     ...
 ```
-The directory then holds `run.json` (run id, status, versions and inputs), `events.jsonl` (one JSON object per build step, file written and Poreblazer result) and `inputs/` (copies of the script, parameter files and building blocks), next to the usual log, CSV and pickle files. Leaving the `with` block marks the run `finished`, or `failed` if an exception escaped. See [docs/architecture.md](docs/architecture.md).
 
-## Reproducible builds
-Every random choice in a build uses Python's random number generator, so a seed fixes the structure: the same script and `Cell(..., seed=42)` give the same structure on any machine and in any process (`tests/testReproducible.py`). Without a seed, the generator is left as it is (`random.seed()` still works). A recorded run saves the seed and the generator's state (`run.json` `"random"`, `inputs/random/random_state.json`), so any recorded run, seeded or not, can be replayed:
-```python
-cell = ab_cell.Cell([30, 30, 30], paramsDir=params, outputDir="runs/replay", randomState="runs/my-build")
-```
-Pickles (`cell.dump()`) save the generator's state too, and `ab_util.cellFromPickle()` restores it (unless `restoreRandomState=False`), so a build resumed from a checkpoint ends exactly as the uninterrupted build would.
+- **What's recorded:** `run.json` (run id, status, versions, host, Slurm job, cell settings, the seed, and inputs with their sha256), `events.jsonl` (every build step, file written and Poreblazer result), and `inputs/` (copies of the script or recipe, parameter files, building blocks and the random number generator's state). Leaving the `with` block marks the run `finished`, or `failed` if an exception escaped.
+- **Reproducible:** every random choice uses Python's random number generator, so the same script or recipe and `seed` give the same structure on any machine and in any process.
+- **Replay:** without a seed, the generator's recorded state lets you replay the run with `Cell(..., randomState="runs/my-build")`.
+- **Checkpoints:** pickles (`cell.dump()`) keep the generator's state too, so `ab_util.cellFromPickle()` resumes a build exactly where it stopped.
 
-## Recipes
-A build can also be described as data, a recipe, which is what the web GUI submits. A
-recipe names the cell, the building blocks (by path, or by sha256 for uploaded files),
-the bond types and the stages, each a cell operation or a repeated group of them:
-```json
-{"recipe_version": 1, "name": "benzene network", "cell": {"box": [30, 30, 30]},
- "fragments": [{"type": "A", "car": "blocks/benzene.car", "csv": "blocks/benzene.csv"}],
- "bond_types": ["A:a-A:a"],
- "stages": [{"op": "seed", "count": 10},
-            {"repeat": 5, "stages": [{"op": "grow", "count": 5}, {"op": "zip", "bond_margin": 1.0}]}],
- "seed": 42}
+See [docs/architecture.md](docs/architecture.md).
+
+## Pore analysis
+
+`cell.poreblazer(exe, threads=N, **settings)`, or the recipe operation `poreblazer`, runs
+[Ambuild's Poreblazer fork](https://github.com/st7ma784/poreblazer), which is upstream 3.0.5 with its OpenMP code
+fixed: the output is identical, and it runs faster on several threads. It reports:
+
+| result | meaning |
+| --- | --- |
+| pore limiting diameter (Å) | the largest sphere that can pass through the pore network: compare with what must pass (a bare Li⁺ is about 1.52 Å across, He 2.6 Å, N₂ about 3.6 Å) |
+| maximum pore diameter (Å) | the largest sphere that fits anywhere |
+| percolated dimensions | in how many directions (0–3) the pore network spans the cell |
+| surface area | accessible surface, in m²/g, m²/cm³ and Å² |
+| helium and geometric volume | pore volume, cm³/g |
+| pore size distribution | differential and cumulative |
+
+`cubelet_size` trades accuracy for speed: 0.3 Å is several times faster than the default
+0.2 Å ([docs/benchmarks.md](docs/benchmarks.md)). `percolation_labelling="exact"` uses exact
+cluster labelling.
+
+## Running many builds
+
+The web GUI (`services/web`) and its agents turn Ambuild into a shared service:
+
+- **Browse** every recorded run: filters by result, step charts, pore size distributions, a 3D structure viewer, and comparisons.
+- **Submit** recipes to a Slurm cluster (one job each, through `deploy/slurm`) or a local or K3s worker.
+- **Sweep** a recipe over a grid of settings, CSV rows or seeds. On Slurm a sweep runs as one array job, and its page plots any result against each setting.
+- **Run campaigns:** give the settings to search and a goal, e.g. "the highest density whose pores still let Li⁺ through". A controller proposes each round with Bayesian optimisation (Optuna), or you or an AI agent do.
+
+A demo runs everything on a laptop:
+
+```sh
+docker compose -f deploy/docker-compose.yml --profile web up -d --build    # http://127.0.0.1:8080
 ```
-```
-python -m ambuild.recipe validate recipe.json
-python -m ambuild.recipe run recipe.json --output runs/benzene
-python -m ambuild.recipe describe      # every operation and its arguments
-python -m ambuild.recipe examples      # recipes shipped with Ambuild, e.g. li_ion_carbon
-python -m ambuild.recipe example li_ion_carbon > li.json && python -m ambuild.recipe run li.json --output runs/li
-```
-The run is recorded (with the recipe among its inputs) and checkpointed after each
-top-level stage and each pass of a top-level repeat. See `ambuild/recipe.py`.
+
+See [deploy/README.md](deploy/README.md) for Slurm, K3s and the Helm chart, and
+[docs/web-gui.md](docs/web-gui.md) for the design.
 
 ## Working with an AI assistant
-`.claude/skills/ambuild/SKILL.md` teaches an AI assistant how to use Ambuild's web GUI:
-finding runs by their results, reading structures, writing recipes, and queuing runs,
-sweeps and campaigns (after showing you a preview). Claude Code picks it up in this
-repository; other agents can be given the file. Its helper,
+
+`.claude/skills/ambuild/SKILL.md` teaches an AI assistant to use the web GUI:
+- find runs by their results;
+- read structures;
+- write recipes;
+- queue runs, sweeps and campaigns, always showing you a preview first.
+
+Claude Code picks it up in this repository, and other agents can be given the file. Its helper,
 `.claude/skills/ambuild/scripts/ambuild_api.py`, is a command-line client for the API that
 people can use too (`--help`).
 
+## Installation
+
+- **To build structures**, you need Python 3.9+ and NumPy:
+  ```sh
+  pip install .                        # or pip install -e . to develop Ambuild
+  ```
+- **For optimisation and MD**, you need HOOMD-blue 4 or later (tested with 7.2). It is not on PyPI; install it from conda-forge:
+  ```sh
+  micromamba create -n ambuild -c conda-forge python=3.12 "hoomd=7.2=cpu*" numpy
+  micromamba activate ambuild && pip install .
+  ```
+  Use `"hoomd=7.2=gpu*"` for CUDA. Running across MPI ranks (`AMBUILD_HOOMD_LAUNCHER`, `srun --ntasks=N`) needs an MPI build of HOOMD-blue from source.
+- **For pore analysis**, you need Poreblazer. Build the fork's `ambuild` branch with gfortran:
+  ```sh
+  git clone -b ambuild https://github.com/st7ma784/poreblazer.git && make -C poreblazer/src
+  export POREBLAZER_EXE=$PWD/poreblazer/src/poreblazer.exe
+  ```
+- **Docker:**
+  - `docker build -t ambuild .` builds everything (about 590 MB). `--target ambuild` leaves out Poreblazer, and `--build-arg HOOMD_VARIANT=gpu` builds for CUDA.
+  - `tests/docker/hoomd7.Dockerfile` is just the HOOMD-blue environment, for running this checkout (`misc/run_ambuild_docker.sh script.py`).
+  - [docs/install.md](docs/install.md) covers installing Docker and NVIDIA support on a Linux host.
+
+Scripts and recipes find their data through:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `AMBUILD_PARAMS_DIR` | `tests/params` in the checkout | parameter files (`ab_util.paramsDir()`, recipes' `"params": null`) |
+| `AMBUILD_BLOCKS_DIR` | `tests/blocks` in the checkout | building blocks (`ab_util.blocksDir()`) |
+| `POREBLAZER_EXE` | `poreblazer.exe` or `poreblazer` on the `PATH` | Poreblazer (`ab_util.poreblazerExe()`) |
+
 ## Running the tests
-With Ambuild installed, the CPU test suite runs without HOOMD-Blue:
+
+```sh
+cd tests && PYTHONHASHSEED=0 python run_tests.py
 ```
-cd tests
-PYTHONHASHSEED=0 python run_tests.py
-```
-Many tests build random structures. `run_tests.py` reseeds Python's random number generator before every test (set `AMBUILD_TEST_SEED` to change the seed) and `PYTHONHASHSEED=0` fixes set ordering, so a run is reproducible.
 
-Tests that need HOOMD-Blue are skipped unless it is installed; `tests/run_tests_docker.sh` runs the full suite in the HOOMD-blue 7 image, building it first if needed.
+Tests that need HOOMD-blue or Poreblazer are skipped without them, and
+`tests/run_tests_docker.sh` runs the full suite in the image. `run_tests.py` reseeds the
+random number generator before each test (`AMBUILD_TEST_SEED`), so runs are reproducible.
+The web GUI, agents and campaign controller have their own tests under `services/`, run
+through Docker Compose ([deploy/README.md](deploy/README.md)).
 
-## Installation of optional dependencies
-### Poreblazer
-Ambuild uses [its fork of Poreblazer](https://github.com/st7ma784/poreblazer), which is upstream [poreblazer](https://github.com/richardjgowers/poreblazer) 3.0.5 with its OpenMP code fixed and enabled: the output is identical to upstream's, and larger cells run several times faster on several threads (`docs/benchmarks.md`). The runtime image already contains it. To build it yourself:
+## Documentation
 
-1. Check out the fork's `ambuild` branch:
-```git clone -b ambuild https://github.com/st7ma784/poreblazer.git```
+| | |
+| --- | --- |
+| [docs/architecture.md](docs/architecture.md) | how runs are recorded, uploaded and stored |
+| [docs/web-gui.md](docs/web-gui.md) | the web GUI, agents, sweeps, campaigns and the agent skill, milestone by milestone |
+| [deploy/README.md](deploy/README.md) | Docker Compose, Slurm, K3s and Helm |
+| [docs/benchmarks.md](docs/benchmarks.md) | HOOMD-blue and Poreblazer performance |
+| [docs/install.md](docs/install.md) | Docker and NVIDIA set-up on a Linux host |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md), [TODO.md](TODO.md) | what changed, and what is planned |
 
-2. Install the [gfortran](https://gcc.gnu.org/wiki/GFortran) compiler. On Ubuntu/Debian, this should just be a case of running:
-```sudo apt-get install gfortran```
-
-3. Compile the poreblazer executable. This is done in the ```src``` directory of the poreblazer directory, so cd into this directory and then run the command: ```make``` This should create the ```poreblazer.exe``` executable in this directory. Set `OMP_NUM_THREADS` (or pass `threads=` to `Cell.poreblazer`) to choose how many threads it uses.
+Ambuild is released under the GNU General Public License v3 (see [LICENSE](LICENSE)).

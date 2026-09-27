@@ -31,7 +31,8 @@ class BondLength(object):
     use by the bondLength function
     """
 
-    def __init__(self, bond_param_file):
+    def __init__(self, bond_param_file, typed=False):
+        self.typed = typed
         self.ATOM_TYPE_BOND_LENGTHS = {}
         for p in read_bond_params(bond_param_file):
             if p.A not in self.ATOM_TYPE_BOND_LENGTHS:
@@ -42,9 +43,13 @@ class BondLength(object):
             else:
                 self.ATOM_TYPE_BOND_LENGTHS[p.A][p.B] = float(p.r0)
 
-    def bondLength(self, atomType1, atomType2):
-        """ Get the characteristic lengths of single bonds as defined in:
+    def bondLength(self, atomType1, atomType2, element1=None, element2=None):
+        """ The length of a bond between two atom types: from the bond parameter file (r0) if
+        it has the pair, else the characteristic length of a single bond between the elements:
             Reference: CRC Handbook of Chemistry and Physics, 87th edition, (2006), Sec. 9 p. 46
+        element1 and element2, when given, are the atoms' elements for that fallback; without
+        them the element is guessed from the atom type's name (so a GAFF "ca" would be taken
+        for calcium: pass the elements).
         """
         # We first see if we can find the bond length in the ATOM_TYPE_BOND_LENGTHS table
         # If not we fall back to using the bonds calculated from element types
@@ -61,8 +66,8 @@ class BondLength(object):
             # print "ATOM TYPE"
             return self.ATOM_TYPE_BOND_LENGTHS[atomType2][atomType1]
 
-        symbol1 = label2symbol(atomType1).upper()
-        symbol2 = label2symbol(atomType2).upper()
+        symbol1 = (element1 or label2symbol(atomType1)).upper()
+        symbol2 = (element2 or label2symbol(atomType2)).upper()
         if (
             symbol1 in xyz_core.ELEMENT_TYPE_BOND_LENGTHS
             and symbol2 in xyz_core.ELEMENT_TYPE_BOND_LENGTHS[symbol1]
@@ -82,20 +87,37 @@ class BondLength(object):
 # This needs to be set to the bondLength function of the BondLength class
 # See cell.Cell_setUtilBondLength
 # We set this to raise an error if unset
-def __STOP(x, y):
+def __STOP(*args):
     raise NotImplementedError(
         "Need to set the bondLength function - see setModuleBondLength"
     )
 
 
 bondLength = __STOP
+junctionLength = __STOP
 
 
-def setModuleBondLength(paramFile):
-    """Set the bondLength function of the util module"""
-    global bondLength
-    BL = BondLength(paramFile)
+def _junctionLength(BL):
+    def junctionLength(atomType1, atomType2, element1, element2):
+        """The length of a bond made between blocks (placing a grown block, checking a new or
+        existing bond): with typed lengths, the atom types' r0 from the bond parameter file
+        (else the elements'); without (the default, as Ambuild always did), the elements'
+        single-bond length. Typed lengths are right when the parameter file's r0 describes
+        the bonds between blocks, e.g. GAFF's ca-c1; they are wrong when it gives a bond
+        inside a block that also joins blocks (a ring bond used between rings)."""
+        if BL.typed:
+            return BL.bondLength(atomType1, atomType2, element1, element2)
+        return BL.bondLength(element1, element2)
+
+    return junctionLength
+
+
+def setModuleBondLength(paramFile, typed=False):
+    """Set the bondLength and junctionLength functions of the util module"""
+    global bondLength, junctionLength
+    BL = BondLength(paramFile, typed=typed)
     bondLength = BL.bondLength
+    junctionLength = _junctionLength(BL)
     return
 
 
@@ -123,11 +145,12 @@ def calcBondsHACK(coords, symbols, bondMargin=0.2):
 
 
 def calcBonds(
-    coords, symbols, dim=None, maxAtomRadius=None, bondMargin=0.2, boxMargin=1.0
+    coords, symbols, dim=None, maxAtomRadius=None, bondMargin=0.2, boxMargin=1.0, elements=None
 ):
     """Calculate the bonds for the fragments. This is done at the start when the only coordinates
     are those in the fragment.
-    symbols can be chemical elements or atomTypes
+    symbols can be chemical elements or atomTypes; with atomTypes, give their elements too, for
+    bond lengths the parameter file does not have
     If supplied cell is a list/numpy array with the dimensions of the simulation cell, in which case
     PBC will be applied
     """
@@ -142,7 +165,10 @@ def calcBonds(
     bonds = []
 
     for i, (idxAtom1, idxAtom2) in enumerate(close):
-        bond_length = bondLength(symbols[idxAtom1], symbols[idxAtom2])
+        if elements is not None:
+            bond_length = bondLength(symbols[idxAtom1], symbols[idxAtom2], elements[idxAtom1], elements[idxAtom2])
+        else:
+            bond_length = bondLength(symbols[idxAtom1], symbols[idxAtom2])
         if bond_length < 0:
             continue
         logger.debug(

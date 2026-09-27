@@ -63,6 +63,7 @@ class RigidParticleManager(object):
         self._positions = {}
         self._types = {}
         self._configStr = {}
+        self._moments = {}  # principal moments of each configuration (updateConfig)
 
     def calcConfigStr(self, idx):
         """Return a 2-letter id str for the index idx"""
@@ -84,6 +85,7 @@ class RigidParticleManager(object):
             refCoords, body.coordsRelativeToCom
         )
         rigidParticle.type = self._configStr[body.rigidConfigStr]
+        rigidParticle.principalMoments = self._moments[body.rigidConfigStr]
         return rigidParticle
 
     def checkConfigStrClashes(self, atomTypes):
@@ -104,10 +106,19 @@ class RigidParticleManager(object):
         self._positions.clear()
         self._types.clear()
         self._configStr.clear()
+        if hasattr(self, "_moments"):
+            self._moments.clear()
 
     def updateConfig(self, body):
         cstr = body.rigidConfigStr
-        if cstr not in self._configStr:
-            self._positions[cstr] = body.coordsRelativeToCom.copy()
+        if not hasattr(self, "_moments"):  # a manager from an older pickle
+            self._moments = {}
+        if cstr not in self._configStr or cstr not in self._moments:
+            # HOOMD-blue's rigid bodies need the constituents in the body's principal frame,
+            # where the inertia tensor is diagonal, and the moments for those axes
+            moments, axes = xyz_core.principalAxes(body.coords, body.masses)
+            self._positions[cstr] = np.dot(body.coordsRelativeToCom, axes)
+            self._moments[cstr] = moments
             self._types[cstr] = copy.copy(body.atomTypes)
-            self._configStr[cstr] = self.calcConfigStr(len(self._positions) - 1)
+            if cstr not in self._configStr:
+                self._configStr[cstr] = self.calcConfigStr(len(self._configStr))

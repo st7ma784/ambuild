@@ -606,6 +606,7 @@ class Fragment(object):
             dim=dim,
             maxAtomRadius=self.maxAtomRadius(),
             bondMargin=0.25,
+            elements=self._symbols,
         )
         self._calcBonded()
         self.setEndGroups(endGroupTypes, endGroups, capAtoms, dihedralAtoms, uwAtoms)
