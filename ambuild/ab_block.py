@@ -77,7 +77,9 @@ class Block(object):
         self._maxAtomRadius = -1
         self._radius = None
         self._blockMass = 0
-        self.id = id(self)
+        # A serial number, given by the cell when the block is added (Cell.addBlock):
+        # blocks are ordered by it, so it must not depend on memory addresses
+        self.id = None
         self._deterministicState = 0  # For keeping track of things during testing
         if self.fragments:
             self._update()
@@ -341,7 +343,7 @@ class Block(object):
     def copy(self):
         """Return a copy of ourselves."""
         new = copy.deepcopy(self)
-        new.id = id(new)
+        new.id = None  # a new block: the cell gives it a new serial number
         return new
 
     def dataByFragment(self, fragmentType):
@@ -415,13 +417,10 @@ class Block(object):
 
         # Bit cludgy - we need to make sure that the root fragment is always first in the list of fragments
         # jmht - consider adding rootFragment attribute?
-        f1list = list(f1set)
-        f1list.remove(f1)
-        f1list.insert(0, f1)
-
-        f2list = list(f2set)
-        f2list.remove(f2)
-        f2list.insert(0, f2)
+        # The rest keep their order in the block (a set of fragments is ordered by memory
+        # address, which would make the atom order, and so the build, irreproducible)
+        f1list = [f1] + [f for f in self.fragments if f in f1set and f is not f1]
+        f2list = [f2] + [f for f in self.fragments if f in f2set and f is not f2]
 
         # Breaking the bond splits the block in two, so we separate the two fragments, keep the largest
         # for ourselves and return the new block. We set f1 and f1set to be the biggest
@@ -459,13 +458,11 @@ class Block(object):
         newBlock.fragments = f2list
         newBlock._blockBonds = f2bonds
         newBlock._update()
-        assert newBlock.id, "newBlock has no id!"
 
         # Update our list of bonds
         self.fragments = f1list
         self._blockBonds = f1bonds
         self._update()
-        assert self.id, "self has no id!"
         return newBlock
 
     def deleteFragment(self, frag):
@@ -829,7 +826,7 @@ class Block(object):
 
             # We can definitely return something so pick a random fragment type and get a random endGroup
             if random:
-                ftype = _random.choice(list(common))
+                ftype = _random.choice(sorted(common))  # sets of strings are ordered by a per-process salt
                 endGroup = _random.choice(self.freeEndGroups(endGroupTypes=[ftype]))
             else:
                 i = self._deterministicState % len(common)

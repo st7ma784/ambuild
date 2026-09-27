@@ -4,8 +4,9 @@
     python3 compare_poreblazer.py run CASE_DIR LABEL OUT.json [--threads 1 2 4 8]
                                      [--visualisation grd] [--labelling poreblazer]
 
-prepare writes the structures once (Ambuild's builds differ between processes, so
-every build must read the same files). run times $POREBLAZER_EXE on each with
+prepare writes the structures once, so every build reads the same files (Ambuild's
+builds were not reproducible between processes when these cases were made; they are
+now, from a seed). run times $POREBLAZER_EXE on each with
 OMP_NUM_THREADS set to each thread count, and records the parsed results and the
 sha256 of psd.txt, psd_cumulative.txt and (with the grd visualisation, the default)
 nitrogen_network.grd, so builds and thread counts can be checked for identical

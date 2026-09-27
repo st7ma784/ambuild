@@ -244,11 +244,18 @@ runtime rather than on the current developer machines.
   script, parameter files, building blocks with hashes, Python/NumPy/HOOMD
   versions (`Cell(recordRun=True)`, `ambuild/ab_run.py`). Poreblazer's version
   is in each `pore_result` event.
-  - Not yet recorded: a random seed (meaningless until builds are
-    reproducible, below) and requested resources (for the service to add).
-- [ ] Make builds reproducible from a seed: `Cell` keeps blocks and end groups
+  - The seed and the random number generator's state are recorded
+    (`run.json` `"random"`, below). Not yet recorded: requested resources (for the
+    service to add).
+- [x] Make builds reproducible from a seed: `Cell` keeps blocks and end groups
   in sets ordered by memory address, so the same seeds give different
   structures. Needed before a recorded seed means anything.
+  - Block ids are serial numbers given by the cell (`Cell.addBlock`); random choices
+    from sets of blocks or type names choose from a sorted list; a split block keeps
+    its fragment order. `Cell(seed=...)` seeds the generator; a recorded run saves its
+    state and `Cell(randomState=<run directory>)` replays it. `tests/testReproducible.py`
+    builds in processes with different hash salts and memory layouts, with a block
+    split and a HOOMD-blue optimisation, and requires identical structures.
 - [x] Emit `step` events for `joinBlocks` and `zipBlocks` (`join` and `zip`, on
   every return path), and record `fragment_types` as a dict in step events (the
   CSV keeps its `defaultdict` repr; the ingest service stores the dict as JSON).
@@ -311,7 +318,9 @@ In order:
   runner that executes it step by step with a checkpoint after each step.
 - [ ] Checkpoint/resume: the runner resumes a recipe from its last checkpoint
   as a child run; on SIGTERM it dumps and exits so Slurm `--requeue` (and
-  preemptible partitions) resume rather than restart.
+  preemptible partitions) resume rather than restart. Pickles do not hold the
+  random number generator's state yet: save it with each checkpoint, so a resumed
+  build continues the same random sequence as an uninterrupted one.
 - [ ] Stage-chained Slurm submission: split long recipes into jobs of N steps
   or a time budget, each resuming from the previous stage's checkpoint, so
   jobs stay short and stages can target CPU or GPU partitions.

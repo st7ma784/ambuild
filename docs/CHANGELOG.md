@@ -16,6 +16,12 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Reproducible builds: the same script and `Cell(..., seed=n)` give the same
+  structure in any process (block ids are serial numbers, not memory addresses;
+  random choices from sets draw from a sorted list; a split block keeps its
+  fragment order). A recorded run saves the seed and the random number
+  generator's state (`run.json` `"random"`, `inputs/random/random_state.json`), and
+  `Cell(randomState=<run directory>)` replays any recorded run.
 - Ambuild's Poreblazer fork, [st7ma784/poreblazer](https://github.com/st7ma784/poreblazer)
   (`ambuild` branch): upstream 3.0.5 with its OpenMP races fixed and both
   hotspots parallelised, built with `-fopenmp`. Output is identical to upstream

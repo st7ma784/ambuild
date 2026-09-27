@@ -236,9 +236,11 @@ The example scripts in `standard_inputs` read the following environment variable
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `AMBUILD_PARAMS_DIR` | `/opt/paramsDir` | Force-field parameter directory |
-| `AMBUILD_BLOCKS_DIR` | `/opt/ambuild/blocks` | Building-block `.car` files (`paf_catalyst_script.py`) |
-| `POREBLAZER_EXE` | `/opt/poreblazer/src/poreblazer.exe` | Poreblazer executable |
+| `AMBUILD_PARAMS_DIR` | `tests/params` in the checkout | Force-field parameter directory (`ab_util.paramsDir()`) |
+| `AMBUILD_BLOCKS_DIR` | `tests/blocks` in the checkout | Building-block `.car` files (`ab_util.blocksDir()`) |
+| `POREBLAZER_EXE` | `poreblazer.exe` or `poreblazer` on the `PATH` | Poreblazer executable (`ab_util.poreblazerExe()`) |
+
+Without the variable or the default, these raise an error naming the variable to set.
 
 ## Recording a run
 Give a cell its own output directory and `recordRun=True` to keep a self-contained record of the build:
@@ -247,6 +249,12 @@ with ab_cell.Cell([30, 30, 30], paramsDir=params, outputDir="runs/my-build", rec
     ...
 ```
 The directory then holds `run.json` (run id, status, versions and inputs), `events.jsonl` (one JSON object per build step, file written and Poreblazer result) and `inputs/` (copies of the script, parameter files and building blocks), next to the usual log, CSV and pickle files. Leaving the `with` block marks the run `finished`, or `failed` if an exception escaped. See [docs/architecture.md](docs/architecture.md).
+
+## Reproducible builds
+Every random choice in a build uses Python's random number generator, so a seed fixes the structure: the same script and `Cell(..., seed=42)` give the same structure on any machine and in any process (`tests/testReproducible.py`). Without a seed, the generator is left as it is (`random.seed()` still works). A recorded run saves the seed and the generator's state (`run.json` `"random"`, `inputs/random/random_state.json`), so any recorded run, seeded or not, can be replayed:
+```python
+cell = ab_cell.Cell([30, 30, 30], paramsDir=params, outputDir="runs/replay", randomState="runs/my-build")
+```
 
 ## Running the tests
 With Ambuild installed, the CPU test suite runs without HOOMD-Blue:

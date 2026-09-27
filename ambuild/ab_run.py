@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import platform
+import random
 import shutil
 import socket
 import subprocess
@@ -164,6 +165,9 @@ class RunRecorder:
                 "params_dir": os.path.abspath(cell.paramsDir),
             },
             "inputs": [],
+            # The seed, if the cell was given one, and the random number generator's state
+            # when recording started: Cell(randomState=<run directory>) replays the run
+            "random": {"seed": getattr(cell, "randomSeed", None), "state": None},
         }
         self._write()
         self.sink = JsonlSink(os.path.join(self.directory, EVENTS_FILE))
@@ -177,7 +181,26 @@ class RunRecorder:
             path = os.path.join(cell.paramsDir, name)
             if os.path.isfile(path):
                 self.addInput(path, "params")
+        self._saveRandomState()
         return
+
+    def _saveRandomState(self):
+        """Save the random number generator's state to inputs/random/random_state.json"""
+        dest = os.path.join(self.directory, *ab_util.RANDOM_STATE_FILE.split("/"))
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest, "w") as f:
+            json.dump(ab_util.randomStateJson(random.getstate()), f)
+        entry = {
+            "kind": "random",
+            "source": None,
+            "path": ab_util.RANDOM_STATE_FILE,
+            "size": os.path.getsize(dest),
+            "sha256": sha256File(dest),
+        }
+        self.run["inputs"].append(entry)
+        self.run["random"]["state"] = ab_util.RANDOM_STATE_FILE
+        self._write()
+        self.cell.analyse.emit(INPUT, entry)
 
     def addInput(self, path, kind, **meta):
         """Copy an input file to inputs/<kind>/ and record it in run.json"""

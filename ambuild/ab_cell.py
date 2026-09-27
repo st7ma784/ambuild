@@ -37,6 +37,13 @@ ENDGROUPSEP = ":"  # Character for separating endGroups in bonds
 logger = logging.getLogger(__name__)
 
 
+
+def _blockOrder(blocks):
+    """blocks sorted by serial number: a random choice from a set must come from a fixed
+    order, or the same seed gives different builds (sets of blocks are ordered by hash)"""
+    return sorted(blocks, key=lambda block: block.id)
+
+
 class Cell:
     """
     classdocs
@@ -54,6 +61,8 @@ class Cell:
         outputDir=None,
         recordRun=False,
         runId=None,
+        seed=None,
+        randomState=None,
     ):
         """Construct an empty cell:
 
@@ -76,6 +85,12 @@ class Cell:
                     provenance), events.jsonl (every event) and inputs/ (copies of the script, parameter
                     files and building blocks). Needs outputDir. See ab_run.
         runId - the id to record the run under (default: a new UUID)
+        seed - seed Python's random number generator, which every random choice in a build uses:
+               the same script and seed give the same structure. Without a seed the generator is
+               left as it is (seeded by random.seed() or by Python at start-up); a recorded run
+               saves its state either way (run.json "random"), so any run can be replayed.
+        randomState - replay a recorded run: its run directory, or its
+                      inputs/random/random_state.json. Not with seed.
         """
         self.outputDir = None
         if outputDir is not None:
@@ -123,6 +138,7 @@ class Cell:
         # dictionary mapping id of the block to the block - can't use a list and indices
         # as we add and remove blocks and need to keep track of them
         self.blocks = collections.OrderedDict()
+        self._nextBlockId = 1  # block ids are serial numbers (addBlock)
         self.lastAdded = None  # Tracks the id of the last block added to the cell
         self.newBonds = []  # Tracks recently added bonds
         self.mdEngineCls = None
@@ -156,6 +172,15 @@ class Cell:
         if boxDim:
             self.setBoxSize(boxDim)
         assert self.dim[0] > 0 and self.dim[1] > 0 and self.dim[2] > 0
+        if seed is not None and randomState is not None:
+            raise ValueError("Give seed or randomState, not both")
+        if seed is not None:
+            _random.seed(seed)
+        elif randomState is not None:
+            _random.setstate(ab_util.loadRandomState(randomState))
+        self.randomSeed = seed  # (self.seed is the method that seeds blocks)
+        if seed is not None:
+            logger.info("Random seed: %s", seed)
         self._runRecorder = None
         self.runId = None
         if recordRun:
@@ -193,9 +218,12 @@ class Cell:
 
     def addBlock(self, block, idxBlock=None):
         """
-        Add the block and put all atoms in their cells
+        Add the block and put all atoms in their cells. A block new to the cell gets the
+        next serial number as its id.
         """
         if idxBlock is None:
+            if block.id is None:
+                block.id = self._newBlockId()
             idxBlock = block.id
         self.blocks[idxBlock] = block
 
@@ -215,6 +243,16 @@ class Cell:
                 # Map the cells surrounding this one
                 self.box3[key] = self.haloCells(key)
         self.lastAdded = idxBlock
+        return idxBlock
+
+    def _newBlockId(self):
+        """The next block serial number. Blocks are identified and ordered by these, not by
+        memory address, so that builds are reproducible from a seed. Cells pickled before
+        serial numbers carry on after the largest id they hold."""
+        if getattr(self, "_nextBlockId", None) is None:
+            self._nextBlockId = max(self.blocks.keys(), default=0) + 1
+        idxBlock = self._nextBlockId
+        self._nextBlockId += 1
         return idxBlock
 
     def addBlocks(self, blocks):
@@ -1160,11 +1198,11 @@ class Cell:
             "cellEndGroupPair got cell/library endGroups: {0}".format(cell2cell)
         )
         # Select a random block/endGroup from the list
-        eg1Type = _random.choice(list(cell2cell.keys()))
-        block1 = _random.choice(list(endGroupTypes2Block[eg1Type]))
+        eg1Type = _random.choice(sorted(cell2cell.keys()))
+        block1 = _random.choice(_blockOrder(endGroupTypes2Block[eg1Type]))
         endGroup1 = block1.selectEndGroup(endGroupTypes=[eg1Type])
         # Pick a random endGroup type that can bond to this
-        eg2Type = _random.choice(list(cell2cell[eg1Type]))
+        eg2Type = _random.choice(sorted(cell2cell[eg1Type]))
         # Select a random block/endGroup of that type
         # (REM: need to remove the first block from the list of possibles hence the difference thing
         # XXX Also need to convert to list as sets don't support random.choice
@@ -1172,7 +1210,7 @@ class Cell:
         # block2 = random.sample( endGroupTypes2Block[ eg2Type ].difference(set([block1])), 1 )[0]
         try:
             block2 = _random.choice(
-                list(endGroupTypes2Block[eg2Type].difference(set([block1])))
+                _blockOrder(endGroupTypes2Block[eg2Type].difference(set([block1])))
             )
             # This will trigger an IndexError if there isn't a free block of the given type
         except IndexError:
@@ -2098,10 +2136,10 @@ class Cell:
         )
         if random:
             # Now we can pick a random endGroup from the cell, get the corresponding library group
-            cellEgT = _random.choice(list(cell2Library.keys()))
+            cellEgT = _random.choice(sorted(cell2Library.keys()))
 
             # First get a block that contains this type of endGroup
-            cellBlock = _random.choice(list(endGroupTypes2Block[cellEgT]))
+            cellBlock = _random.choice(_blockOrder(endGroupTypes2Block[cellEgT]))
 
             # Now select a random endGroup of that type from it
             cellEndGroup = cellBlock.selectEndGroup(
@@ -2110,7 +2148,7 @@ class Cell:
 
             # Now get a corresponding library endGroup
             # We need to pick a random one of the types that we can bond to that is also in libraryTypes
-            libEgT = _random.choice(list(cell2Library[cellEgT]))
+            libEgT = _random.choice(sorted(cell2Library[cellEgT]))
 
             # Now determine the fragmentType and create the block and fragment
             fragmentType = self._endGroup2LibraryFragment[libEgT]
@@ -2125,10 +2163,7 @@ class Cell:
             i = self._deterministicState % len(cell2Library.keys())
             cellEgT = sorted(cell2Library.keys())[i]
             i = self._deterministicState % len(endGroupTypes2Block[cellEgT])
-            # sort blocks by id - what we use is irrelevant, it just needs to be consistent
-            cellBlock = sorted(
-                list(endGroupTypes2Block[cellEgT]), key=lambda block: block.id
-            )[i]
+            cellBlock = _blockOrder(endGroupTypes2Block[cellEgT])[i]
             cellEndGroup = cellBlock.selectEndGroup(
                 endGroupTypes=[cellEgT], random=random
             )

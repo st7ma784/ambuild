@@ -7,6 +7,7 @@ Created on Feb 3, 2013
 Utility functions
 """
 import gzip
+import json
 import logging
 import os
 import pathlib
@@ -51,6 +52,24 @@ def paramsDir():
 def blocksDir():
     """The building-block directory: AMBUILD_BLOCKS_DIR, else tests/blocks in the checkout"""
     return _dataDir("AMBUILD_BLOCKS_DIR", "tests/blocks")
+
+
+RANDOM_STATE_FILE = "inputs/random/random_state.json"  # in a run directory (ab_run)
+
+
+def randomStateJson(state):
+    """random.getstate() as JSON-friendly data"""
+    version, internal, gaussNext = state
+    return {"version": version, "internal": list(internal), "gauss_next": gaussNext}
+
+
+def loadRandomState(path):
+    """The random.getstate() saved in a run directory, or in a random_state.json file"""
+    if os.path.isdir(path):
+        path = os.path.join(path, *RANDOM_STATE_FILE.split("/"))
+    with open(path) as f:
+        data = json.load(f)
+    return (data["version"], tuple(data["internal"]), data["gauss_next"])
 
 
 def poreblazerExe():
