@@ -16,6 +16,10 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Alkyne linker checks in `tests/testLiIonCarbon.py`:
+  - **Linkers:** after optimisation, every linker in `li_ion_carbon` keeps its 1.203 Å triple bond. Each end is bonded to one ring carbon or, on a free end, its own hydrogen, never to another linker; most linkers join two rings.
+  - **Reproducibility:** the same recipe and seed give the identical structure. Placing linear alkynes uses the (anti)parallel alignments that the `vectorAngle` fix below made deterministic.
+  - **Audited build:** 44 linkers; the alkyne carbons are straight to within 1.9°; the closest non-bonded contact is 2.46 Å (H…H). Before optimisation a ring H can sit 1.65 Å from an alkyne carbon, which the recipe's optimisation removes.
 - Biaryl (ring–ring) links with GAFF:
   - **Parameters:** the GAFF set gains `cp`, GAFF's carbon for an aromatic ring linked to another. Where GAFF has no `cp` term, `ca`'s stands in, noted in each row; this is `scripts/gaff_params.py --alias=cp=ca`.
   - **Blocks:** the GAFF blocks' linking carbons are typed `cp`, so one block links correctly to alkynes (1.44 Å) or rings (1.4854 Å). There's a new para-linked block, `benzene_14`.

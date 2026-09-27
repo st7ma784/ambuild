@@ -23,6 +23,7 @@ from ambuild import recipe as ab_recipe
 
 LITHIUM_ION_DIAMETER = 2 * 0.76  # A, bare Li+ (Shannon radius, six-coordinate)
 RING_ALKYNE_BOND = 1.44  # A, GAFF 1.81 ca-c1 r0 (measured Csp-Car about 1.43-1.44 A)
+TRIPLE_BOND = 1.203  # A, acetylene's measured C#C (the acetylene block; rigid in optimisation)
 HAVE_POREBLAZER = bool(os.environ.get("POREBLAZER_EXE") or shutil.which("poreblazer.exe") or shutil.which("poreblazer"))
 
 
@@ -65,6 +66,25 @@ def junctions(box, atoms):
     return lengths, straight, trigonal
 
 
+def linkers(box, atoms):
+    """For each alkyne linker (a pair of fragment-B carbons): (C#C length, what each end
+    is bonded to besides its partner), e.g. (1.203, ("CA", "HB")) for a linker bonded to
+    a ring at one end that still has its hydrogen at the other"""
+    alkyne = [a for a in atoms if a[0] == "C" and a[2] == "B"]
+    result, seen = [], set()
+    for i, a in enumerate(alkyne):
+        j = min((k for k in range(len(alkyne)) if k != i), key=lambda k: _norm(_vec(a[1], alkyne[k][1], box)))
+        if (j, i) in seen:
+            continue
+        seen.add((i, j))
+        ends = []
+        for end, partner in ((a, alkyne[j]), (alkyne[j], a)):
+            ends.append("+".join(sorted(b[0] + b[2] for b in atoms
+                                        if b is not end and b is not partner and _norm(_vec(end[1], b[1], box)) < 1.8)))
+        result.append((_norm(_vec(a[1], alkyne[j][1], box)), tuple(sorted(ends))))
+    return result
+
+
 def withoutOptimisation(recipe):
     body = json.loads(json.dumps(recipe))
     body["stages"][1]["stages"] = [s for s in body["stages"][1]["stages"] if s["op"] != "optimise"]
@@ -103,9 +123,34 @@ class LiIonCarbon(unittest.TestCase):
         placed = [d for d in lengths if abs(d - RING_ALKYNE_BOND) < 0.005]
         self.assertGreater(len(placed), 0.8 * len(lengths), statistics.median(lengths))
 
+    def assertLinkersIntact(self, box, atoms):
+        """Every linker keeps its triple bond, and each end bonds to one ring carbon or
+        (a linker end left free) its own hydrogen: never to another linker"""
+        found = linkers(box, atoms)
+        self.assertGreater(len(found), 20)
+        for length, ends in found:
+            self.assertAlmostEqual(length, TRIPLE_BOND, delta=0.01)
+            self.assertTrue(set(ends) <= {"CA", "HB"}, ends)
+        # most linkers join two rings
+        self.assertGreater(sum(ends == ("CA", "CA") for _, ends in found), len(found) / 2)
+
+    def testBuildIsReproducible(self):
+        """The same recipe and seed give the same structure: placing linear alkynes takes
+        (anti)parallel alignments, where rounding once made the result vary between runs"""
+        body = withoutOptimisation(dict(self.recipe, stages=self.recipe["stages"][:-1]))
+        first = lastStructure(self.build(body))
+        shutil.rmtree(os.path.join(self.tmp, "run"))
+        self.assertEqual(lastStructure(self.build(body)), first)
+        # before optimisation contacts can be close (ring H to alkyne C about 1.65 A), so
+        # only the (rigid) triple bonds are checked here; the ends are, once optimised
+        lengths = [length for length, _ in linkers(*first)]
+        self.assertGreater(len(lengths), 20)
+        self.assertLess(max(abs(d - TRIPLE_BOND) for d in lengths), 0.01, lengths)
+
     @unittest.skipUnless(ab_util.HOOMDVERSION, "Needs HOOMD-blue")
     def testOptimisedJunctionsHaveTheRightGeometry(self):
         box, atoms = lastStructure(self.build(dict(self.recipe, stages=self.recipe["stages"][:-1])))
+        self.assertLinkersIntact(box, atoms)
         lengths, straight, trigonal = junctions(box, atoms)
         self.assertGreater(len(lengths), 20)
         self.assertLess(max(abs(d - RING_ALKYNE_BOND) for d in lengths), 0.05, lengths)
