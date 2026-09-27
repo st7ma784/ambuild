@@ -302,7 +302,7 @@ and a solvated one several times that.
   - `qmc` (Sobol points, for the initial design);
   - `tpe`, the default: Bayesian optimisation with a tree-structured Parzen estimator. It handles constraints and choices, and needs only NumPy and SciPy;
   - `gp`, Gaussian-process Bayesian optimisation with constraints. It needs PyTorch, so it runs in the controller image only;
-  - `external` (added with milestone 7): the controller proposes nothing, and an outside decision-maker supplies each round's points through the API. That decision-maker could be an LLM agent (e.g. Jev, or Claude through the MCP tools) or a person. It sees the trials so far and the goal, and the campaign records who proposed each point, so its choices can be compared with TPE's on the same goal.
+  - `external` (built in milestone 6): the controller proposes nothing, and an outside decision-maker supplies each round's points through the API. That decision-maker could be an LLM agent (e.g. Jev, or Claude following the Ambuild skill) or a person. It sees the trials so far and the goal, and the campaign records who proposed each point, so its choices can be compared with TPE's on the same goal.
 
   Each round asks for `batch_size` points at once (Optuna treats pending points as "constant liars"), so a round fills Slurm in parallel.
 - **Controller**: a small service (`ambuild-campaigns`) that uses only the web API, with an
@@ -327,39 +327,25 @@ and a solvated one several times that.
   - The interesting question is the densest such network that still lets the ions through. As a campaign: maximise density subject to PLD ≥ 1.52 Å (a bare Li⁺; or the solvated size) and percolation in at least one dimension, over box size, grow count per pass, number of passes and zip margin, with 3 replicates per point.
   - This campaign is the milestone's demonstration, alongside the CI check.
 
-## Chat and MCP: talking over experiments
+## Agent skill: letting an AI assistant work with Ambuild
 
-Once runs, sweeps and campaigns are all in the API, engineers can work through an
-assistant instead of forms, for example:
-- "Which of this week's runs let lithium through, and which has the most surface area?"
-- "Why did run 3f2c fail?"
-- "Sweep the zip margin on that recipe with three seeds."
+Rather than hosting a chat page (which would need a model on our backend that knows
+nothing of the tool, and a good deal of hosting code for a nice-to-have), Ambuild gives an
+*existing* assistant what it needs, through the API that already exists:
 
-The interface is not tied to one model. Any LLM agent with a chat interface can use the same tools: Claude through MCP, or an in-house decision model such as Jev, which is tuned to make decisions with little calibration. It can use them over MCP, or over the plain HTTP API the tools wrap. It can also steer a campaign itself (method `external`: it proposes each round's points, and the controller queues and scores them).
-
-- **MCP server** (`ambuild-mcp`, a new package, using the Model Context Protocol's Python SDK). It uses only the web API, with a token like an agent's but for a person, so it never touches the database.
-  - It serves stdio, for Claude Code, Claude Desktop or an IDE on an engineer's machine, and streamable HTTP beside the web GUI, for shared use.
-- **Tools** (each a thin wrapper over an API call, returning compact JSON with links to the pages):
-  - *read*:
-    - `search_runs` (filters as on the Runs page), `get_run` (provenance, steps, Poreblazer results, errors and the event log's tail), `compare_runs`, `get_structure` (a checkpoint's extended XYZ, or a summary: atoms, fragments, box);
-    - `list_recipes`, `get_recipe`, `describe_operations`, `validate_recipe`, `preview_sweep`;
-    - `queue_status`, `get_sweep`, `get_campaign`;
-  - *write*: `submit_run`, `create_sweep`, `create_campaign`, `cancel`.
-    - They are off unless the token allows them. The MCP client's own confirmation applies, and the server first returns a preview (runs, estimated core-hours) and acts only when called again with the preview's id.
-    - Everything is recorded with the owner "*name* via assistant".
-- **Resources and prompts**: the recipe format, the example recipes, and a run's `run.json` as resources. Prompts for common jobs: "explain this run", "compare these runs", "design a sweep towards a goal", "turn this goal into a campaign".
-- **Chat page** in the web GUI: an assistant panel that uses the same tools on the server side, through the Claude API.
-  - The model is configurable, defaulting to the latest Claude model. An OpenAI-compatible endpoint allows a local model for a lab that must keep data in house.
-  - Tool calls are shown as they happen, and write actions appear as a preview with a Confirm button.
-  - Conversations are kept per owner, and can be linked from a run or a sweep.
-- **Data and safety**:
-  - Sending run data to an external model is the lab's decision: the chat page is off until an API key or a local endpoint is configured, and the status page says which is in use.
-  - Tokens are per person and revocable; write tools need confirmation and respect a per-request run budget; nothing can delete runs.
-  - With accounts (milestone 10), the MCP token becomes the account's.
-- **Tests**:
-  - a scripted MCP client in CI calls every tool against the Compose stack (the same data as the web tests) and checks the answers;
-  - write tools are tested for the preview-then-confirm flow;
-  - the chat page is tested with a stub model that replays tool calls, so CI needs no API key.
+- **`.claude/skills/ambuild/SKILL.md`**: a skill (plain markdown with a short header). Claude Code picks it up in this repository, or it can be copied to `~/.claude/skills/`. Any other agent, e.g. Jev, can be handed the same file. It explains:
+  - what Ambuild builds, and what the results mean (PLD against the size of what must pass, e.g. a bare Li⁺ at 1.52 Å; percolation; surface area; density);
+  - recipes, sweeps and campaigns, with examples;
+  - how to steer an `external` campaign round by round;
+  - what to do when things fail;
+  - the rules: preview first and queue nothing without the user's agreement, start small, compare over seeds, and cite runs with links.
+- **`.claude/skills/ambuild/scripts/ambuild_api.py`**: a standard-library command-line client that the skill tells the assistant to use (and that people can use too). Every command prints compact JSON with links to the pages. It covers:
+  - `status`, `agents`, `runs`, `run`, `events`, `structure`, `recipes`, `recipe`, `format`, `paths`, `validate`, `save`;
+  - `submit`, `queue`, `submission`, `cancel`, `sweep`, `sweep-get`, `campaign`, `campaign-get`, `propose`, `campaign-action`.
+  
+  It uploads a recipe's local files and swaps in their references. Every command that queues or changes work only previews unless given `--yes`.
+- The HTTP API stays the one interface, with nothing to host. An MCP server could still be added later as a thin wrapper over the same commands, if an MCP-only client needs it.
+- **Check**: the local end-to-end check (`check_submit.py`, CI job `agent`) drives the helper as an assistant would: it validates a recipe with local files, checks that submitting without `--yes` only previews, submits, follows the run, reads its results and structure, and confirms that the same recipe and seed built the same structure again.
 
 ## Other features, in scope
 
@@ -455,7 +441,7 @@ bundle (~1 MB) rather than full Plotly (~3.5 MB).
 | `GET /api/runs/{id}/structures` | the viewable structures, by step |
 | `GET /api/sweeps/{id}` | a sweep and its runs' results |
 | `POST /api/campaigns`, `GET /api/campaigns[/{id}]`, `POST /api/campaigns/{id}/{pause,resume,stop}` | goal-directed campaigns: define, follow and control |
-| MCP (`ambuild-mcp`), `POST /api/chat` | an assistant over the same API: tools for runs, recipes, sweeps and campaigns (milestone 7) |
+| `.claude/skills/ambuild` (`SKILL.md`, `scripts/ambuild_api.py`) | the agent skill: an existing AI assistant uses the API above through the helper (milestone 7) |
 | `GET /api/status` | the connectivity cards |
 | `POST /api/agent/heartbeat`, `POST /api/agent/claim`, `PATCH /api/agent/submissions/{id}` | agent endpoints: bearer token, identifying the agent |
 
@@ -472,14 +458,14 @@ Each milestone is deployable on its own and has a check that says it is done.
 | 4 ✅ | **Slurm agent**: token API for agents; claims, stages inputs, submits through the sbatch scripts, tracks state, cancels, heartbeats; agent cards and token management on the status page (c); live progress | a run queued in the browser runs on Slurm (the `slurm-test` container in CI) and its page updates while it runs; cancelling scancels it |
 | 5 ✅ | **Batches and sweeps (a, b)**: seed lists, parameter grids, CSV; one array job per sweep; sweep page with scatter plots | a 3×3 grid sweep runs as one array, and its page plots a result against both parameters |
 | 6 ✅ | **Campaigns (goal-directed sweeps)**: constraints and an objective over results, parameters as recipe pointers, replicates; Optuna ask-and-tell (random, QMC, TPE, GP) in the `ambuild-campaigns` controller; each round queued as a batch; campaign page with best-so-far and parameter plots | in the Slurm test container, a campaign aiming at a target density over box size and grow count meets it in fewer runs than the equivalent grid, and every trial links to its runs |
-| 7 | **Chat and MCP**: an MCP server (`ambuild-mcp`) over the web API with tools to search, compare and explain runs, read structures and results, validate recipes, and propose runs, sweeps and campaigns; a chat page in the web GUI using the same tools; write actions need the user's confirmation and are recorded | from an MCP client (e.g. Claude Code or Claude Desktop) and from the chat page, an engineer asks which runs have a pore limiting diameter above 1.52 Å and the highest surface area and gets the right runs with links; asks for a 3-seed sweep of box size on the Li-ion recipe, is shown the preview, confirms, and it runs; CI drives the tools with a scripted client |
+| 7 ✅ | **Agent skill**: `SKILL.md` for existing AI assistants (Claude Code, or any agent such as Jev) and a standard-library API client beside it; preview-then-confirm for everything that queues work; `external` campaigns steered by the assistant; an optional MCP wrapper later | an assistant following the skill finds runs by their results, validates and submits a recipe (after a preview) and reads back its run and structure; CI drives the helper end to end |
 | 8 | **Checkpoint cache, resume and fork**: cache keyed by recipe prefix, seed, inputs and version; resume failed runs; run again / fork | resubmitting a finished recipe with the same seed starts from its final checkpoint and finishes in seconds with the same structure |
 | 9 | **Hardening**: audit, notifications, retention, metrics, the Python client, the Helm chart deployed through Fleet to Rancher | the chart deploys from Git through Fleet; a sweep's owner gets an email when it finishes |
 | 10 | **Accounts**: local accounts, sessions and roles; existing owner names mapped to accounts; then the lab's SSO (OIDC) | a user signs in locally; later, with SSO, the same user keeps their runs |
 
 Milestones 0–2 need no queue and no changes to how builds run, so they deliver the run
 and results browser early; 3–4 are the submission path; 5–9 build on it: 6 (campaigns) on 4 and 5, and 7
-(chat and MCP) on 6, so an assistant can run the experiments it discusses.
+(the agent skill) on 6, so an assistant can run the experiments it discusses.
 
 **As built in milestone 3.**
 
@@ -568,7 +554,7 @@ and results browser early; 3–4 are the submission path; 5–9 build on it: 6 (
   - Data: `campaigns` and `trials` tables. Each round is queued as a sweep, so on Slurm it is one array job, and `submissions.trial_id` links each run to its trial. Scores are computed from the runs when read, not stored.
   - Pages: a campaign list; a New campaign page (starting from the Li-ion showcase spec) with Check; a campaign page. The campaign page shows the goal, runs used against the budget, the next step, the best trial with links to its runs, a progress chart (each trial's value and the best feasible so far), each parameter against the objective (feasible and not), and the trials table. It has pause, resume, stop (cancelling unfinished runs), "Add runs to the budget", and "Propose points yourself".
   - API: `POST /api/campaigns` (with `preview`), `GET /api/campaigns[/{id}]`, `POST /api/campaigns/{id}/rounds` (points from the controller or from outside), `/finish`, `/budget`, and `/{pause,resume,stop}`.
-- **`external` is built already**: the rounds endpoint is open to any client, so a person or an LLM agent (e.g. Jev) can steer a campaign now. The controller only ends such campaigns. The MCP tools arrive with milestone 7.
+- **`external` is built already**: the rounds endpoint is open to any client, so a person or an LLM agent (e.g. Jev) can steer a campaign now. The controller only ends such campaigns. The agent skill (milestone 7) shows an assistant how.
 - **Controller** (`services/campaigns`, image `ambuild-campaigns`; an agent-style token of kind `campaigns`, with its own card on the status page):
   - Every 10 s, for each active campaign, it follows the web GUI's `decide`: it finishes the campaign with the reason, waits, or proposes a round.
   - `tpe`, `gp` and `random` use Optuna 5's ask-and-tell interface. The study is rebuilt from the trials each time, with constraints passed as each trial's constraint values (at most 0 where met: the share of seeds short of `feasible_fraction`), and the sampler seeded from the trial count. So campaigns are reproducible: two runs of the CI campaign chose identical points.

@@ -68,8 +68,8 @@ runtime rather than on the current developer machines.
 
 The web GUI and its API are planned in [docs/web-gui.md](docs/web-gui.md): milestones
 0–10, from the status page and run browser to submission through a Slurm agent, sweeps,
-goal-directed campaigns (Bayesian search for structures meeting a target), chat
-over experiments (an MCP server and a chat page),
+goal-directed campaigns (Bayesian search for structures meeting a target), an
+agent skill so AI assistants can run and discuss experiments,
 the checkpoint cache, a Fleet-deployed Helm chart and, last, accounts. The items below
 are covered there.
 
@@ -363,11 +363,10 @@ In order:
   pore limiting diameter above an ion's size, each round queued on Slurm.
   Showcase: the densest `li_ion_carbon` network (benzene + alkyne linkers)
   whose pores still admit Li+ (PLD >= 1.52 A, percolating).
-- [ ] Chat over experiments (web GUI milestone 7): an MCP server over the web
-  API (search, compare and explain runs; propose runs, sweeps and campaigns,
-  confirmed before they run) and a chat page using the same tools. Model
-  agnostic: any LLM agent (e.g. Jev) can use the tools, and can steer a
-  campaign itself (method "external": it proposes each round's points).
+- [x] AI assistants working with Ambuild (web GUI milestone 7): an agent skill,
+  `.claude/skills/ambuild/SKILL.md`, and its API helper, rather than a hosted chat
+  page. Claude Code (or any agent, e.g. Jev) can search and explain runs and
+  queue runs, sweeps and campaign rounds after previewing them with the user.
 - [ ] Force-field parameters for sp (alkyne) carbon, type `c1`: the bundled
   parameters give its bond lengths only (k = 0), so `li_ion_carbon` cannot be
   optimised or run through MD until angle, dihedral and pair terms (e.g. from

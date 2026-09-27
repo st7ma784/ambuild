@@ -16,6 +16,10 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- An agent skill for AI assistants (web GUI milestone 7): `.claude/skills/ambuild/SKILL.md`, which Claude Code picks up in this repository and any agent (e.g. Jev) can be given, and `scripts/ambuild_api.py`, a standard-library client for the web API.
+  - With them an assistant can search and explain runs and their results, read structures, write and check recipes, and queue runs, sweeps and campaigns, or steer an `external` campaign, always previewing first and queuing only with `--yes` after the user agrees.
+  - This replaces the planned chat page and MCP server: nothing new to host.
+  - The local end-to-end check drives the helper.
 - Web GUI, milestone 6: campaigns, sweeps that aim at a goal.
   - `ambuild/campaign.py` checks a campaign (parameters as recipe pointers with bounds or choices; constraints and an objective over the run results; replicate seeds; budget; stop rules), scores trials from their replicate runs, and decides when to stop or propose more.
   - The web GUI queues each round as a sweep (one Slurm array job), with campaign pages (progress, each parameter against the objective, the trials and their runs, pause, resume, stop, and extending the budget) and `/api/campaigns`, including `/rounds` for points proposed from outside (method `external`: a person or an LLM agent).
@@ -26,7 +30,6 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   - `tests/testLiIonCarbon.py` checks the network and, with Poreblazer, that its pores let lithium ions through: PLD above a bare Li⁺'s 1.52 Å, and percolating. The default build gives 12.8 Å at 0.26 g/cm³.
 - Building blocks `benzene_135` (benzene linked at 1,3,5; C–C 1.39 Å, C–H 1.08 Å) and `acetylene` (C≡C 1.203 Å, C–H 1.063 Å).
 - Bond lengths for sp carbon (type `c1`) in the bundled parameters: c1–c1, c1–hc, c1–cp. They carry r0 only, with k = 0, for building; HOOMD-blue stops with a list of the missing angle and pair terms if an optimisation is attempted.
-- Planned: chat over experiments (docs/web-gui.md, milestone 7). An MCP server over the web API, and a chat page using the same tools, to search, compare and explain runs and to propose runs, sweeps and campaigns that the engineer confirms. Later milestones move up one number.
 - Web GUI, milestone 5: sweeps.
   - `ambuild/sweep.py` expands a recipe over a grid of parameter values (JSON pointers into the recipe), rows of a CSV file, and seed lists, checking every point.
   - The web GUI queues a sweep as one submission per run, with a New sweep page (preview, and the recipe's settings with their pointers), a sweeps list, and a sweep page. The sweep page plots any result against each parameter (one line per value of the others) above a table of the runs and their results. There are cancel and retry for a whole sweep, and `/api/sweeps`.

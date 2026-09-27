@@ -279,6 +279,14 @@ python -m ambuild.recipe example li_ion_carbon > li.json && python -m ambuild.re
 The run is recorded (with the recipe among its inputs) and checkpointed after each
 top-level stage and each pass of a top-level repeat. See `ambuild/recipe.py`.
 
+## Working with an AI assistant
+`.claude/skills/ambuild/SKILL.md` teaches an AI assistant how to use Ambuild's web GUI:
+finding runs by their results, reading structures, writing recipes, and queuing runs,
+sweeps and campaigns (after showing you a preview). Claude Code picks it up in this
+repository; other agents can be given the file. Its helper,
+`.claude/skills/ambuild/scripts/ambuild_api.py`, is a command-line client for the API that
+people can use too (`--help`).
+
 ## Running the tests
 With Ambuild installed, the CPU test suite runs without HOOMD-Blue:
 ```
