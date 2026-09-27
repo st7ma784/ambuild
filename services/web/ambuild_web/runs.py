@@ -90,6 +90,32 @@ def _psdCharts(poreRows, labelFor=None):
     return charts
 
 
+def _poreStepCharts(poreRows):
+    """Poreblazer results against step, when a build has results at two or more steps"""
+    rows = [p for p in poreRows if p["step"] is not None]
+    if len({p["step"] for p in rows}) < 2:
+        return []
+    charts = []
+    for column, title in (("surface_area_m2_g", "surface area (m²/g)"),
+                          ("pore_limiting_diameter_a", "pore limiting diameter (Å)"),
+                          ("helium_volume_cm3_g", "helium volume (cm³/g)")):
+        points = sorted((p["step"], p[column]) for p in rows if p[column] is not None)
+        if points:
+            charts.append({"id": "pore-" + column, "title": title, "xlabel": "step", "ylabel": title,
+                           "series": [{"label": title, "x": [q[0] for q in points], "y": [q[1] for q in points]}]})
+    return charts
+
+
+def _structureSpec(run):
+    """The viewer's frames: each structure file's step and where to fetch it"""
+    runId = run["summary"]["run_id"]
+    frames = [{"step": f["step"], "path": f["path"], "kind": f["kind"], "size": f["size"],
+               "url": "/runs/{0}/files/{1}?inline=1".format(runId, quote(f["path"]))}
+              for f in run["structures"]]
+    box = (run["run"]["run_json"].get("cell") or {}).get("box_dim")
+    return {"box": box, "frames": frames}
+
+
 # --- pages
 
 @router.get("/runs", response_class=HTMLResponse, include_in_schema=False)
@@ -116,6 +142,7 @@ def runPage(request: Request, runId: str):
     return request.app.state.render(
         request, "run.html", r=run, s=summary, run_json=run["run"]["run_json"],
         step_charts=_stepCharts(run["steps"]), psd_charts=_psdCharts(run["pore_results"]),
+        pore_step_charts=_poreStepCharts(run["pore_results"]), structure=_structureSpec(run),
         events=firstEvents, next_offset=len(firstEvents) if len(firstEvents) == 100 else None,
         run_json_text=json.dumps(run["run"]["run_json"], indent=2, default=str),
         quote=quote)
@@ -224,6 +251,14 @@ def apiRun(request: Request, runId: str):
     with db.connect(request.app.state.settings) as conn:
         run = _runOr404(conn, runId)
     return jsonable_encoder(run)
+
+
+@router.get("/api/runs/{runId}/structures", tags=["runs"])
+def apiRunStructures(request: Request, runId: str):
+    """The run's viewable structures (extended XYZ, one per checkpoint), by step, and its box"""
+    with db.connect(request.app.state.settings) as conn:
+        run = _runOr404(conn, runId)
+    return jsonable_encoder(_structureSpec(run))
 
 
 @router.get("/api/runs/{runId}/events", tags=["runs"])

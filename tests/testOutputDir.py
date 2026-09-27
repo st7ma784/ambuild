@@ -86,6 +86,43 @@ class Test(unittest.TestCase):
         self.assertEqual(len(fromdata), mycell.numAtoms())
         self.assertEqual([a[0] for a in fromdata], [a[2] for a in expected])  # symbols as labels
 
+    def testDumpWritesStructure(self):
+        """dump() writes step_N.xyz: extended XYZ with the cell, wrapped positions, fragment
+        types and block ids, readable back to the same atoms"""
+        import numpy as np
+        from context import xyz_core
+
+        mycell = ab_cell.Cell([20, 20, 20], paramsDir=PARAMS_DIR, outputDir=os.path.join(self.tmpdir, "run"),
+                              seed=5)
+        mycell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "ch4.car"), fragmentType="A")
+        mycell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "benzene2.car"), fragmentType="B")
+        mycell.addBondType("A:a-B:a")
+        mycell.seed(4)
+        mycell.growBlocks(3, cellEndGroups=None, libraryEndGroups=None, maxTries=50)
+        mycell.dump()
+        expected = []
+        for block in mycell.blocks.values():
+            for i, coord in enumerate(block.iterCoord()):
+                wrapped, _ = xyz_core.wrapCoord3(coord, np.array([20.0, 20.0, 20.0]), center=False)
+                expected.append((block.symbol(i), wrapped, block.fragmentType(i), block.id))
+        step = mycell.analyse.step
+        mycell.close()
+        with open(os.path.join(self.tmpdir, "run", "step_1.xyz")) as f:
+            lines = f.read().splitlines()
+        self.assertEqual(int(lines[0]), len(expected))
+        self.assertIn('Lattice="20.000000 0.0 0.0 0.0 20.000000 0.0 0.0 0.0 20.000000"', lines[1])
+        self.assertIn("Properties=species:S:1:pos:R:3:fragment:S:1:block:I:1", lines[1])
+        self.assertIn("step={0}".format(step), lines[1])
+        self.assertEqual(len(lines) - 2, len(expected))
+        for line, (symbol, wrapped, fragment, blockId) in zip(lines[2:], expected):
+            fields = line.split()
+            self.assertEqual(fields[0], symbol)
+            np.testing.assert_allclose([float(x) for x in fields[1:4]], wrapped, atol=1e-6)
+            self.assertTrue(all(0.0 <= float(x) <= 20.0 for x in fields[1:4]))
+            self.assertEqual(fields[4], fragment)
+            self.assertEqual(int(fields[5]), blockId)
+        self.assertEqual({e[2] for e in expected}, {"A", "B"})
+
     def testTwoCellsSeparateDirs(self):
         cell1 = self.makeCell(os.path.join(self.tmpdir, "run1"))
         cell2 = self.makeCell(os.path.join(self.tmpdir, "run2"))

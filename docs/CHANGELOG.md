@@ -16,6 +16,14 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Web GUI, milestone 2: the structure viewer. `Cell.dump()` also writes `step_N.xyz`,
+  an extended XYZ with the cell lattice, the step, and each atom's fragment type and
+  block id (positions wrapped into the cell), recorded as a `structure` artifact. Run
+  pages show every checkpoint in a 3Dmol.js viewer (vendored) with a step slider, the
+  cell drawn, colouring by element, fragment type or block, fragment types hidden or
+  shown, full screen and a PNG screenshot; older runs fall back to their XYZ files.
+  Poreblazer results are plotted against the step when a build has several.
+  `GET /api/runs/{id}/structures` lists the frames.
 - Web GUI, milestone 1: the run browser. A run list filtered by status, text (run
   id, script, command, host) and ranges of surface area and pore limiting diameter,
   sortable and paged, with Poreblazer results from child runs shown on their build;

@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
 {% block title %}{{ s.label }} · {{ title }}{% endblock %}
+{% block scripts %}{% if structure.frames %}
+  <script src="/static/3Dmol-min.js" defer></script>
+  <script src="/static/viewer.js" defer></script>
+{% endif %}{% endblock %}
 {% block content %}
 {% set env = run_json.get("environment", {}) %}
 {% set cell = run_json.get("cell", {}) %}
@@ -25,6 +29,30 @@
   <div><dt>Slurm job</dt><dd>{{ s.slurm_job_id or "–" }}</dd></div>
 </dl>
 {% if run_json.command %}<p class="command"><span class="note">Command</span> <code>{{ run_json.command | join(" ") }}</code></p>{% endif %}
+
+<section>
+  <h2>Structure</h2>
+  {% if structure.frames %}
+  <div id="structure-viewer" class="viewer">
+    <div class="viewer-controls">
+      <label for="frame">Checkpoint</label>
+      <input type="range" id="frame" min="0" max="0" step="1" value="0" aria-describedby="frame-step-label">
+      <span id="frame-step-label" class="note">step <span id="frame-step">–</span> ({{ structure.frames | length }} structure{{ "" if structure.frames | length == 1 else "s" }})</span>
+      <label for="colour-by">Colour by</label>
+      <select id="colour-by"><option value="element">element</option><option value="fragment">fragment type</option><option value="block">block</option></select>
+      <label for="style">Style</label>
+      <select id="style"><option value="auto">automatic</option><option value="stick">sticks</option><option value="sphere">spheres</option><option value="line">lines</option></select>
+      <label class="check"><input type="checkbox" id="show-box" checked> cell</label>
+      <button type="button" id="viewer-fullscreen">Full screen</button>
+      <button type="button" id="viewer-screenshot">Save image</button>
+    </div>
+    <div class="viewer-fragments"></div>
+    <div class="viewer-canvas" role="img" aria-label="3D view of the structure"></div>
+    <p class="viewer-status note" aria-live="polite">Loading…</p>
+  </div>
+  <script type="application/json" id="structure-data">{{ structure | tojson }}</script>
+  {% else %}<p class="empty">No structure files. Runs recorded with this version write one with each checkpoint (<code>step_N.xyz</code>).</p>{% endif %}
+</section>
 
 {% if r.parent or r.children %}
 <section>
@@ -106,6 +134,10 @@
     </table>
   </div>
   <div class="charts">{% for c in psd_charts %}{{ m.chart(c, 240) }}{% endfor %}</div>
+  {% if pore_step_charts %}
+  <h3>Over the build</h3>
+  <div class="charts">{% for c in pore_step_charts %}{{ m.chart(c) }}{% endfor %}</div>
+  {% endif %}
   {% else %}<p class="empty">No Poreblazer results for this run or its child runs.</p>{% endif %}
 </section>
 

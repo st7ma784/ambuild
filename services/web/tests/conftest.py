@@ -26,8 +26,19 @@ def pore(step, sa, pld, directory):
     }
 
 
+def structure(step, natoms=6):
+    """An extended XYZ checkpoint, as Cell.writeStructure writes it"""
+    lines = ["{0}".format(natoms),
+             'Lattice="25.000000 0.0 0.0 0.0 25.000000 0.0 0.0 0.0 25.000000" '
+             'Properties=species:S:1:pos:R:3:fragment:S:1:block:I:1 pbc="T T T" step={0}'.format(step)]
+    for i in range(natoms):
+        lines.append("{0} {1:.6f} {2:.6f} {3:.6f} {4} {5}".format(
+            "C" if i % 2 == 0 else "H", 1.0 + i, 2.0 + step, 3.0, "A" if i < natoms // 2 else "B", 1 + i // 3))
+    return ("\n".join(lines) + "\n").encode()
+
+
 def writeRun(path, name, status="finished", parentRunId=None, seed=None, nsteps=3, pores=(), error=None,
-             extraFiles=None):
+             extraFiles=None, structures=(), xyzArtifact=False):
     """A run directory in the format of ambuild.ab_run; returns (run id, {relpath: bytes})"""
     runId = str(uuid.uuid4())
     script = "inputs/script/webtest-{0}-{1}.py".format(TOKEN, name)
@@ -39,6 +50,8 @@ def writeRun(path, name, status="finished", parentRunId=None, seed=None, nsteps=
         "final.xyz": b"2\ncell\nC 0 0 0\nH 1 0 0\n",
     }
     files.update(extraFiles or {})
+    for step in structures:
+        files["step_{0}.xyz".format(step)] = structure(step)
     for rel, content in files.items():
         full = os.path.join(path, *rel.split("/"))
         os.makedirs(os.path.dirname(full), exist_ok=True)
@@ -72,6 +85,12 @@ def writeRun(path, name, status="finished", parentRunId=None, seed=None, nsteps=
             "potential_energy": -1.5 * i, "num_tries": i, "fragment_types": {"A": 3 * i}, "file_count": i}})
     events.append({"type": "artifact", "step": nsteps, "timestamp": 20.0,
                    "data": {"relpath": "step_1.pkl.gz", "kind": "pickle", "path": "/x/step_1.pkl.gz"}})
+    for step in structures:
+        events.append({"type": "artifact", "step": step, "timestamp": 20.0 + step,
+                       "data": {"relpath": "step_{0}.xyz".format(step), "kind": "structure"}})
+    if xyzArtifact:  # a run from before structure files: only writeXyz output
+        events.append({"type": "artifact", "step": nsteps, "timestamp": 25.0,
+                       "data": {"relpath": "final.xyz", "kind": "xyz"}})
     for p in pores:
         events.append({"type": "pore_result", "step": p["step"], "timestamp": 21.0, "data": p["result"]})
     if status != "running":
@@ -96,12 +115,12 @@ def recorded(tmp_path_factory):
 
     root = tmp_path_factory.mktemp("runs")
     runs = {}
-    a, filesA = writeRun(str(root / "a"), "alpha", seed=11, nsteps=3,
+    a, filesA = writeRun(str(root / "a"), "alpha", seed=11, nsteps=3, structures=(2, 1, 3),
                          pores=[{"step": 3, "result": pore(3, 1500.0, 7.5, "/runs/a/poreblazer_1")}],
                          extraFiles={"notes/odd name & more.txt": b"a file with an awkward name\n"})
     child, filesChild = writeRun(str(root / "child"), "alpha-child", parentRunId=a, nsteps=0,
                                  pores=[{"step": 2, "result": pore(2, 1400.0, 7.0, "/runs/child/poreblazer_2")}])
-    b, filesB = writeRun(str(root / "b"), "beta", status="failed", seed=12, nsteps=2,
+    b, filesB = writeRun(str(root / "b"), "beta", status="failed", seed=12, nsteps=2, xyzArtifact=True,
                          error="RuntimeError: deliberate failure")
     c, filesC = writeRun(str(root / "c"), "gamma", seed=13, nsteps=4,
                          pores=[{"step": 4, "result": pore(4, 2600.0, 11.0, "/runs/c/poreblazer_1")}])

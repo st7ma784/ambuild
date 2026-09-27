@@ -144,3 +144,17 @@ figure.chart figcaption { font-size: 13px; font-weight: 600; margin: 0 0 4px 4px
 details { margin: 8px 0; }
 summary { cursor: pointer; color: var(--accent); }
 pre.json { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow: auto; max-height: 480px; font-size: 12px; }
+
+/* --- structure viewer */
+h3 { font-size: 15px; margin: 18px 0 6px; font-weight: 600; }
+.viewer { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; }
+.viewer-controls, .viewer-fragments { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 13px; }
+.viewer-controls label:not(.check) { color: var(--muted); font-size: 12px; }
+.viewer-controls select { font: inherit; padding: 3px 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--bg); color: var(--ink); }
+.viewer-controls input[type=range] { width: min(260px, 60vw); }
+.viewer-fragments { margin-top: 6px; }
+.viewer-fragments .check { display: flex; gap: 4px; align-items: center; }
+.viewer-canvas { position: relative; width: 100%; height: 480px; margin-top: 8px; border-radius: 4px; overflow: hidden; }
+.viewer-status { margin: 6px 0 0; }
+#structure-viewer:fullscreen { padding: 16px; overflow: auto; }
+#structure-viewer:fullscreen .viewer-canvas { height: calc(100vh - 120px); }
