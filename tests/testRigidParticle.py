@@ -42,20 +42,39 @@ class Test(unittest.TestCase):
         )
 
         b1 = list(f1.bodies())[0]
-        quat_origin = np.array([1.0, 0.0, 0.0, 0.0])
         self.assertEqual(rigidParticleMgr.configStr(b1), pfx + "AA")
 
-        # Rotate fragment and see if we get a different orientation
-        axis = np.array([1, 0, 0])
-        angle = math.pi / 3
-        rotationMatrix = xyz_core.rotation_matrix(axis, angle)
+        # Each reference is in its body's principal frame (as HOOMD-blue needs): its inertia
+        # tensor is diagonal, with the particle's moments, none negative
+        for body, rp in zip(f1.bodies(), rigidParticles):
+            ref = np.asarray(rigidParticleMgr._positions[body.rigidConfigStr])
+            inertia = xyz_core.momentOfInertia(ref, np.asarray(body.masses))
+            self.assertTrue(np.allclose(inertia, np.diag(np.diag(inertia)), atol=1e-6))
+            self.assertTrue(np.allclose(np.diag(inertia), rp.principalMoments, atol=1e-6))
+            self.assertTrue(all(m >= 0 for m in rp.principalMoments))
+            # and the orientation turns the reference into the body's coordinates
+            placed = np.asarray(xyz_core.rotate_quaternion(ref, rp.orientation))
+            self.assertTrue(np.allclose(placed, body.coordsRelativeToCom, atol=1e-6))
+
+        # A rotated fragment gets a new orientation that still reproduces its coordinates
+        rotationMatrix = xyz_core.rotation_matrix(np.array([1, 0, 0]), math.pi / 3)
         f1.rotate(rotationMatrix, f1._centerOfMass)
         b1 = list(f1.bodies())[0]
-        ref_q = np.array([0.866, 0.5, 0.0, 0.0])
-        self.assertTrue(
-            np.allclose(rigidParticles[0].orientation, quat_origin, rtol=0.0001)
-        )
+        rp = rigidParticleMgr.createParticle(b1)
+        self.assertFalse(np.allclose(rp.orientation, rigidParticles[0].orientation, atol=1e-3))
+        placed = np.asarray(xyz_core.rotate_quaternion(rigidParticleMgr._positions[b1.rigidConfigStr], rp.orientation))
+        self.assertTrue(np.allclose(placed, b1.coordsRelativeToCom, atol=1e-6))
         return
+
+    def testLinearBodyHasAZeroMoment(self):
+        """A linear body (acetylene) has one principal moment exactly zero, the others equal"""
+        frag = ab_fragment.Fragment(filePath=os.path.join(BLOCKS_DIR, "acetylene.car"), fragmentType="B")
+        body = list(frag.bodies())[0]
+        rp = ab_rigidparticle.RigidParticleManager().createParticle(body)
+        moments = sorted(rp.principalMoments)
+        self.assertEqual(moments[0], 0.0)
+        self.assertAlmostEqual(moments[1], moments[2], places=6)
+        self.assertGreater(moments[1], 0)
 
     def testManagerConfigStr(self):
         rigidParticleMgr = ab_rigidparticle.RigidParticleManager()

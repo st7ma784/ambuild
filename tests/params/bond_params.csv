@@ -4,6 +4,6 @@ c,c,606.2,1.535,
 c,h,671.8,1.093,
 cp,cp,956.8,1.387,
 cp,hc,688.6,1.087,
-c1,c1,0,1.203,"alkyne C#C (acetylene): r0 only, for building; k not fitted, not for MD"
-c1,hc,0,1.063,"alkyne C-H (acetylene): r0 only, for building; k not fitted, not for MD"
-c1,cp,0,1.43,"alkyne C to aryl C (phenylacetylene): r0 only, for building; k not fitted, not for MD"
+c1,c1,1847.4,1.1983,"GAFF 1.81 (ambuild/recipes/params/gaff_benzene_alkyne): alkyne bonds, so acetylene blocks build; its angles and pairs are in that set"
+ca,c1,808.2,1.44,"GAFF 1.81 (ambuild/recipes/params/gaff_benzene_alkyne)"
+ha,c1,749.4,1.0668,"GAFF 1.81 (ambuild/recipes/params/gaff_benzene_alkyne)"

@@ -658,10 +658,11 @@ class Block(object):
         assert self._maxAtomRadius > 0
         return self._maxAtomRadius
 
-    def newBondPosition(self, endGroup, symbol):
-        """Return the position where a bond to an atom of type 'symbol'
-        would be placed if bonding to the target endgroup
-         I'm sure this algorithm is clunky in the extreme...
+    def newBondPosition(self, endGroup, symbol, atomType=None):
+        """Return the position where a bond to an atom of element 'symbol' (and atom type
+        atomType) would be placed if bonding to the target endgroup: along the end group's
+        bond to its cap atom, at xyz_util.junctionLength (the elements' single-bond length,
+        or with the cell's typed bond lengths, the atom types' r0)
         """
 
         targetEndGroup = self.coord(endGroup.blockEndGroupIdx)
@@ -669,7 +670,10 @@ class Block(object):
         targetCapAtom = self.coord(endGroup.blockCapIdx)
 
         # Get the bond length between these two atoms
-        bondLength = xyz_util.bondLength(targetSymbol, symbol)
+        if atomType is None:
+            bondLength = xyz_util.bondLength(targetSymbol, symbol)
+        else:
+            bondLength = xyz_util.junctionLength(self.type(endGroup.blockEndGroupIdx), atomType, targetSymbol, symbol)
 
         # Find unit vector pointing from targetAngleAtom to targetEndGroup
 
@@ -707,11 +711,10 @@ class Block(object):
 
         growBlock = growEndGroup.block()
 
-        # get the coord where the next block should bond
-        # symbol of endGroup tells us the sort of bond we are making which determines
-        # the bond length
-        symbol = growBlock.symbol(growEndGroup.blockEndGroupIdx)
-        bondPos = self.newBondPosition(endGroup, symbol)
+        # get the coord where the next block should bond: the atom types (and elements) of
+        # the two end groups determine the bond length
+        idx = growEndGroup.blockEndGroupIdx
+        bondPos = self.newBondPosition(endGroup, growBlock.symbol(idx), growBlock.type(idx))
         # print "got bondPos for {0}: {1}".format( symbol, bondPos )
 
         # Align along the staticBlock bond

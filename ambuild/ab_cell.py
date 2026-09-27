@@ -63,6 +63,7 @@ class Cell:
         runId=None,
         seed=None,
         randomState=None,
+        typedBondLengths=False,
     ):
         """Construct an empty cell:
 
@@ -91,6 +92,11 @@ class Cell:
                saves its state either way (run.json "random"), so any run can be replayed.
         randomState - replay a recorded run: its run directory, or its
                       inputs/random/random_state.json. Not with seed.
+        typedBondLengths - True: place grown blocks, and check bonds between blocks, at the atom
+                      types' bond lengths (the bond parameter file's r0) rather than the elements'
+                      single-bond lengths (False, the default and Ambuild's behaviour so far). Use it
+                      when the parameter file's r0 describes the bonds between blocks (e.g. GAFF's ca-c1
+                      for aryl-alkyne links); not when a ring bond (e.g. cp-cp) also joins rings.
         """
         self.outputDir = None
         if outputDir is not None:
@@ -163,7 +169,8 @@ class Cell:
             raise RuntimeError(msg)
         self.paramsDir = paramsDir
         # Use the parameters to set the bond lengts in the util module
-        xyz_util.setModuleBondLength(os.path.join(paramsDir, "bond_params.csv"))
+        self.typedBondLengths = typedBondLengths
+        xyz_util.setModuleBondLength(os.path.join(paramsDir, "bond_params.csv"), typed=typedBondLengths)
         self.version = __version__  # Save as attribute so we can query pickle files
         logger.info("AMBUILD version: {0}".format(self.version))
         self.setMdEngineCls(ab_util.HOOMDVERSION)
@@ -815,7 +822,8 @@ class Cell:
     ):
         # The check should have been made before this is called on whether the two atoms are endGroup
         # Check length
-        bond_length = xyz_util.bondLength(
+        bond_length = xyz_util.junctionLength(
+            addBlock.type(idxAddAtom), staticBlock.type(idxStaticAtom),
             addBlock.symbol(idxAddAtom), staticBlock.symbol(idxStaticAtom)
         )
         if bond_length < 0:
@@ -2294,7 +2302,7 @@ class Cell:
             )
             max_bond_lengths = np.array(
                 [
-                    xyz_util.bondLength(block.symbol(idx1), block.symbol(idx2))
+                    xyz_util.junctionLength(block.type(idx1), block.type(idx2), block.symbol(idx1), block.symbol(idx2))
                     + bondMargin
                     for (idx1, idx2) in block.blockBonds()
                 ]

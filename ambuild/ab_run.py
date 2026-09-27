@@ -165,6 +165,7 @@ class RunRecorder:
                 "bond_margin": cell.bondMargin,
                 "bond_angle_margin_degrees": round(float(np.degrees(cell.bondAngleMargin)), 10),
                 "params_dir": os.path.abspath(cell.paramsDir),
+                "typed_bond_lengths": bool(getattr(cell, "typedBondLengths", False)),
             },
             "inputs": [],
             # The seed, if the cell was given one, and the random number generator's state

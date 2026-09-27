@@ -571,7 +571,7 @@ and results browser early; 3–4 are the submission path; 5–9 build on it: 6 (
 - **Showcase, as run on the demo**: "the densest `li_ion_carbon` network that still lets lithium through".
   - The search varied box 20–35 Å, grow 4–20 per pass, 3–10 passes and zip margin 0.5–1.5. The constraints were PLD ≥ 1.52 Å and percolation in at least one dimension; the objective was to maximise density. It used TPE, 2 seeds per point, and a budget of 44 runs on the local agent.
   - The best network, after 22 trials in 5 rounds, reached **0.87 g/cm³ (the default recipe gives 0.26) with a PLD of 3.24 Å, percolating**: box 20.5 Å, grow 20, 9 passes, zip margin 1.16. TPE's later rounds clustered at small boxes, many grow steps and many passes.
-  - Every trial met the lithium constraint. In this range the limit is how densely Ambuild packs without optimisation, not the pores. Finding where the pores close means denser builds, which need optimisation, which needs force-field parameters for sp carbon (TODO).
+  - Every trial met the lithium constraint. In this range the limit is how densely Ambuild packs without optimisation, not the pores. Finding where the pores close means denser, optimised builds. The recipe now has GAFF parameters for sp carbon and optimises after each pass, so a rerun of this campaign can go further.
 
 ## Decisions
 
