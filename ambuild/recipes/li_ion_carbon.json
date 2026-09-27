@@ -1,0 +1,20 @@
+{
+  "recipe_version": 1,
+  "name": "Carbon network for Li-ion channels",
+  "description": "Benzene rings linked at 1,3,5 through alkyne (ethynylene, -C#C-) linkers, as in conjugated microporous polymers: seeded, grown and zipped into a network, then analysed with Poreblazer. The goal is a percolating pore network whose pore limiting diameter admits a lithium ion (a bare Li+ is about 1.52 A across; a solvated one several times that). No optimisation stage: the bundled parameters give sp carbon (type c1) bond lengths only, so HOOMD-blue would stop for want of its force-field terms.",
+  "cell": {"box": [30, 30, 30], "bond_margin": 0.5, "bond_angle_margin": 15},
+  "fragments": [
+    {"type": "A", "car": "benzene_135.car", "csv": "benzene_135.csv", "name": "benzene_135"},
+    {"type": "B", "car": "acetylene.car", "csv": "acetylene.csv", "name": "acetylene"}
+  ],
+  "bond_types": ["A:a-B:a"],
+  "stages": [
+    {"op": "seed", "count": 10, "fragment_type": "A"},
+    {"repeat": 6, "stages": [
+      {"op": "grow", "count": 12, "max_tries": 50},
+      {"op": "zip", "bond_margin": 1.0, "bond_angle_margin": 30}
+    ]},
+    {"op": "poreblazer", "threads": 2}
+  ],
+  "seed": 7
+}

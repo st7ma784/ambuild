@@ -273,6 +273,8 @@ the bond types and the stages, each a cell operation or a repeated group of them
 python -m ambuild.recipe validate recipe.json
 python -m ambuild.recipe run recipe.json --output runs/benzene
 python -m ambuild.recipe describe      # every operation and its arguments
+python -m ambuild.recipe examples      # recipes shipped with Ambuild, e.g. li_ion_carbon
+python -m ambuild.recipe example li_ion_carbon > li.json && python -m ambuild.recipe run li.json --output runs/li
 ```
 The run is recorded (with the recipe among its inputs) and checkpointed after each
 top-level stage and each pass of a top-level repeat. See `ambuild/recipe.py`.

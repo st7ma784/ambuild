@@ -1,0 +1,10 @@
+!BIOSYM archive 3
+PBC=OFF
+Acetylene, linked at both carbons (C#C 1.203 A, C-H 1.063 A)
+!DATE Sat Sep 27 12:00:00 2026
+C1       -0.601500000     0.000000000     0.000000000 XXXX 1      c1      C   0.000
+C2        0.601500000     0.000000000     0.000000000 XXXX 1      c1      C   0.000
+H1       -1.664500000     0.000000000     0.000000000 XXXX 1      hc      H   0.000
+H2        1.664500000     0.000000000     0.000000000 XXXX 1      hc      H   0.000
+end
+end
