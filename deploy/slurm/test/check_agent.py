@@ -204,6 +204,7 @@ def main():
           "each of its {0} rounds ran as one array job".format(len(arrays)))
     check("campaign-progress-data" in webapi.get("/campaigns/{0}".format(campaign["campaign_id"])).decode(),
           "and its page plots its progress")
+    webapi.call("POST", "/api/agents/{0}/revoke".format(controllerToken["agent_id"]))
     controller.terminate()
     controller.wait(timeout=30)
 

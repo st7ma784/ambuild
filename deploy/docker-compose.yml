@@ -141,7 +141,7 @@ services:
     build: {context: .., dockerfile: Dockerfile, target: ambuild-agent}
     image: ambuild-agent
     environment: {AMBUILD_API_URL: "http://web:8000"}
-    volumes: ["./demo:/demo:ro"]
+    volumes: ["./demo:/demo:ro", "../.claude/skills/ambuild:/skill:ro"]
     command: ["python", "/demo/check_submit.py"]
     depends_on:
       agent: {condition: service_started}

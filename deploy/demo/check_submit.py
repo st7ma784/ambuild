@@ -2,7 +2,8 @@
 
 1. a recipe submitted through the API is claimed by the local agent, built, uploaded, and
    browsable as a run labelled with the recipe's name, with its Poreblazer results;
-2. the same recipe and seed run here from the command line give the same structure;
+2. the same recipe and seed run here from the command line give the same structure, and
+   so does submitting it through the agent skill's helper (.claude/skills/ambuild);
 3. cancelling a running submission stops it, and its run is uploaded as failed.
 """
 import glob
@@ -92,6 +93,36 @@ def main():
                           os.path.join(work, "cli"), "--blobs", blobs], capture_output=True, text=True)
     check(out.returncode == 0, "the recipe runs from the command line" + ("" if not out.returncode else ": " + out.stderr[-2000:]))
     check(lastStructure(os.path.join(work, "cli")) == web, "the command line gives the same structure as the web GUI")
+
+    # 2b. the same through the agent skill's helper (.claude/skills/ambuild), as an AI agent
+    #     following SKILL.md would: validate a recipe with local files, preview, submit
+    if os.path.isdir("/skill"):
+        def skill(*args):
+            out = subprocess.run([sys.executable, "/skill/scripts/ambuild_api.py", "--url", webapi.API] + list(args),
+                                 capture_output=True, text=True)
+            if out.returncode != 0:
+                check(False, "skill: {0}: {1}".format(" ".join(args[:2]), (out.stderr or out.stdout)[-500:]))
+            return json.loads(out.stdout)
+
+        local = dict(body, name=name + " (skill)", fragments=[
+            dict(f, car=os.path.join(blocks, os.path.basename(f["name"]) + ".car"),
+                 csv=os.path.join(blocks, os.path.basename(f["name"]) + ".csv")) for f in body["fragments"]])
+        recipePath = os.path.join(work, "skill-recipe.json")
+        with open(recipePath, "w") as f:
+            json.dump(local, f)
+        check(skill("validate", "--recipe", recipePath)["valid"], "skill: a recipe with local files validates")
+        preview = skill("submit", "--recipe", recipePath, "--backend", "local", "--seed", "11")
+        check("preview" in preview and webapi.call("GET", "/api/submissions")["submissions"][0]["name"] != local["name"],
+              "skill: submit without --yes only previews")
+        queued = skill("submit", "--recipe", recipePath, "--backend", "local", "--seed", "11", "--yes")
+        row = waitFor(queued["submission_id"], FINAL, 900)
+        check(row["state"] == "finished", "skill: the submitted run finished")
+        run = skill("run", queued["run_id"])
+        check(run["summary"]["status"] == "finished" and run["poreblazer"], "skill: reads the run and its Poreblazer result")
+        check(skill("structure", queued["run_id"])["atoms"] > 0, "skill: summarises the run's structure")
+        check(lastStructure(os.path.join(work, "cli")).splitlines()[2:] ==
+              webapi.get(webapi.call("GET", "/api/runs/{0}/structures".format(queued["run_id"]))["frames"][-1]["url"])
+              .decode().splitlines()[2:], "skill: the same recipe and seed built the same structure again")
 
     # 3. cancelling a running submission (a long MD run; methane only, which the parameters cover)
     refs = {n: webapi.upload(os.path.join(blocks, n)) for n in ("ch4.car", "ch4.csv")}
