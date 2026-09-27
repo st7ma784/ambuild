@@ -128,13 +128,16 @@ top-level repeat, and the recipe itself is stored with the run's inputs.
   - Building needs only bond lengths.
   - Optimisation and MD need every term for every atom type in the cell. HOOMD-blue lists any that are missing.
   - The bundled set (`tests/params`, `AMBUILD_PARAMS_DIR`) is a small one used by the tests.
-- **`ambuild/recipes/params/gaff_benzene_alkyne`** holds complete GAFF 1.81 parameters for aromatic carbon (`ca`), its hydrogen (`ha`) and sp (alkyne) carbon (`c1`). They are generated from AmberTools' `gaff-1.81.dat` by `scripts/gaff_params.py`, with their source recorded. The `benzene_135` and `acetylene` blocks use these types and measured geometries.
+- **`ambuild/recipes/params/gaff_benzene_alkyne`** holds complete GAFF 1.81 parameters for aromatic carbon (`ca`), a ring carbon that links to another block (`cp`, GAFF's biaryl carbon), aromatic hydrogen (`ha`) and sp (alkyne) carbon (`c1`). They are generated from AmberTools' `gaff-1.81.dat` by `scripts/gaff_params.py`, with their source recorded (its README gives the choices made). The blocks `benzene_135` (linked at 1,3,5), `benzene_14` (para) and `acetylene` use these types and measured geometries (C–C 1.397 Å, C–H 1.084 Å; C≡C 1.203 Å).
 - **Typed bond lengths** (`Cell(typedBondLengths=True)`, recipe `"typed_bond_lengths": true`) join blocks at the parameter file's bond length for the two atom types, rather than a generic single bond (1.53 Å for C–C).
-  - Use them when that length describes bonds *between* blocks, as GAFF's `ca-c1` (1.44 Å) does for an aryl–alkyne link.
-  - Don't use them when a ring bond (e.g. `cp-cp`, 1.387 Å) also joins rings: a bond between rings is about 1.49 Å.
+  - Use them when the parameter file types the linking atoms for the link. The GAFF set does: `cp-c1` 1.44 Å for an aryl–alkyne link, `cp-cp` 1.4854 Å for a biaryl one.
+  - Don't use them with the legacy test blocks and parameters, whose `cp` is any aromatic carbon: there `cp-cp` is the ring bond (1.387 Å), and rings would be joined too close (a biaryl link is about 1.49 Å).
   - They are off by default, so existing scripts and recorded runs build as before.
 
-With these, the `li_ion_carbon` network's ring–alkyne junctions come out at 1.445 ± 0.006 Å, with straight alkynes (within 2° of 180°) and trigonal ring carbons (within 2.3° of 120°) after its rigid-body optimisations (`tests/testLiIonCarbon.py`).
+With these, after the recipes' rigid-body optimisations:
+
+- `li_ion_carbon` has its ring–alkyne junctions at 1.445 ± 0.006 Å, with straight alkynes (within 2° of 180°) and trigonal ring carbons (within 2.3° of 120°) (`tests/testLiIonCarbon.py`);
+- `benzene_network` has its biaryl links at 1.48–1.51 Å, at 120 ± 1.4° to the rings, with linked rings twisted a median 36° (biphenyl: about 44° in the gas phase) (`tests/testBenzeneNetwork.py`).
 
 ## Recording and reproducing runs
 

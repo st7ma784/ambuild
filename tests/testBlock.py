@@ -7,6 +7,7 @@ import numpy as np
 
 import context
 from context import ab_fragment
+from context import xyz_core
 from context import xyz_util
 
 BLOCKS_DIR = context.BLOCKS_DIR
@@ -422,24 +423,22 @@ class Test(unittest.TestCase):
     def testAlignAtoms(self):
         block = Block(filePath=self.benzeneCar, fragmentType="A")
 
-        # Check atoms are not aligned along axis
+        # Two carbons across the ring (para): 2 x 1.397 A apart, not along the z axis
         c1Idx = 2
         c2Idx = 5
         c1 = block.coord(c1Idx)
         c2 = block.coord(c2Idx)
-
-        # self.assertTrue( np.allclose( c1-c2 , [ 3.0559,  -0.36295,  0.07825], atol=1E-7  ), "before" )
-        self.assertTrue(np.allclose(c1 - c2, [3.0559, -0.36295, 0.07825]), "before")
+        span = np.linalg.norm(c1 - c2)
+        self.assertAlmostEqual(span, 2 * 1.397, places=6)
+        self.assertFalse(np.allclose(np.cross(c1 - c2, [0, 0, 1]), 0), "before")
 
         # Align along z-axis
         block.alignAtoms(c1Idx, c2Idx, [0, 0, 1])
 
-        # check it worked
+        # check it worked, without changing the block's shape
         c1 = block.coord(c1Idx)
         c2 = block.coord(c2Idx)
-        z = np.array([0.0, 0.0, -3.07837304])
-
-        self.assertTrue(np.allclose(c1 - c2, z), "after")
+        self.assertTrue(np.allclose(c1 - c2, [0.0, 0.0, -span]), "after")
         return
 
     def testCentroid(self):
@@ -762,15 +761,22 @@ class Test(unittest.TestCase):
         # Position the block
         staticBlock.positionGrowBlock(endGroup1, endGroup2, dihedral=math.pi / 2)
 
-        # Hacky - just use one of the coords I checked manually
-        hcheck = np.array([11.98409351860, 8.826721156800, -1.833703434310])
-        endGroupCoord = growBlock.coord(11)
-        self.assertTrue(
-            np.allclose(hcheck, endGroupCoord, rtol=1e-9, atol=1e-7),
-            msg="testCenterOfMass incorrect COM.",
-        )
-
-        # self.catBlocks( [staticBlock, growBlock ], "both2.xyz")
+        # The new bond: a C-C single bond long (element lengths, as typed bond lengths
+        # are off), along the static end group's bond to its cap...
+        eg1 = staticBlock.coord(endGroup1.blockEndGroupIdx)
+        eg2 = growBlock.coord(endGroup2.blockEndGroupIdx)
+        self.assertAlmostEqual(np.linalg.norm(eg2 - eg1), xyz_core.ELEMENT_TYPE_BOND_LENGTHS["C"]["C"], places=6)
+        cap = staticBlock.coord(endGroup1.blockCapIdx)
+        self.assertTrue(np.allclose(np.cross(eg2 - eg1, cap - eg1), 0, atol=1e-6))
+        # ... the grown block's end group-cap bond pointing along it, back at the static block
+        # (both caps lie in the new bond, and are removed when it forms)
+        growCap = growBlock.coord(endGroup2.blockCapIdx)
+        self.assertTrue(np.allclose(np.cross(growCap - eg2, eg1 - eg2), 0, atol=1e-6))
+        self.assertGreater(np.dot(growCap - eg2, eg1 - eg2), 0)
+        # ... and the requested dihedral about it
+        angle = xyz_core.dihedral(staticBlock.coord(endGroup1.blockDihedralIdx), eg1, eg2,
+                                  growBlock.coord(endGroup2.blockDihedralIdx))
+        self.assertAlmostEqual(angle % (2 * math.pi), math.pi / 2, places=6)
         return
 
     def testRadius(self):

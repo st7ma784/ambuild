@@ -4,7 +4,9 @@ of GAFF atom types, from a GAFF force field in OpenMM's ffxml form (openmmforcef
 openmmforcefields/ffxml/amber/gaff/ffxml/gaff-1.81.xml, generated from AmberTools'
 gaff-1.81.dat).
 
-    python scripts/gaff_params.py gaff-1.81.xml OUTPUT_DIR ca ha c1
+    python scripts/gaff_params.py gaff-1.81.xml OUTPUT_DIR ca ha c1 cp --alias=cp=ca
+
+--alias=T=S: for terms GAFF lacks for type T, use those of S (noted in the row's comment).
 
 Ambuild's units and forms (ambuild/hoomd4.py) and the conversions from OpenMM's:
     bonds      V = k/2 (r - r0)^2          k [kcal/mol/A^2] = k_openmm [kJ/mol/nm^2] / 418.4,
@@ -53,28 +55,37 @@ def write(path, header, rows):
             f.write(",".join(row) + "\n")
 
 
-def main(xmlPath, outDir, types):
+def main(xmlPath, outDir, types, aliases=None):
+    """aliases: {type: stand-in} for terms GAFF lacks, e.g. {"cp": "ca"}: GAFF's cp (an
+    aromatic carbon bonded to another ring) has no terms with hydrogen or an alkyne, where it
+    behaves as ca. The exact types are always tried first; a stand-in is noted in the row."""
+    aliases = aliases or {}
     info, bonds, angles, propers, lj = load(xmlPath)
     note = "GAFF 1.81, from " + info
     os.makedirs(outDir, exist_ok=True)
 
-    rows = []
-    for a, b in itertools.combinations_with_replacement(types, 2):
-        el = bonds.get((a, b)) if (a, b) in bonds else bonds.get((b, a))
-        if el is not None:
-            rows.append([a, b, fmt(float(el.get("k")) / (100 * KJ)), fmt(10 * float(el.get("length"))),
-                         '"{0} {1}-{2}"'.format(note, a, b)])
-    write(os.path.join(outDir, "bond_params.csv"), "A,B,k,r0,comments", rows)
+    def lookup(q, find):
+        """(element, the types it was found for) for types q, trying q itself first, then
+        the stand-ins with the fewest substitutions"""
+        options = [(t, aliases[t]) if t in aliases else (t,) for t in q]
+        candidates = sorted(itertools.product(*options), key=lambda c: sum(a != b for a, b in zip(c, q)))
+        for cand in candidates:
+            el = find(cand)
+            if el is not None:
+                return el, cand
+        return None, None
 
-    rows = []
-    for a, b, c in itertools.product(types, repeat=3):
-        el = angles.get((a, b, c)) if (a, b, c) in angles else angles.get((c, b, a))
-        if el is not None:
-            rows.append(["{0}-{1}-{2}".format(a, b, c), fmt(float(el.get("k")) / KJ),
-                         fmt(math.degrees(float(el.get("angle")))), '"{0}"'.format(note)])
-    write(os.path.join(outDir, "angle_params.csv"), "angle,k,t0,comments", rows)
+    def standIn(q, used):
+        swaps = sorted({"{0} as {1}".format(a, b) for a, b in zip(q, used) if a != b})
+        return " ({0})".format(", ".join(swaps)) if swaps else ""
 
-    def proper(q):
+    def findBond(q):
+        return bonds[q] if q in bonds else bonds.get(q[::-1])
+
+    def findAngle(q):
+        return angles[q] if q in angles else angles.get(q[::-1])
+
+    def findProper(q):
         """The most specific GAFF torsion for types q (either direction), as Amber matches"""
         best = None
         for key, el in propers:
@@ -86,8 +97,24 @@ def main(xmlPath, outDir, types):
         return best[1] if best else None
 
     rows = []
+    for q in itertools.combinations_with_replacement(types, 2):
+        el, used = lookup(q, findBond)
+        if el is not None:
+            rows.append([q[0], q[1], fmt(float(el.get("k")) / (100 * KJ)), fmt(10 * float(el.get("length"))),
+                         '"{0} {1}{2}"'.format(note, "-".join(used), standIn(q, used))])
+    write(os.path.join(outDir, "bond_params.csv"), "A,B,k,r0,comments", rows)
+
+    rows = []
+    for q in itertools.product(types, repeat=3):
+        el, used = lookup(q, findAngle)
+        if el is not None:
+            rows.append(["-".join(q), fmt(float(el.get("k")) / KJ), fmt(math.degrees(float(el.get("angle")))),
+                         '"{0} {1}{2}"'.format(note, "-".join(used), standIn(q, used))])
+    write(os.path.join(outDir, "angle_params.csv"), "angle,k,t0,comments", rows)
+
+    rows = []
     for q in itertools.product(types, repeat=4):
-        el = proper(q)
+        el, used = lookup(q, findProper)
         if el is None:
             continue
         terms = [i for i in range(1, 5) if el.get("k%d" % i) is not None]
@@ -98,22 +125,25 @@ def main(xmlPath, outDir, types):
         if not (math.isclose(phase, 0.0, abs_tol=1e-9) or math.isclose(phase, math.pi, abs_tol=1e-9)):
             raise SystemExit("{0}: phase {1} is not 0 or pi".format("-".join(q), phase))
         rows.append(["-".join(q), fmt(2 * float(el.get("k%d" % i)) / KJ), fmt(round(math.cos(phase))),
-                     el.get("periodicity%d" % i), '"{0} {1}"'.format(note, "-".join(_classes(el, 4)))])
+                     el.get("periodicity%d" % i),
+                     '"{0} {1}{2}"'.format(note, "-".join(_classes(el, 4)), standIn(q, used))])
     write(os.path.join(outDir, "dihedral_params.csv"), "dihedral,k,d,n,comments", rows)
 
     write(os.path.join(outDir, "improper_params.csv"), "improper,k,chi,comments", [])
 
     rows = []
     for a, b in itertools.combinations_with_replacement(types, 2):
-        pa, pb = lj[a], lj[b]
+        pa, pb = lj.get(a, lj.get(aliases.get(a))), lj.get(b, lj.get(aliases.get(b)))
         eps = math.sqrt(float(pa.get("epsilon")) * float(pb.get("epsilon"))) / KJ
         sigma = 10 * (float(pa.get("sigma")) + float(pb.get("sigma"))) / 2
         rows.append([a, b, fmt(eps), fmt(sigma), '"{0}; Lorentz-Berthelot"'.format(note)])
     write(os.path.join(outDir, "pair_params.csv"), "atom1,atom2,epsilon,sigma,comments", rows)
-    print("wrote", outDir, "for", ", ".join(types))
+    print("wrote", outDir, "for", ", ".join(types), "with stand-ins" if aliases else "", aliases or "")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
+    args = [a for a in sys.argv[1:] if not a.startswith("--alias=")]
+    aliases = dict(a[len("--alias="):].split("=", 1) for a in sys.argv[1:] if a.startswith("--alias="))
+    if len(args) < 3:
         raise SystemExit(__doc__)
-    main(sys.argv[1], sys.argv[2], sys.argv[3:])
+    main(args[0], args[1], args[2:], aliases)
