@@ -308,11 +308,15 @@ def apiAgents(request: Request):
 
 # --- pages
 
-def _newRunPage(request, conn, text, errors=(), seed="", priority=0, name="", recipeId=None, status_code=200):
+def _newRunPage(request, conn, text, errors=(), seed="", priority=0, name="", recipeId=None, backend=None,
+                status_code=200):
+    agents = queue.listAgents(conn)
+    if backend is None:  # default: a backend with an agent online
+        backend = next((a["backend"] for a in agents if a["live"]), queue.BACKENDS[0])
     page = request.app.state.render(
         request, "submit.html", recipe_text=text, errors=list(errors), seed=seed, priority=priority, name=name,
         recipe_id=recipeId, recipes=queue.listRecipes(conn), blobs=queue.listBlobs(conn), highlight=set(),
-        backends=queue.BACKENDS, format=ab_recipe.describe(), agents=queue.listAgents(conn))
+        backends=queue.BACKENDS, backend=backend, format=ab_recipe.describe(), agents=agents)
     page.status_code = status_code
     return page
 
@@ -321,7 +325,7 @@ def _newRunPage(request, conn, text, errors=(), seed="", priority=0, name="", re
 def submitPage(request: Request, recipe: int = None, submission: int = None):
     """New run: from a saved recipe (?recipe=), a past submission (?submission=), or a template"""
     with _connect(request) as conn:
-        body, seed, name = TEMPLATE, "", ""
+        body, seed, name, backend = TEMPLATE, "", "", None
         if recipe is not None:
             saved = queue.getRecipe(conn, recipe)
             if saved is None:
@@ -329,9 +333,9 @@ def submitPage(request: Request, recipe: int = None, submission: int = None):
             body = saved["body"]
         elif submission is not None:
             past = _submissionOr404(conn, submission)
-            body, name = past["recipe"], past["name"]
+            body, name, backend = past["recipe"], past["name"], past["backend"]
             seed = "" if past["seed"] is None else str(past["seed"])
-        return _newRunPage(request, conn, recipeText(body), seed=seed, name=name, recipeId=recipe)
+        return _newRunPage(request, conn, recipeText(body), seed=seed, name=name, recipeId=recipe, backend=backend)
 
 
 @router.post("/submit/validate", response_class=HTMLResponse, include_in_schema=False)
@@ -371,7 +375,7 @@ def submitForm(request: Request, recipe: str = Form(""), seed: str = Form(""), p
                                   priority=priorityValue, recipeId=recipeId, name=name.strip())
             if not errors:
                 return RedirectResponse("/submissions/{0}".format(row["submission_id"]), status_code=303)
-        return _newRunPage(request, conn, recipe, errors, seed=seed, priority=priority, name=name,
+        return _newRunPage(request, conn, recipe, errors, seed=seed, priority=priority, name=name, backend=backend,
                            status_code=422)
 
 

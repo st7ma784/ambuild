@@ -32,6 +32,7 @@ def createApp(settings=None):
     app.include_router(runs.router)
     app.include_router(submissions.router)
     app.include_router(agents.router)
+    app.include_router(agents.manage)
 
     def statusData():
         results = checks.runChecks(settings)

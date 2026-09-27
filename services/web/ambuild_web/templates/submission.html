@@ -13,6 +13,8 @@
   <div><dt>Owner</dt><dd>{{ sub.owner or "–" }}</dd></div>
   <div><dt>Seed</dt><dd>{{ sub.seed if sub.seed is not none else (sub.recipe.seed if sub.recipe.seed is not none else "random (recorded)") }}</dd></div>
   <div><dt>Runs on</dt><dd>{{ sub.backend }}{% if sub.agent %} · {{ sub.agent }}{% endif %}{% if sub.external_id %} <code class="id">{{ sub.external_id }}</code>{% endif %}</dd></div>
+  {% if sub.external_id and sub.external_id.startswith("slurm:") %}{% set jobs = sub.external_id[6:].split("/") %}
+  <div><dt>Slurm jobs</dt><dd>build {{ jobs[0] }}, upload {{ jobs[1] }}</dd></div>{% endif %}
   <div><dt>Priority</dt><dd>{{ sub.priority }}</dd></div>
   <div><dt>Attempts</dt><dd>{{ sub.attempts }}</dd></div>
   <div><dt>Submitted</dt><dd>{{ sub.created | when }}</dd></div>

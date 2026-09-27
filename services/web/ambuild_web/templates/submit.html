@@ -58,7 +58,8 @@
     </div>
     <div class="field">
       <label for="backend">Run on</label>
-      <select id="backend" name="backend">{% for b in backends %}<option value="{{ b }}">{{ b }}</option>{% endfor %}</select>
+      {% set online = agents | selectattr("live") | map(attribute="backend") | list %}
+      <select id="backend" name="backend">{% for b in backends %}<option value="{{ b }}" {% if b == backend %}selected{% endif %}>{{ b }}{% if b not in online %} (no agent online){% endif %}</option>{% endfor %}</select>
     </div>
     <div class="actions">
       <button type="button" hx-post="/submit/validate" hx-include="closest form" hx-target="#validation">Check</button>

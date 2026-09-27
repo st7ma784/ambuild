@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Agents · {{ title }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/status">Status</a> / agents</p>
+<h1>Agents</h1>
+<p class="lede">Agents take submissions from the queue and run them: a <strong>local</strong> agent in
+  its own container or pod, a <strong>slurm</strong> agent from a cluster login node. Each has a token,
+  shown once when it is added; only its hash is kept.</p>
+
+{% if error %}<p class="error-box" role="alert">{{ error }}</p>{% endif %}
+
+{% if token %}
+<section class="token-box" aria-labelledby="token-h">
+  <h2 id="token-h">Token for {{ created.name }}</h2>
+  <p>Copy it now: it is not shown again. Start the agent with:</p>
+  {% if created.backend == "slurm" %}
+  <pre class="code-block">export AMBUILD_API_URL={{ api_url }}
+export AMBUILD_AGENT_TOKEN={{ token }}
+export AMBUILD_AGENT_BACKEND=slurm
+export AMBUILD_RUNS_ROOT=/shared/ambuild/runs      # a directory every node sees
+export AMBUILD_SLURM_DIR=/path/to/ambuild/deploy/slurm
+ambuild-agent                                      # e.g. in tmux, or a systemd user service</pre>
+  <p class="note">On the login node, with Ambuild, <code>services/ingest</code> and <code>services/agent</code>
+    installed where the jobs can use them, and the upload settings in <code>~/.config/ambuild/upload.env</code>
+    (see deploy/README.md).</p>
+  {% else %}
+  <pre class="code-block">AMBUILD_API_URL={{ api_url }} AMBUILD_AGENT_TOKEN={{ token }} ambuild-agent</pre>
+  <p class="note">Or run the <code>ambuild-agent</code> image with those two variables and the upload
+    settings (DATABASE_URL, AMBUILD_S3_BUCKET, S3_ENDPOINT_URL, AWS_*).</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<h2>Registered agents</h2>
+{% if agents %}
+<div class="table-wrap">
+  <table class="data">
+    <thead><tr><th scope="col">agent</th><th scope="col">runs on</th><th scope="col">state</th><th scope="col">last heartbeat</th>
+      <th scope="col">host</th><th scope="col" class="num">active</th><th scope="col"></th></tr></thead>
+    <tbody>
+      {% for a in agents %}
+      <tr>
+        <td>{{ a.name }}</td>
+        <td>{{ a.backend }}</td>
+        <td>{% if a.revoked %}<span class="status state-fail">Revoked</span>{% elif a.live %}<span class="status state-ok">Online</span>{% else %}<span class="status state-warn">Offline</span>{% endif %}</td>
+        <td>{{ a.last_heartbeat | when }}</td>
+        <td>{{ a.host or "–" }}{% if a.version %} <span class="note">{{ a.version }}</span>{% endif %}</td>
+        <td class="num">{{ a.active }}</td>
+        <td>{% if not a.revoked %}
+          <form method="post" action="/agents/{{ a.agent_id }}/revoke" onsubmit="return confirm('Revoke {{ a.name }}? It stops being able to take or report work.')">
+            <button type="submit" class="danger">Revoke</button>
+          </form>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty">No agents yet.</p>
+{% endif %}
+
+<h2>Add an agent</h2>
+<form class="filters" method="post" action="/agents">
+  <div class="field grow">
+    <label for="agent-name">Name</label>
+    <input id="agent-name" name="name" required maxlength="64" placeholder="e.g. hpc-login1">
+  </div>
+  <div class="field">
+    <label for="agent-backend">Runs on</label>
+    <select id="agent-backend" name="backend">{% for b in backends %}<option value="{{ b }}">{{ b }}</option>{% endfor %}</select>
+  </div>
+  <div class="actions"><button type="submit">Add and show its token</button></div>
+</form>
+<p class="note">Revoking an agent returns the work it claimed but had not started to the queue.
+  Runs already on Slurm carry on and are uploaded by their upload jobs. To replace a token,
+  revoke the agent and add it again with the same name.</p>
+{% endblock %}

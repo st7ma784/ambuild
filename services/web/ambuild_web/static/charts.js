@@ -54,5 +54,12 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () { renderAll(document); });
-  document.addEventListener("htmx:afterSwap", function (event) { renderAll(event.target); });
+  // After any htmx swap (including out-of-band ones, as on a live run page), draw the
+  // charts that arrived empty
+  document.addEventListener("htmx:afterSettle", function () {
+    document.querySelectorAll("figure.chart").forEach(function (figure) {
+      var canvas = figure.querySelector(".chart-canvas");
+      if (canvas && !canvas.firstChild) render(figure);
+    });
+  });
 })();
