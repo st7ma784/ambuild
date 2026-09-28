@@ -394,6 +394,34 @@ In order:
 - [ ] Use the MPI HOOMD launcher only for large cells: all-atom MD on ~5,000
   atoms or more, or long runs on ~2,000 or more (`docs/benchmarks.md`). The
   dispatcher could set `AMBUILD_HOOMD_LAUNCHER` per job from the recipe.
+- [ ] Ion permeation and intercalation analysis: whether Li+ (and Na+, K+, Mg2+)
+  can get into a structure, under what applied voltage, and how easily it gets
+  back out if the voltage is reversed. Poreblazer only answers the geometric
+  question (does a hard sphere of the ion's size fit through the pores). This
+  would be a new analysis operation, written from scratch.
+  - **Energy grid:** the ion's interaction energy with the framework on a grid
+    over the cell. Use the recipe's force field (LJ, Lorentz-Berthelot) with ion
+    parameters such as Joung-Cheatham. The cation's charge polarises the
+    framework, so add an ion-induced-dipole term to the energy.
+  - **Sites and barriers:** local minima of the grid are candidate
+    intercalation sites. A flood fill from each site finds its escape barrier:
+    the lowest energy at which the reachable region percolates the cell (the
+    energy counterpart of the pore limiting diameter).
+  - **Voltage:** an applied field E tilts the landscape by -qE.r. Sweeping E
+    along each axis gives the field at which the barrier for entry vanishes,
+    and the barrier for exit when E is reversed. That asymmetry is the "how
+    easily they exit" answer.
+  - **Dynamic check:** HOOMD-blue can run ions in the framework with an
+    external electric field (`hoomd.md.external.field.Electric`). It can count
+    ions that cross the cell or stay trapped, forward and reversed, to check
+    the static barriers.
+  - **Visualise:** energy isosurfaces, sites and percolation paths in the web
+    GUI's 3D viewer, and barrier-against-voltage curves per ion. Expose the
+    results as campaign metrics (e.g. entry and exit barriers, site density) so
+    campaigns can target them.
+  - **Caveat:** these are classical, relative numbers for screening and
+    ranking structures. An absolute intercalation voltage against Li/Li+ needs
+    electronic structure (DFT), so the page should label them as relative.
 
 ## GPU clarification
 
