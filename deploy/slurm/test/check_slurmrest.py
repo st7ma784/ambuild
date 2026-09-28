@@ -50,8 +50,11 @@ def startAgent(token):
            "AMBUILD_AGENT_DIR": "/tmp/rest-agent", "AMBUILD_SLURMRESTD_URL": "http://localhost:6820",
            "AMBUILD_SLURM_USER": "ambuild", "AMBUILD_SLURM_JWT_FILE": TOKEN_FILE,
            "AMBUILD_RUNS_ROOT": ROOT, "AMBUILD_SLURM_DIR": "/opt/ambuild-slurm",
+           # the jobs' whole environment: through slurmrestd they inherit nothing
            "AMBUILD_SLURMREST_ENV": json.dumps({"PATH": "/opt/venv/bin:/usr/bin:/bin",
-                                                "POREBLAZER_EXE": "/opt/poreblazer/poreblazer.exe"}),
+                                                "POREBLAZER_EXE": "/opt/poreblazer/poreblazer.exe",
+                                                "AMBUILD_PARAMS_DIR": os.environ["AMBUILD_PARAMS_DIR"],
+                                                "AMBUILD_BLOCKS_DIR": os.environ["AMBUILD_BLOCKS_DIR"]}),
            "AMBUILD_AGENT_POLL": "2", "AMBUILD_AGENT_HEARTBEAT": "5", "AMBUILD_AGENT_UPLOAD_EVERY": "4"}
     return subprocess.Popen(AS_NOBODY + ["ambuild-agent"], env=env, stdout=open(LOG, "a"), stderr=subprocess.STDOUT)
 
@@ -93,11 +96,10 @@ def main():
     build = row["external_id"][6:].split("/")[0]
     def liveOrEnded():
         run = runOrNone(sub["run_id"])
-        if run and run["summary"]["status"] != "running":
-            row = submission(sub["submission_id"])
-            check(False, "the run was uploaded as {0} before it could be seen running (submission {1}: {2}; run "
-                         "error: {3})".format(run["summary"]["status"], row["state"], row["error"],
-                                              run["summary"]["error"]))
+        row = submission(sub["submission_id"])
+        if (run and run["summary"]["status"] != "running") or row["state"] in FINAL:
+            check(False, "the submission ended before its run was seen running (submission {0}: {1}; run: {2})".format(
+                row["state"], row["error"], run and (run["summary"]["status"], run["summary"]["error"])))
         return run
 
     live = waitFor(liveOrEnded, 180, "the build job uploads the running run (live progress)")

@@ -199,9 +199,12 @@ echo "<jwt>" > slurm.jwt && sudo chown 1000 slurm.jwt && chmod 400 slurm.jwt
 docker compose --env-file agent.env up -d
 ```
 
-`AMBUILD_SLURMREST_ENV` is the jobs' whole environment besides Ambuild's own variables:
-through slurmrestd they inherit nothing from the agent. Set `PATH` there, or activate
-an environment with `AMBUILD_SLURM_SETUP`. `AMBUILD_SLURMREST_JOB` adds job fields such
+`AMBUILD_SLURMREST_ENV` is the jobs' whole environment besides the run's own variables:
+through slurmrestd they inherit nothing from the agent. Set `PATH` (or activate an
+environment with `AMBUILD_SLURM_SETUP`), `AMBUILD_PARAMS_DIR` (the force-field
+parameters, `tests/params` of a clone; the published image sets it itself), and
+`POREBLAZER_EXE`. A job without `AMBUILD_PARAMS_DIR` fails at once, saying so, in its
+output file under `AMBUILD_RUNS_ROOT`. `AMBUILD_SLURMREST_JOB` adds job fields such
 as `{"account": "chem", "qos": "normal"}`. The agent uses the newest slurmrestd API
 version it has been tested with that slurmrestd offers: v0.0.42, v0.0.41 or v0.0.40, all
 tested against Slurm 24.11. Set `AMBUILD_SLURMRESTD_VERSION` to try another.
