@@ -440,6 +440,23 @@ In order:
        curve plus barriers for one structure is thousands to tens of thousands
        of core-hours. Runs go through the Slurm agent as their own job type.
      - Accuracy is typically +-0.1-0.3 V on voltages.
+     - **Skala on the fragments** (Microsoft's deep-learned exchange-correlation
+       functional; MIT licence; PySCF, GPU4PySCF, ASE, and CP2K through GauXC).
+       It is as accurate as the best hybrid functionals on main-group chemistry
+       (GMTKN55 2.8 kcal/mol) at about 3x r2SCAN's cost, and its training
+       covers H, Li and C. Its limits for us:
+       - no periodic systems yet, CP2K's interface included, so whole cells,
+         the Li-metal reference and NEB paths stay PBE-D3;
+       - trained on neutral molecules, and "not a production model": Li+ in
+         a carbon pore is outside its training;
+       - whether to add a D3-style dispersion correction is undocumented.
+     - Use it to correct PBE-D3 site by site: compute binding energies and
+       barriers on each fragment with both, and apply the Skala - PBE-D3
+       difference to that site's periodic result.
+     - Validate Skala first on a few fragments against DLPNO-CCSD(T), starting
+       with Li+ on benzene (a standard benchmark).
+     - Watch for periodic Skala, and for CIDER26SS (an ML functional already
+       tested on solids and surfaces, arXiv 2608.21525).
   3. **ML potentials, benchmarked then fine-tuned on the DFT set.**
      - Benchmark CHGNet (Python, notebooks, fine-tuning examples) and
        MACE-MP-0 (the more thoroughly documented) out of the box against the
@@ -448,6 +465,9 @@ In order:
        somewhere.
      - Fine-tune on the DFT trajectories, holding out whole structures (not
        frames) to test.
+     - Keep PBE-D3 and Skala-corrected labels as separate levels of theory,
+       never one mixed set: MACE's multi-head fine-tuning takes both; for
+       CHGNet, fine-tune on one level at a time.
      - A fine-tuned model takes milliseconds per step for 500 atoms on a GPU,
        enough for voltage curves and NEB barriers on every campaign candidate.
   4. **Calibrate the classical map.** Fit a small correction model
