@@ -1,0 +1,29 @@
+# The Slurm agent on a login node (backend slurm), as a systemd user service of the
+# cluster user whose jobs these are:
+#
+#   python3 -m venv ~/ambuild-venv && . ~/ambuild-venv/bin/activate
+#   pip install "git+https://github.com/st7ma784/ambuild" \
+#       "git+https://github.com/st7ma784/ambuild#subdirectory=services/ingest" \
+#       "git+https://github.com/st7ma784/ambuild#subdirectory=services/agent"
+#   git clone https://github.com/st7ma784/ambuild ~/ambuild      # for deploy/slurm
+#   mkdir -p ~/.config/ambuild ~/.config/systemd/user && chmod 700 ~/.config/ambuild
+#   cp agent.env.example ~/.config/ambuild/agent.env && chmod 600 ~/.config/ambuild/agent.env
+#   cp upload.env.example ~/.config/ambuild/upload.env && chmod 600 ~/.config/ambuild/upload.env
+#   cp ambuild-agent.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now ambuild-agent
+#   loginctl enable-linger "$USER"       # keep it running when you log out (may need the admins)
+#
+# Where user services or lingering are not allowed, run ambuild-agent in tmux instead:
+# it takes up its Slurm jobs again whenever it is restarted.
+[Unit]
+Description=Ambuild agent (Slurm, login node)
+After=network-online.target
+
+[Service]
+EnvironmentFile=%h/.config/ambuild/agent.env
+ExecStart=%h/ambuild-venv/bin/ambuild-agent
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target

@@ -6,7 +6,7 @@ FROM ${POREBLAZER_IMAGE} AS poreblazer
 
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        slurm-wlm munge python3 python3-pip python3-venv libgfortran5 libgomp1 procps \
+        slurm-wlm slurmrestd slurm-wlm-jwt-plugin munge python3 python3-pip python3-venv libgfortran5 libgomp1 procps util-linux \
  && rm -rf /var/lib/apt/lists/*
 RUN python3 -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
@@ -21,7 +21,11 @@ RUN pip install --no-cache-dir /ambuild /src/ingest /src/agent /src/campaigns
 COPY deploy/slurm /opt/ambuild-slurm
 COPY deploy/demo /opt/ambuild-demo
 COPY deploy/slurm/test/slurm.conf deploy/slurm/test/cgroup.conf /etc/slurm/
-RUN mkdir -p /var/spool/slurmctld /var/spool/slurmd /var/log/slurm /run/munge /shared/runs \
+# ambuild: the cluster user whose jobs the slurmrestd agent submits (with a JWT);
+# slurmrest: runs slurmrestd, which refuses to run as root
+RUN mkdir -p /var/spool/slurmctld /var/spool/slurmd /var/log/slurm /run/munge /shared/runs /shared/rest-runs \
+ && useradd --create-home --uid 1000 ambuild && useradd --system --no-create-home slurmrest \
+ && chown ambuild:ambuild /shared/rest-runs && chmod 700 /shared/rest-runs \
  && chown -R munge:munge /run/munge /etc/munge \
  && chmod +x /opt/ambuild-slurm/*.sh /opt/ambuild-slurm/*.sbatch /opt/ambuild-slurm/test/*.sh
 ENTRYPOINT ["/opt/ambuild-slurm/test/entrypoint.sh"]

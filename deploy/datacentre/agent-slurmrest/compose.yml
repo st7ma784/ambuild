@@ -1,0 +1,38 @@
+# A Slurm agent that needs no login node: it submits jobs through slurmrestd with a JWT,
+# from any machine that reaches both the web GUI and slurmrestd (the web machine will do).
+# It holds no database or storage credentials and never touches the cluster's
+# filesystems: the jobs stage their recipes on the cluster, and upload their runs with
+# the cluster user's ~/.config/ambuild/upload.env (docs/deployment.md, "The cluster").
+#
+#   cp agent.env.example agent.env          # chmod 600
+#   echo "$JWT" > slurm.jwt                 # from the Slurm admins: scontrol token username=<user> lifespan=...
+#   sudo chown 1000 slurm.jwt && chmod 400 slurm.jwt   # readable by the image's user (uid 1000) only
+#   docker compose --env-file agent.env up -d
+#
+# The token file is read for every request: replace its contents when the token is renewed,
+# without restarting the agent.
+name: ambuild-agent-slurmrest
+
+services:
+  agent:
+    image: ghcr.io/st7ma784/ambuild-agent:${AMBUILD_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      AMBUILD_API_URL: ${AMBUILD_API_URL:?set AMBUILD_API_URL}
+      AMBUILD_AGENT_TOKEN: ${AMBUILD_AGENT_TOKEN:?set AMBUILD_AGENT_TOKEN}
+      AMBUILD_AGENT_BACKEND: slurmrest
+      AMBUILD_SLURMRESTD_URL: ${AMBUILD_SLURMRESTD_URL:?set AMBUILD_SLURMRESTD_URL}
+      AMBUILD_SLURM_USER: ${AMBUILD_SLURM_USER:?set AMBUILD_SLURM_USER}
+      AMBUILD_SLURM_JWT_FILE: /run/secrets/slurm.jwt
+      AMBUILD_RUNS_ROOT: ${AMBUILD_RUNS_ROOT:?set AMBUILD_RUNS_ROOT}
+      AMBUILD_SLURM_PARTITION: ${AMBUILD_SLURM_PARTITION:-}
+      AMBUILD_SLURM_SETUP: ${AMBUILD_SLURM_SETUP:-}
+      AMBUILD_SLURMREST_ENV: ${AMBUILD_SLURMREST_ENV:-}
+      AMBUILD_SLURMREST_JOB: ${AMBUILD_SLURMREST_JOB:-}
+      AMBUILD_SLURMRESTD_VERSION: ${AMBUILD_SLURMRESTD_VERSION:-}
+    volumes:
+      - ./slurm.jwt:/run/secrets/slurm.jwt:ro
+      - agent-cache:/home/ambuild/agent   # the web's input files, cached
+
+volumes:
+  agent-cache:

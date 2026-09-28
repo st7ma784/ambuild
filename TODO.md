@@ -388,6 +388,10 @@ In order:
     CSV rows and seed lists; a Slurm agent submits a sweep's runs as one array
     job (`deploy/slurm/submit_array.sh`). Runs are linked to their sweep in the
     database (`submissions.sweep_id`), not in `run.json`.
+- [x] Agents for every layout of a server room:
+  - three backends: `local`, `slurm` (on a login node) and `slurmrest` (through slurmrestd with a JWT, from anywhere);
+  - each service published as a container image on ghcr.io (`publish-images.yml`);
+  - a per-machine deployment guide (`docs/deployment.md`, `deploy/datacentre/`).
 - [ ] Dispatcher behind the web API: turns queued recipes into jobs, packing
   small builds several per node (`srun --multi-prog` or a task-farm worker)
   and sharing GPUs between small HOOMD runs (MPS).

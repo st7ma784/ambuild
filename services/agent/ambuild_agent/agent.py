@@ -1,9 +1,12 @@
 """The agent: claims submissions from the web API and runs them with a backend.
 
-    local  each submission runs here, as a process (in a container or pod, that makes
-           the container the worker); the agent uploads the run when it ends
-    slurm  each submission is submitted with deploy/slurm/submit_build.sh from a login
-           node; its build and upload jobs run on the cluster
+    local      each submission runs here, as a process (in a container or pod, that makes
+               the container the worker); the agent uploads the run when it ends
+    slurm      each submission is submitted with deploy/slurm/submit_build.sh from a login
+               node; its build and upload jobs run on the cluster
+    slurmrest  the same jobs, submitted through slurmrestd (Slurm's REST API) with a JWT,
+               from any machine that can reach it; the agent needs no Slurm commands and
+               no access to the cluster's filesystems
 
 The agent talks only to the web API, with its token. Runs are uploaded by ambuild-upload
 (the Slurm upload jobs, or the agent for the local backend and for live progress), which
@@ -31,7 +34,7 @@ logger = logging.getLogger("ambuild_agent")
 
 # Kept from builds' environments: they need no database or storage credentials
 SECRET_VARIABLES = ("DATABASE_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
-                    "AMBUILD_AGENT_TOKEN", "PGPASSWORD")
+                    "AMBUILD_AGENT_TOKEN", "PGPASSWORD", "AMBUILD_SLURM_JWT")
 API_ERRORS = (urllib.error.URLError, OSError)
 
 
@@ -59,6 +62,16 @@ def readEnvFile(path):
     return values
 
 
+def _jsonObject(env, name):
+    try:
+        value = json.loads(env.get(name) or "{}")
+    except ValueError as exc:
+        raise SystemExit("{0} must be a JSON object: {1}".format(name, exc))
+    if not isinstance(value, dict):
+        raise SystemExit("{0} must be a JSON object".format(name))
+    return value
+
+
 @dataclass
 class Config:
     api_url: str
@@ -73,11 +86,24 @@ class Config:
     upload_env: str = ""  # a file of upload settings (the Slurm upload jobs' AMBUILD_UPLOAD_ENV)
     keep_runs: bool = False  # local: keep run directories after a successful upload
     python: str = sys.executable
-    # slurm backend
-    runs_root: str = ""
-    slurm_dir: str = ""
+    # slurm and slurmrest backends
+    runs_root: str = ""  # on the cluster's shared filesystem
+    slurm_dir: str = ""  # deploy/slurm: the job scripts (slurmrest sends their text)
     partition: str = ""
-    sbatch_options: str = ""
+    sbatch_options: str = ""  # slurm only: more sbatch options
+    array_max: int = 50  # slurmrest: most array tasks running at once (slurm: submit_array.sh's)
+    # slurmrest backend
+    slurmrestd_url: str = ""
+    slurm_user: str = ""
+    slurm_jwt: str = ""
+    slurm_jwt_file: str = ""  # read for every request, so the token can be replaced while running
+    slurmrestd_version: str = ""  # e.g. v0.0.41; default: the newest tested one slurmrestd offers
+    slurm_ca: str = ""  # CA bundle for an https slurmrestd
+    slurm_setup: str = ""  # a shell line each job runs first, e.g. activating Ambuild's environment
+    slurm_env: dict = field(default_factory=dict)  # the jobs' environment, besides Ambuild's variables
+    slurm_job: dict = field(default_factory=dict)  # more job description fields, e.g. {"account": "chem"}
+    slurm_log_dir: str = ""  # on the cluster, for the jobs' output (default runs_root)
+    slurm_upload_env: str = ""  # on the cluster: the upload settings (default ~/.config/ambuild/upload.env)
 
     @classmethod
     def fromEnvironment(cls):
@@ -85,6 +111,7 @@ class Config:
         if not env.get("AMBUILD_API_URL") or not env.get("AMBUILD_AGENT_TOKEN"):
             raise SystemExit("Set AMBUILD_API_URL and AMBUILD_AGENT_TOKEN")
         backend = env.get("AMBUILD_AGENT_BACKEND", "local")
+        onSlurm = backend in ("slurm", "slurmrest")
         uploadEnv = env.get("AMBUILD_UPLOAD_ENV", "")
         if backend == "slurm" and not uploadEnv:
             default = os.path.expanduser("~/.config/ambuild/upload.env")
@@ -94,8 +121,8 @@ class Config:
             token=env["AMBUILD_AGENT_TOKEN"],
             backend=backend,
             directory=env.get("AMBUILD_AGENT_DIR", "agent"),
-            slots=int(env.get("AMBUILD_AGENT_SLOTS", "1" if backend == "local" else "1000")),
-            poll=float(env.get("AMBUILD_AGENT_POLL", "5" if backend == "local" else "15")),
+            slots=int(env.get("AMBUILD_AGENT_SLOTS", "1000" if onSlurm else "1")),
+            poll=float(env.get("AMBUILD_AGENT_POLL", "15" if onSlurm else "5")),
             heartbeat=float(env.get("AMBUILD_AGENT_HEARTBEAT", "30")),
             upload=env.get("AMBUILD_AGENT_UPLOAD", "ambuild-upload"),
             upload_every=float(env.get("AMBUILD_AGENT_UPLOAD_EVERY", "60")),
@@ -106,6 +133,18 @@ class Config:
             slurm_dir=env.get("AMBUILD_SLURM_DIR", ""),
             partition=env.get("AMBUILD_SLURM_PARTITION", ""),
             sbatch_options=env.get("AMBUILD_SLURM_OPTIONS", ""),
+            array_max=int(env.get("AMBUILD_ARRAY_MAX", "50")),
+            slurmrestd_url=env.get("AMBUILD_SLURMRESTD_URL", ""),
+            slurm_user=env.get("AMBUILD_SLURM_USER", ""),
+            slurm_jwt=env.get("AMBUILD_SLURM_JWT", ""),
+            slurm_jwt_file=env.get("AMBUILD_SLURM_JWT_FILE", ""),
+            slurmrestd_version=env.get("AMBUILD_SLURMRESTD_VERSION", ""),
+            slurm_ca=env.get("AMBUILD_SLURMRESTD_CA", ""),
+            slurm_setup=env.get("AMBUILD_SLURM_SETUP", ""),
+            slurm_env=_jsonObject(env, "AMBUILD_SLURMREST_ENV"),
+            slurm_job=_jsonObject(env, "AMBUILD_SLURMREST_JOB"),
+            slurm_log_dir=env.get("AMBUILD_SLURM_LOG_DIR", ""),
+            slurm_upload_env=env.get("AMBUILD_SLURM_UPLOAD_ENV", ""),
         )
 
     def uploadEnvironment(self):
@@ -209,6 +248,8 @@ class Agent:
         self.config = config
         self.api = api or Api(config.api_url, config.token)
         self.backend = backend or backends.make(config)
+        if hasattr(self.backend, "attach"):
+            self.backend.attach(self.api)  # slurmrest: learns how runs ended from the web API
         self.jobs = {}
         self.stopping = False
         self.last_heartbeat = 0.0
@@ -264,7 +305,10 @@ class Agent:
         try:
             if time.monotonic() - self.last_heartbeat >= self.config.heartbeat:
                 self.heartbeat()
-            while not self.stopping and len(self.jobs) < self.config.slots:
+            ready = self.backend.ready() if hasattr(self.backend, "ready") else True
+            if not ready:  # e.g. slurmrestd unreachable: claim nothing until it is back
+                self.last_error = self.backend.problem
+            while ready and not self.stopping and len(self.jobs) < self.config.slots:
                 if not self.claim():
                     break
         except API_ERRORS + (ApiError,) as exc:
@@ -337,7 +381,8 @@ class Agent:
                 if not job.cancelled:  # a cancelling submission only moves to its end
                     self.report(job.id, state, external_id=job.external_id)
                 job.state = state
-            if state == "running" and self.config.upload and self.config.upload_every and \
+            if state == "running" and getattr(self.backend, "uploadsLive", True) and \
+                    self.config.upload and self.config.upload_every and \
                     time.monotonic() - job.last_upload >= self.config.upload_every:
                 self.upload(job, final=False)
             return

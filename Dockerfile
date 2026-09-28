@@ -66,7 +66,8 @@ ENV POREBLAZER_EXE=/opt/poreblazer/poreblazer.exe
 USER ambuild
 
 # --- The web GUI's agent (services/agent): runs queued recipes in this container and
-# uploads them with ambuild-upload
+# uploads them with ambuild-upload (local backend), or submits them to a Slurm cluster
+# through slurmrestd (slurmrest backend), sending the job scripts in /opt/ambuild-slurm
 FROM with-poreblazer AS ambuild-agent
 USER root
 COPY services/ingest /tmp/ingest
@@ -74,8 +75,9 @@ COPY services/agent /tmp/agent
 RUN pip install --no-cache-dir /tmp/ingest /tmp/agent \
  && rm -rf /tmp/ingest /tmp/agent \
  && find /opt/env -name "__pycache__" -prune -exec rm -rf {} +
+COPY deploy/slurm/*.sh deploy/slurm/*.sbatch /opt/ambuild-slurm/
 USER ambuild
-ENV AMBUILD_AGENT_DIR=/home/ambuild/agent
+ENV AMBUILD_AGENT_DIR=/home/ambuild/agent AMBUILD_SLURM_DIR=/opt/ambuild-slurm
 CMD ["ambuild-agent"]
 
 # --- Ambuild with Poreblazer (the last stage, so the default target)

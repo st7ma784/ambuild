@@ -1,0 +1,38 @@
+# The web machine: the web GUI and its API, which every agent and the campaign
+# controller talk to. Modest CPU and memory; put a TLS reverse proxy (nginx, Caddy,
+# Traefik) in front of port 8000. It has no sign-in yet: keep it on the lab network.
+#
+#   cp web.env.example web.env                               # chmod 600
+#   docker compose --env-file web.env run --rm uploader-init  # result tables and the bucket
+#   docker compose --env-file web.env run --rm web init \
+#       --agent hpc:slurm --agent controller:campaigns       # prints each new token once
+#   docker compose --env-file web.env up -d web
+#
+# Each agent's token goes to that agent (AMBUILD_AGENT_TOKEN; the controller's is
+# AMBUILD_CAMPAIGNS_TOKEN). Agents can also be added later on the Agents page. Running
+# init again for an existing name gives it a new token.
+name: ambuild-web
+
+x-settings: &settings
+  DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in web.env}
+  AMBUILD_S3_BUCKET: ${AMBUILD_S3_BUCKET:-ambuild-runs}
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:?set S3_ENDPOINT_URL in web.env}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID in web.env}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY in web.env}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+
+services:
+  web:
+    image: ghcr.io/st7ma784/ambuild-web:${AMBUILD_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      <<: *settings
+      AMBUILD_WEB_TITLE: ${AMBUILD_WEB_TITLE:-Ambuild}
+    ports: ["${BIND_ADDRESS:-127.0.0.1}:8000:8000"]
+
+  uploader-init:
+    # ambuild-upload --init: the result tables and the bucket; safe to run again
+    image: ghcr.io/st7ma784/ambuild-uploader:${AMBUILD_TAG:-latest}
+    environment: *settings
+    command: ["--init"]
+    profiles: ["init"]

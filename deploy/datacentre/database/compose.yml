@@ -1,0 +1,25 @@
+# The database machine: PostgreSQL 16 for runs, results, recipes and the queue.
+# Fast local SSD for the data directory; nothing else of Ambuild runs here.
+#
+#   cp database.env.example database.env    # set a password; keep the file mode 600
+#   docker compose --env-file database.env up -d
+#
+# The web GUI, the uploader's init, local agents and the cluster's upload jobs connect
+# with DATABASE_URL=postgresql://ambuild:<POSTGRES_PASSWORD>@<this host>:5432/ambuild
+# (docs/deployment.md). Only open 5432 to those machines.
+name: ambuild-database
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ambuild
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in database.env}
+      POSTGRES_DB: ambuild
+    ports: ["${BIND_ADDRESS:-0.0.0.0}:5432:5432"]
+    volumes: ["${DATA_DIR:-./pgdata}:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ambuild -d ambuild"]
+      interval: 5s
+      retries: 30
