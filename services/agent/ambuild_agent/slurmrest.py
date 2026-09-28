@@ -158,12 +158,14 @@ class SlurmRest:
             if exc.code in (401, 403):
                 raise SlurmRestError("slurmrestd rejected the token for user {0!r} (HTTP {1}; expired? Make a new one "
                                      "with scontrol token)".format(self.user or "?", exc.code))
-            if exc.code == 404 and missingOk:
-                return None
             try:
                 reply = json.loads(text)
             except ValueError:
                 raise SlurmRestError("slurmrestd: HTTP {0} for {1} {2}: {3}".format(exc.code, method, path, text[:300]))
+            # an unknown job is a 404 with slurmrestd's errors; any other 404 (a wrong path)
+            # must not look like a job that has ended
+            if exc.code == 404 and missingOk and isinstance(reply, dict) and reply.get("errors"):
+                return None
             raise SlurmRestError("slurmrestd: HTTP {0} for {1} {2}: {3}".format(exc.code, method, path,
                                                                                   self.errors(reply) or text[:300]))
         except (urllib.error.URLError, OSError, ValueError) as exc:
@@ -223,6 +225,18 @@ class SlurmRestBackend(SlurmJobs):
     # --- slurmrestd
 
     def _path(self, rest):
+        """/slurm/<version>/<rest>, choosing the version first if need be (a restarted agent
+        polls the jobs it takes up before anything else)"""
+        if self.version is None:
+            offered = self.rest.call("GET", "/openapi/v3").get("paths") or {}
+            versions = {m.group(1) for p in offered for m in [re.match(r"/slurm/(v[\d.]+)/", p)] if m}
+            usable = [v for v in TESTED_VERSIONS if v in versions]
+            if not usable:
+                raise SlurmRestError("slurmrestd offers API versions {0}, none of the tested {1}; set "
+                                     "AMBUILD_SLURMRESTD_VERSION to try one".format(sorted(versions),
+                                                                                ", ".join(TESTED_VERSIONS)))
+            self.version = usable[0]
+            logger.info("slurmrestd %s: API %s", self.rest.url, self.version)
         return "/slurm/{0}/{1}".format(self.version, rest)
 
     def ready(self):
@@ -230,16 +244,6 @@ class SlurmRestBackend(SlurmJobs):
         self.problem says why"""
         if self._ready is None:
             try:
-                if self.version is None:
-                    offered = self.rest.call("GET", "/openapi/v3").get("paths") or {}
-                    versions = {m.group(1) for p in offered for m in [re.match(r"/slurm/(v[\d.]+)/", p)] if m}
-                    usable = [v for v in TESTED_VERSIONS if v in versions]
-                    if not usable:
-                        raise SlurmRestError("slurmrestd offers API versions {0}, none of the tested {1}; set "
-                                             "AMBUILD_SLURMRESTD_VERSION to try one".format(
-                                                 sorted(versions), ", ".join(TESTED_VERSIONS)))
-                    self.version = usable[0]
-                    logger.info("slurmrestd %s: API %s", self.rest.url, self.version)
                 pings = self.rest.call("GET", self._path("ping")).get("pings") or []
                 if not any(str(p.get("pinged", "")).upper() in ("UP", "RESPONDING") for p in pings):
                     raise SlurmRestError("slurmrestd answers, but no Slurm controller is up: {0}".format(pings))
@@ -377,7 +381,7 @@ class SlurmRestBackend(SlurmJobs):
         if baseId not in self._ended:
             try:
                 reply = self.rest.call("GET", self._path("job/{0}".format(baseId)), missingOk=True)
-            except SlurmRestError as exc:
+            except SlurmRestError as exc:  # the job's state is unknown: not an end
                 raise RuntimeError(str(exc))
             states = {}
             for record in (reply or {}).get("jobs") or []:
@@ -421,8 +425,15 @@ class SlurmRestBackend(SlurmJobs):
     def cancel(self, job):
         try:
             self.rest.call("DELETE", self._path("job/{0}".format(job.handle["build"])), missingOk=True)
+            job.handle.pop("cancel_pending", None)
         except SlurmRestError as exc:
-            logger.warning("submission %s: could not cancel: %s", job.id, exc)
+            job.handle["cancel_pending"] = True  # tried again at each poll
+            logger.warning("submission %s: could not cancel yet: %s", job.id, exc)
+
+    def poll(self, job):
+        if job.handle.get("cancel_pending"):
+            self.cancel(job)
+        return super().poll(job)
 
     def forget(self, job, removeRun=False):
         pass  # nothing here; run directories stay on the cluster, as for scripted builds

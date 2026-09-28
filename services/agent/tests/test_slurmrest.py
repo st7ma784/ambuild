@@ -22,8 +22,15 @@ class FakeRest:
 
     def __init__(self, jobs=None, failOn=None):
         self.submitted, self.deleted, self.jobs, self.failOn = [], [], jobs or {}, failOn
+        self.paths, self.down = [], False
 
     def call(self, method, path, body=None, missingOk=False):
+        if self.down:
+            raise SlurmRestError("slurmrestd at {0} unreachable: refused".format(self.url))
+        self.paths.append(path)
+        if path == "/openapi/v3":
+            return {"paths": {"/slurm/v0.0.41/ping": {}, "/slurm/v0.0.42/ping": {}, "/slurm/v0.0.43/ping": {}}}
+        assert path.startswith("/slurm/v0.0.4"), path
         if method == "POST":
             if self.failOn and self.failOn in body["job"]["name"]:
                 raise SlurmRestError("refused")
@@ -152,9 +159,43 @@ def test_outcomes_come_from_the_uploaded_runs(backend):
 
 
 def test_not_ready_while_slurmrestd_is_down(backend):
-    def down(*args, **kwargs):
-        raise SlurmRestError("slurmrestd at http://slurm-head:6820 unreachable: refused")
-    backend.rest.call = down
+    backend.rest.down = True
     backend.beginPass()
     assert backend.ready() is False and "unreachable" in backend.problem
     assert backend.summary() == {"problem": backend.problem}
+
+
+def running(build="65", upload="66"):
+    return Job(submission=submission(1), rundir="", workdir="", handle={"build": build, "upload": upload},
+               state="running")
+
+
+def test_a_restarted_agent_chooses_the_api_version_before_polling(backend):
+    """A restarted agent polls the jobs it takes up before anything else: that must use the
+    right API version, not end them (this once asked for /slurm/None/job/65)"""
+    backend.version = None
+    backend.rest.jobs = {"65": [{"job_id": 65, "job_state": ["RUNNING"], "array_job_id": {"set": True, "number": 0}}],
+                         "66": [{"job_id": 66, "job_state": ["PENDING"], "array_job_id": {"set": True, "number": 0}}]}
+    backend.beginPass()
+    assert backend.poll(running()) == ("running", None, False)
+    assert backend.version == "v0.0.42"  # the newest tested one offered
+    assert backend.rest.paths[:2] == ["/openapi/v3", "/slurm/v0.0.42/job/65"]
+
+
+def test_unknown_states_are_not_an_end(backend):
+    backend.rest.down = True
+    backend.beginPass()
+    assert backend.poll(running()) == ("running", None, False)
+
+
+def test_a_cancel_slurmrestd_refused_is_tried_again(backend):
+    backend.rest.jobs = {"65": [{"job_id": 65, "job_state": ["RUNNING"], "array_job_id": {"set": True, "number": 0}}],
+                         "66": [{"job_id": 66, "job_state": ["PENDING"], "array_job_id": {"set": True, "number": 0}}]}
+    job = running()
+    backend.rest.down = True
+    backend.cancel(job)
+    assert job.handle["cancel_pending"] and backend.rest.deleted == []
+    backend.rest.down = False
+    backend.beginPass()
+    backend.poll(job)
+    assert backend.rest.deleted == ["65"] and "cancel_pending" not in job.handle
