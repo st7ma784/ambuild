@@ -179,7 +179,7 @@ cluster labelling.
 The web GUI (`services/web`) and its agents turn Ambuild into a shared service:
 
 - **Browse** every recorded run: filters by result, step charts, pore size distributions, a 3D structure viewer, and comparisons.
-- **Submit** recipes to a Slurm cluster (one job each, through `deploy/slurm`) or a local or K3s worker.
+- **Submit** recipes to a Slurm cluster (one job each, through `deploy/slurm`), from a login node or through slurmrestd, or to a local or K3s worker.
 - **Sweep** a recipe over a grid of settings, CSV rows or seeds. On Slurm a sweep runs as one array job, and its page plots any result against each setting.
 - **Run campaigns:** give the settings to search and a goal, e.g. "the highest density whose pores still let Li⁺ through". A controller proposes each round with Bayesian optimisation (Optuna), or you or an AI agent do.
 
@@ -189,8 +189,9 @@ A demo runs everything on a laptop:
 docker compose -f deploy/docker-compose.yml --profile web up -d --build    # http://127.0.0.1:8080
 ```
 
-See [deploy/README.md](deploy/README.md) for Slurm, K3s and the Helm chart, and
-[docs/web-gui.md](docs/web-gui.md) for the design.
+See [deploy/README.md](deploy/README.md) for Slurm, K3s and the Helm chart,
+[docs/deployment.md](docs/deployment.md) for running each part on its own machine (from
+the published images), and [docs/web-gui.md](docs/web-gui.md) for the design.
 
 ## Working with an AI assistant
 
@@ -253,6 +254,7 @@ through Docker Compose ([deploy/README.md](deploy/README.md)).
 | [docs/architecture.md](docs/architecture.md) | how runs are recorded, uploaded and stored |
 | [docs/web-gui.md](docs/web-gui.md) | the web GUI, agents, sweeps, campaigns and the agent skill, milestone by milestone |
 | [deploy/README.md](deploy/README.md) | Docker Compose, Slurm, K3s and Helm |
+| [docs/deployment.md](docs/deployment.md) | a server-room deployment: which machine runs what, the network, and which URLs and secrets go where |
 | [docs/benchmarks.md](docs/benchmarks.md) | HOOMD-blue and Poreblazer performance |
 | [docs/install.md](docs/install.md) | Docker and NVIDIA set-up on a Linux host |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md), [TODO.md](TODO.md) | what changed, and what is planned |

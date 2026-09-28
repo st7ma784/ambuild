@@ -218,11 +218,15 @@ def revokeAgent(conn, agentId):
 
 
 def agentSubmissions(conn, agent):
-    """The agent's unfinished submissions, for taking them up again after it restarts"""
+    """The agent's unfinished submissions, for taking them up again after it restarts, with
+    their uploaded runs' status and error (None until uploaded): an agent that cannot see
+    the run directories (slurmrest) learns how a run ended from them"""
     return conn.execute(
-        "SELECT submission_id, name, state, external_id, run_id, seed, recipe, resources, attempts, owner "
-        "FROM submissions WHERE agent_id = %s AND state IN ('claimed', 'submitted', 'running', 'cancelling') "
-        "ORDER BY submission_id", (agent["agent_id"],)).fetchall()
+        "SELECT s.submission_id, s.name, s.state, s.external_id, s.run_id, s.seed, s.recipe, s.resources, "
+        "s.attempts, s.owner, r.status AS run_status, r.error AS run_error "
+        "FROM submissions s LEFT JOIN runs r ON r.run_id = s.run_id "
+        "WHERE s.agent_id = %s AND s.state IN ('claimed', 'submitted', 'running', 'cancelling') "
+        "ORDER BY s.submission_id", (agent["agent_id"],)).fetchall()
 
 
 def agentForToken(conn, token):

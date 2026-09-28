@@ -24,6 +24,21 @@ if [ "${SLURM_NTASKS:-1}" -gt 1 ] && [ -z "${AMBUILD_HOOMD_LAUNCHER+set}" ]; the
 fi
 echo "HOOMD-blue launcher: ${AMBUILD_HOOMD_LAUNCHER-in-process}"
 
+# With AMBUILD_LIVE_UPLOAD_EVERY=N (the slurmrest agent sets it), upload the run every N
+# seconds while it builds, so its page in the web GUI is live. In a subshell, so the
+# build never sees the upload credentials; the upload job still uploads it at the end.
+if [ "${AMBUILD_LIVE_UPLOAD_EVERY:-0}" -gt 0 ]; then
+    (
+        set -a
+        # shellcheck disable=SC1090
+        source "${AMBUILD_UPLOAD_ENV:-$HOME/.config/ambuild/upload.env}"
+        set +a
+        while sleep "$AMBUILD_LIVE_UPLOAD_EVERY"; do
+            if [ -f "$AMBUILD_RUN_DIR/run.json" ]; then ambuild-upload "$AMBUILD_RUN_DIR" >/dev/null 2>&1 || true; fi
+        done
+    ) &
+fi
+
 if [ -n "${AMBUILD_RECIPE:-}" ]; then
     # exec, so scancel's SIGTERM reaches the runner, which records the run as cancelled
     exec python -m ambuild.recipe run "$AMBUILD_RECIPE" --output "$AMBUILD_RUN_DIR" --run-id "$AMBUILD_RUN_ID" \

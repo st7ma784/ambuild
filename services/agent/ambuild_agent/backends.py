@@ -1,4 +1,5 @@
-"""Where submissions run: here as processes (local) or on a Slurm cluster (slurm).
+"""Where submissions run: here as processes (local), or on a Slurm cluster, submitted
+from a login node with sbatch (slurm) or through slurmrestd with a JWT (slurmrest).
 
 A backend starts a submission as a Job, polls it for (state, error, final), cancels it,
 and takes it up again after the agent restarts (resume) when it can.
@@ -23,7 +24,11 @@ def make(config):
         return LocalBackend(config)
     if config.backend == "slurm":
         return SlurmBackend(config)
-    raise SystemExit("AMBUILD_AGENT_BACKEND must be local or slurm, not {0!r}".format(config.backend))
+    if config.backend == "slurmrest":
+        from ambuild_agent.slurmrest import SlurmRestBackend
+
+        return SlurmRestBackend(config)
+    raise SystemExit("AMBUILD_AGENT_BACKEND must be local, slurm or slurmrest, not {0!r}".format(config.backend))
 
 
 def _tail(path, lines=8):
@@ -119,12 +124,74 @@ RUNNING = {"RUNNING", "COMPLETING", "SUSPENDED", "STAGE_OUT", "SIGNALING"}
 GONE = "GONE"  # no longer known to Slurm (and no accounting to ask)
 
 
-class SlurmBackend:
+def taskIds(text):
+    """Array task ids from Slurm's notation, e.g. "0-3,7%50" """
+    ids = []
+    for part in text.split("%")[0].split(","):
+        low, _, high = part.partition("-")
+        if low.isdigit():
+            ids.extend(range(int(low), int(high or low) + 1))
+    return ids
+
+
+class SlurmJobs:
+    """What the Slurm backends share: each submission is a build job (or an array job's
+    task) followed afterany by an upload job, with external id slurm:<build>/<upload>.
+    A backend gives states(job ids) -> {job id: state}, and _paths(run id)."""
+    uploadsAtEnd = False  # the upload job does it
+
+    def beginPass(self):
+        """Forget the job states of the last pass (they are looked up once per pass)"""
+        self._queue = None
+        self._ended = {}
+
+    def poll(self, job):
+        build, upload = job.handle["build"], job.handle["upload"]
+        try:
+            states = self.states([build, upload])
+        except RuntimeError as exc:
+            logger.warning("submission %s: %s", job.id, exc)
+            return job.state or "submitted", None, False
+        built, uploading = states[build], states[upload]
+        if built in PENDING:
+            return "submitted", None, False
+        if built in RUNNING:
+            return "running", None, False
+        if uploading in PENDING or uploading in RUNNING:  # built; waiting for the upload
+            return job.state or "running", None, False
+        job.handle.update(build_state=built, upload_state=uploading)
+        state, error = self.outcome(job, "The Slurm build job ended {0}".format(built))
+        if state == "failed" and built in ("TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "PREEMPTED", "DEADLINE"):
+            error = "{0} (Slurm: {1})".format(error, built)
+        return state, error, True
+
+    def outcome(self, job, fallbackError):
+        return runOutcome(job, fallbackError)
+
+    def uploaded(self, job):
+        return job.handle.get("upload_state") in ("COMPLETED", GONE)
+
+    def stopping(self, jobs):
+        pass  # Slurm jobs carry on; a restarted agent takes them up again
+
+    def waitsOnStop(self, jobs):
+        return False
+
+    def resume(self, sub):
+        match = re.fullmatch(r"slurm:(\d+(?:_\d+)?)/(\d+)", sub.get("external_id") or "")
+        if not match:
+            return None
+        rundir, workdir = self._paths(sub["run_id"])
+        return Job(submission=sub, rundir=rundir, workdir=workdir,
+                   handle={"build": match.group(1), "upload": match.group(2)}, external_id=sub["external_id"],
+                   state=sub["state"] if sub["state"] in ("submitted", "running") else "running")
+
+
+class SlurmBackend(SlurmJobs):
     """Each submission is a build job and an upload job, submitted with submit_build.sh
     (deploy/slurm) from this login node. The recipe and its inputs are staged on the
     shared filesystem, under AMBUILD_RUNS_ROOT; the run directory is AMBUILD_RUNS_ROOT/<run id>."""
     name = "slurm"
-    uploadsAtEnd = False  # the upload job does it
 
     def __init__(self, config):
         if not config.runs_root or not config.slurm_dir:
@@ -215,20 +282,7 @@ class SlurmBackend:
                             external_id="slurm:{0}/{1}".format(task, upload), state="submitted"))
         return jobs
 
-    def beginPass(self):
-        """Forget the job states of the last pass (they are looked up once per pass)"""
-        self._queue = None
-        self._ended = {}
-
-    @staticmethod
-    def _taskIds(text):
-        """Array task ids from Slurm's notation, e.g. "0-3,7%50" """
-        ids = []
-        for part in text.split("%")[0].split(","):
-            low, _, high = part.partition("-")
-            if low.isdigit():
-                ids.extend(range(int(low), int(high or low) + 1))
-        return ids
+    _taskIds = staticmethod(taskIds)
 
     def _queued(self):
         """{job id: state} of this user's jobs in squeue (array tasks as ARRAY_TASK)"""
@@ -287,46 +341,8 @@ class SlurmBackend:
             states[jobId] = state
         return states
 
-    def poll(self, job):
-        build, upload = job.handle["build"], job.handle["upload"]
-        try:
-            states = self.states([build, upload])
-        except RuntimeError as exc:
-            logger.warning("submission %s: %s", job.id, exc)
-            return job.state or "submitted", None, False
-        built, uploading = states[build], states[upload]
-        if built in PENDING:
-            return "submitted", None, False
-        if built in RUNNING:
-            return "running", None, False
-        if uploading in PENDING or uploading in RUNNING:  # built; waiting for the upload
-            return job.state or "running", None, False
-        job.handle.update(build_state=built, upload_state=uploading)
-        state, error = runOutcome(job, "The Slurm build job ended {0}".format(built))
-        if state == "failed" and built in ("TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "PREEMPTED", "DEADLINE"):
-            error = "{0} (Slurm: {1})".format(error, built)
-        return state, error, True
-
-    def uploaded(self, job):
-        return job.handle.get("upload_state") in ("COMPLETED", GONE)
-
     def cancel(self, job):
         self._run(["scancel", job.handle["build"]])  # the upload job still records the run
-
-    def stopping(self, jobs):
-        pass  # Slurm jobs carry on; a restarted agent takes them up again
-
-    def waitsOnStop(self, jobs):
-        return False
-
-    def resume(self, sub):
-        match = re.fullmatch(r"slurm:(\d+(?:_\d+)?)/(\d+)", sub.get("external_id") or "")
-        if not match:
-            return None
-        rundir, workdir = self._paths(sub["run_id"])
-        return Job(submission=sub, rundir=rundir, workdir=workdir,
-                   handle={"build": match.group(1), "upload": match.group(2)}, external_id=sub["external_id"],
-                   state=sub["state"] if sub["state"] in ("submitted", "running") else "running")
 
     def forget(self, job, removeRun=False):
         shutil.rmtree(job.workdir, ignore_errors=True)  # run directories stay, as for scripted builds

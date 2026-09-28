@@ -1,0 +1,34 @@
+# The object-storage machine: an S3 API for run files (structures, logs, pickles).
+# Large, cheap disks. SeaweedFS here, as MinIO no longer publishes container images; any
+# S3 API works instead (an existing MinIO, Ceph RGW, or a cloud bucket): then skip this
+# machine and point S3_ENDPOINT_URL and the keys at it.
+#
+#   cp storage.env.example storage.env      # set the keys; keep the file mode 600
+#   docker compose --env-file storage.env up -d
+#
+# Clients use S3_ENDPOINT_URL=http://<this host>:8333 (https behind a TLS proxy), with
+# AWS_ACCESS_KEY_ID=<S3_ACCESS_KEY>, AWS_SECRET_ACCESS_KEY=<S3_SECRET_KEY>. The bucket
+# (AMBUILD_S3_BUCKET) is created by the web machine's init.
+name: ambuild-storage
+
+services:
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.97
+    restart: unless-stopped
+    command: server -ip.bind=0.0.0.0 -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    configs:
+      - source: s3-identities
+        target: /etc/seaweedfs/s3.json
+    ports: ["${BIND_ADDRESS:-0.0.0.0}:8333:8333"]
+    volumes: ["${DATA_DIR:-./s3data}:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8333"]
+      interval: 5s
+      retries: 60
+
+configs:
+  s3-identities:
+    content: |
+      {"identities": [{"name": "ambuild",
+        "credentials": [{"accessKey": "${S3_ACCESS_KEY:?set S3_ACCESS_KEY}", "secretKey": "${S3_SECRET_KEY:?set S3_SECRET_KEY}"}],
+        "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}

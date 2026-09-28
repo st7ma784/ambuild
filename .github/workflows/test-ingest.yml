@@ -22,7 +22,8 @@ jobs:
 
   slurm:
     # deploy/slurm end to end on a single-node Slurm cluster: build, upload,
-    # Poreblazer fan-out, and failed and cancelled builds
+    # Poreblazer fan-out, and failed and cancelled builds; the web GUI's agents on it,
+    # from the login node (slurm) and through slurmrestd with a JWT (slurmrest)
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4

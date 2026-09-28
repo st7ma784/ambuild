@@ -1,0 +1,14 @@
+# The campaign controller: proposes each campaign round's points (Optuna). Stateless and
+# light; it only talks to the web API, so it can share the web machine.
+#
+#   cp campaigns.env.example campaigns.env  # chmod 600
+#   docker compose --env-file campaigns.env up -d
+name: ambuild-campaigns
+
+services:
+  campaigns:
+    image: ghcr.io/st7ma784/ambuild-campaigns:${AMBUILD_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      AMBUILD_API_URL: ${AMBUILD_API_URL:?set AMBUILD_API_URL}
+      AMBUILD_CAMPAIGNS_TOKEN: ${AMBUILD_CAMPAIGNS_TOKEN:?set AMBUILD_CAMPAIGNS_TOKEN}

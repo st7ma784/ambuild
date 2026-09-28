@@ -12,6 +12,7 @@ S3-compatible object storage by `ambuild-upload` (`services/ingest`).
 | `k8s/` | K3s fallback: init Job, on-demand upload scan Job, runs PVC, Secret template |
 | `helm/ambuild/` | Helm chart for the web GUI, deployed through Rancher's Fleet (`fleet.yaml`) |
 | `demo/` | Demo runs for the web GUI's Compose profile |
+| `datacentre/` | One directory per machine role, for running each part on its own machine from the published images ([docs/deployment.md](../docs/deployment.md)) |
 
 ## Local stack
 
@@ -170,6 +171,13 @@ The agent does the following:
 
 It can be stopped and started at any time: it takes up its Slurm jobs again. It never
 connects to the database; its token lets it take and report work only.
+
+Without a login node, the `slurmrest` backend submits the same jobs through slurmrestd with
+a cluster user's JWT, from a container anywhere (`datacentre/agent-slurmrest/`). Its jobs
+stage their recipes on the cluster and upload their runs themselves, so the agent needs
+no Slurm commands, munge key, shared filesystem or database credentials. See
+[docs/deployment.md](../docs/deployment.md), which also lists the cluster-side setup
+(JWT authentication, slurmrestd with `SLURM_JWT=daemon`, the user's `upload.env`).
 
 ## K3s fallback
 

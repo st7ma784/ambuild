@@ -16,6 +16,21 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- A third agent backend, `slurmrest`, which submits to Slurm through slurmrestd with a cluster user's JWT, from any machine (e.g. a container beside the web GUI):
+  - **What the agent needs:** no login node, Slurm commands, munge key, shared filesystem, or database or storage credentials.
+  - **Jobs:** each job script is one of `deploy/slurm`'s, carrying its recipe and input files (base64, checked by sha256), which it stages on the cluster. Sweeps are one array job, followed by an upload job, as from a login node.
+  - **Live progress:** builds upload their runs while they run (`AMBUILD_LIVE_UPLOAD_EVERY`, a new opt-in for the build scripts). The upload runs in a subshell the build can't see.
+  - **Outcomes:** the agent learns how a run ended from the web API. `GET /api/agent/submissions` now includes the uploaded run's status and error.
+  - **Tokens:** while slurmrestd is unreachable or rejects the token, the agent claims nothing, and its status card warns why. The token file is reread for every request, so a renewed token needs no restart.
+  - **Tests:** CI's Slurm cluster now runs slurmrestd with JWTs. `deploy/slurm/test/check_slurmrest.py` checks a build (live, surviving an agent restart), cancelling, a sweep and a token change, with the agent running as a user who can't read the runs directory. `services/agent/tests` covers the backend with a fake slurmrestd.
+- Published images: `.github/workflows/publish-images.yml` pushes `ambuild`, `ambuild-agent`, `ambuild-web`, `ambuild-campaigns` and `ambuild-uploader` to ghcr.io.
+  - **Tags:** `sha-<commit>` and `latest` from `master`, and `X.Y.Z`/`X.Y` from `vX.Y.Z` tags.
+  - **Agent image:** it now carries the Slurm job scripts (`/opt/ambuild-slurm`).
+- A server-room deployment guide, `docs/deployment.md`, with `deploy/datacentre/`: a directory per machine role (database, object storage, web, campaign controller, slurmrest agent, login-node agent, local agent, cluster), each with a Compose file (or systemd unit) and a settings template. The guide covers:
+  - which machine suits each role, and the order to set them up;
+  - the network flows;
+  - which URLs and secrets go where;
+  - the cluster-side setup (JWT authentication, slurmrestd, the build environment, or the published image under Apptainer).
 - Alkyne linker checks in `tests/testLiIonCarbon.py`:
   - **Linkers:** after optimisation, every linker in `li_ion_carbon` keeps its 1.203 Å triple bond. Each end is bonded to one ring carbon or, on a free end, its own hydrogen, never to another linker; most linkers join two rings.
   - **Reproducibility:** the same recipe and seed give the identical structure. Placing linear alkynes uses the (anti)parallel alignments that the `vectorAngle` fix below made deterministic.

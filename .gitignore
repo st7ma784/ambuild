@@ -18,3 +18,8 @@ dist/
 # Local deployment secrets and data
 deploy/.env
 deploy/runs/
+# settings and tokens of a multi-machine deployment (deploy/datacentre); the examples stay
+deploy/datacentre/**/*.env
+deploy/datacentre/**/slurm.jwt
+deploy/datacentre/**/pgdata/
+deploy/datacentre/**/s3data/

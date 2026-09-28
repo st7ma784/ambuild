@@ -139,6 +139,8 @@ def checkAgents(settings):
         else:
             facts = {"runs on": a["backend"], "host": a["host"] or "–", "version": a["version"] or "–",
                      "running": a["active"], "queued for {0}".format(a["backend"]): queued.get(a["backend"], 0)}
+            if summary.get("slurmrestd"):
+                facts["via"] = "slurmrestd {0} (API {1})".format(summary["slurmrestd"], summary.get("api") or "?")
         for name, p in sorted((summary.get("partitions") or {}).items()):
             nodes = ", ".join("{0} {1}".format(n, s) for s, n in sorted(p.get("nodes", {}).items()))
             facts["partition " + name + (" (default)" if p.get("default") else "")] = "{0}; {1}".format(
@@ -152,7 +154,9 @@ def checkAgents(settings):
         if summary.get("last_error"):
             facts["last error"] = summary["last_error"]
         ago = a["seconds_since"]
-        if a["live"]:
+        if a["live"] and summary.get("problem"):  # e.g. slurmrestd unreachable: it claims nothing meanwhile
+            state, text = WARN, "Heard from {0:.0f} s ago, but: {1}".format(ago, summary["problem"])
+        elif a["live"]:
             state, text = OK, "Heard from {0:.0f} s ago".format(ago)
         elif ago is None:
             state, text = FAIL, "Never connected: start it with its token"

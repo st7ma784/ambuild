@@ -48,6 +48,10 @@ jobs:
       run: |
         pip install --no-deps . && pip install ./services/campaigns pytest
         cd services/campaigns && python -m pytest -q -p no:cacheprovider tests
+    - name: Agent tests (the slurmrest backend with a fake slurmrestd; the Slurm test uses a real one)
+      run: |
+        pip install ./services/agent
+        python -m pytest -q -p no:cacheprovider services/agent/tests
 
   chart:
     # The Helm chart: strict lint, size budget (Fleet and Helm cap bundles and releases at

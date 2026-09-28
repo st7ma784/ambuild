@@ -332,14 +332,18 @@ def test_agents_are_added_and_revoked_through_the_api(client, blobs, conn):
     client.post("/api/submissions/{0}/cancel".format(sub["submission_id"]))
 
 
-def test_resuming_sees_external_ids(client, blobs, conn):
+def test_resuming_sees_external_ids(client, blobs, conn, recorded):
     headers = agent(conn, "resumer")
     sub = submit(client, blobs)
     claimed(client, headers)
     path = "/api/agent/submissions/{0}".format(sub["submission_id"])
     client.patch(path, json={"state": "submitted", "external_id": "slurm:101/102"}, headers=headers)
     mine = client.get("/api/agent/submissions", headers=headers).json()["submissions"]
-    assert [(s["state"], s["external_id"]) for s in mine] == [("submitted", "slurm:101/102")]
+    assert [(s["state"], s["external_id"], s["run_status"]) for s in mine] == [("submitted", "slurm:101/102", None)]
+    # once its run is uploaded (by a Slurm upload job) the agent sees how it ended
+    conn.execute("UPDATE submissions SET run_id = %s WHERE submission_id = %s", (recorded["b"], sub["submission_id"]))
+    mine = client.get("/api/agent/submissions", headers=headers).json()["submissions"]
+    assert (mine[0]["run_status"], mine[0]["run_error"]) == ("failed", "RuntimeError: deliberate failure")
     page = client.get("/submissions/{0}".format(sub["submission_id"])).text
     assert "build 101, upload 102" in page
     client.patch(path, json={"state": "running"}, headers=headers)

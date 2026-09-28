@@ -34,10 +34,11 @@ Python script, a queue, something that hands queued work to Slurm, and the pages
 2. **No code from the browser.** Builds are submitted as *recipes* (declarative JSON,
    validated against a schema) plus uploaded building blocks and parameter files, never
    as Python scripts. The API never unpickles anything.
-3. **The web tier never touches the cluster.** A small *Slurm agent* on a login node
-   pulls work from the web API (with a token) and submits it (pull, not push): no inbound
-   firewall rules to the cluster, no cluster credentials in the web application, and jobs
-   already submitted keep running if the web tier is down.
+3. **The web tier never touches the cluster.** A small *Slurm agent*, on a login node or
+   anywhere that reaches slurmrestd, pulls work from the web API (with a token) and
+   submits it (pull, not push): no inbound firewall rules to the cluster, no cluster
+   credentials in the web application, and jobs already submitted keep running if the
+   web tier is down.
 4. **PostgreSQL is the queue.** Submissions are rows claimed with
    `SELECT … FOR UPDATE SKIP LOCKED`; no Redis or message broker to run.
 5. **Reuse the existing pieces.** The runner is Ambuild itself; results arrive through
@@ -506,6 +507,12 @@ and results browser early; 3–4 are the submission path; 5–9 build on it: 6 (
   - Job states come from `squeue`, then `scontrol` (recently ended jobs), then `sacct`, so clusters without accounting work.
   - Cancelling runs `scancel` on the build job. The build script `exec`s the runner, so it receives the SIGTERM and records the run as cancelled, and the upload job still uploads it.
 - **Restarts**: Slurm jobs outlive the agent. A restarted agent asks for its unfinished submissions (`GET /api/agent/submissions`) and takes them up again from their external ids (`slurm:<build>/<upload>`). Claims it never started go back to the queue.
+- **slurmrest backend** (added later, `AMBUILD_AGENT_BACKEND=slurmrest`, `services/agent/ambuild_agent/slurmrest.py`): the same jobs, submitted through slurmrestd with a cluster user's JWT, from any machine, such as a container in the server room. The agent needs no Slurm commands, munge key or shared filesystem:
+  - Each job script is one of `deploy/slurm`'s, with the recipe and its input files written into it (base64, checked by sha256). It stages them under `AMBUILD_RUNS_ROOT` on the cluster before building.
+  - The build job uploads the run while it runs (`AMBUILD_LIVE_UPLOAD_EVERY`, in a subshell the build cannot see), and the upload job uploads it afterwards, both with the cluster user's `upload.env`.
+  - How a run ended comes from the web API: `GET /api/agent/submissions` now includes each run's uploaded status and error.
+  - While slurmrestd is unreachable or rejects the token, the agent claims nothing and its status card says why. The token file is read for every request, so a new token needs no restart.
+  - [deployment.md](deployment.md) covers setting it up, and `deploy/slurm/test/check_slurmrest.py` runs it against a real slurmrestd in CI.
 - **Live progress**: while a run is running, the agent uploads it every `AMBUILD_AGENT_UPLOAD_EVERY` seconds. The Slurm agent uses the same upload settings file as the upload jobs. The run page refreshes itself every 15 s while the run is `running` (header, step charts and Poreblazer results, in one request). New structures appear on reload.
 - **Status page**: a card per agent shows whether it is online, its host, version, running and queued counts, and its last error. For Slurm the card lists each partition's nodes by state (from `sinfo`); for local, CPUs, load and free disk. Agents feed the overall state, and "no agents" needs attention.
 - **Agents page** (`/agents`, and `POST /api/agents`, `POST /api/agents/{id}/revoke`):

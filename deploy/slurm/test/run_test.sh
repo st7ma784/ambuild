@@ -42,3 +42,8 @@ python3 "$slurm/test/check_web.py" "$(run_id_of "$ok")" "$(run_id_of "$failed")"
     "$(run_id_of "$multitask")"
 echo "--- web GUI's Slurm agent"
 AMBUILD_API_URL="${AMBUILD_WEB_URL:-http://web:8000}" python3 "$slurm/test/check_agent.py"
+echo "--- web GUI's slurmrest agent"
+# the cluster user's upload settings, as on a real cluster (the jobs read them)
+install -d -o ambuild -g ambuild -m 700 /home/ambuild/.config/ambuild
+install -o ambuild -g ambuild -m 600 "$AMBUILD_UPLOAD_ENV" /home/ambuild/.config/ambuild/upload.env
+AMBUILD_API_URL="${AMBUILD_WEB_URL:-http://web:8000}" python3 "$slurm/test/check_slurmrest.py"
