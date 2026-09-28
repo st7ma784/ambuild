@@ -155,12 +155,18 @@ class SlurmRest:
                 reply = json.loads(response.read().decode() or "null") or {}
         except urllib.error.HTTPError as exc:
             text = exc.read().decode("utf-8", "replace")
-            if exc.code in (401, 403):
-                raise SlurmRestError("slurmrestd rejected the token for user {0!r} (HTTP {1}; expired? Make a new one "
-                                     "with scontrol token)".format(self.user or "?", exc.code))
             try:
                 reply = json.loads(text)
             except ValueError:
+                reply = None
+            # slurmrestd refuses a bad token itself (401), or passes it on and slurmctld
+            # refuses it (511, "Protocol authentication error", error 1007)
+            refused = exc.code in (401, 403, 511) or any(
+                e.get("error_number") == 1007 for e in (reply or {}).get("errors") or [] if isinstance(e, dict))
+            if refused:
+                raise SlurmRestError("slurmrestd rejected the token for user {0!r} (HTTP {1}; expired? Make a new one "
+                                     "with scontrol token)".format(self.user or "?", exc.code))
+            if reply is None:
                 raise SlurmRestError("slurmrestd: HTTP {0} for {1} {2}: {3}".format(exc.code, method, path, text[:300]))
             # an unknown job is a 404 with slurmrestd's errors; any other 404 (a wrong path)
             # must not look like a job that has ended
@@ -244,9 +250,9 @@ class SlurmRestBackend(SlurmJobs):
         self.problem says why"""
         if self._ready is None:
             try:
-                pings = self.rest.call("GET", self._path("ping")).get("pings") or []
-                if not any(str(p.get("pinged", "")).upper() in ("UP", "RESPONDING") for p in pings):
-                    raise SlurmRestError("slurmrestd answers, but no Slurm controller is up: {0}".format(pings))
+                # diag needs both the controller and a token it accepts (a ping with a bad
+                # token only says the controller is DOWN)
+                self.rest.call("GET", self._path("diag"))
                 self._ready, self.problem = True, None
             except SlurmRestError as exc:
                 if self.problem != str(exc):

@@ -154,7 +154,8 @@ def main():
     writeToken("not-a-token")
     status = waitFor(lambda: (lambda c: c if c and c["state"] == "warn" else None)(card(name)), 60,
                      "its status card warns")
-    check("rejected the token" in status["summary"], "with a rejected token: {0}".format(status["summary"]))
+    check("rejected the token for user 'ambuild'" in status["summary"],
+          "with a rejected token: {0}".format(status["summary"]))
     small = webapi.demoRecipe(BLOCKS, name="slurmrest token " + name, seed=4, stages=[{"op": "seed", "count": 4}])
     sub = webapi.call("POST", "/api/submissions", {"recipe": small, "backend": "slurm", "owner": "slurmrest test"})
     time.sleep(12)

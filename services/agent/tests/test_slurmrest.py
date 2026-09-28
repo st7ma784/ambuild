@@ -165,6 +165,41 @@ def test_not_ready_while_slurmrestd_is_down(backend):
     assert backend.summary() == {"problem": backend.problem}
 
 
+def test_a_token_slurmctld_refuses_is_reported_as_such():
+    """slurmrestd passes a JWT on, and slurmctld's refusal comes back as HTTP 511 (error
+    1007); an unknown job is a 404 with errors; a 404 without them is not an ended job"""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from ambuild_agent.slurmrest import SlurmRest
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            code, body = {"/diag": (511, {"errors": [{"error": "Protocol authentication error", "error_number": 1007}]}),
+                          "/job/9": (404, {"jobs": [], "errors": [{"error": "Invalid job id specified"}]}),
+                          }.get(self.path, (404, None))
+            self.send_response(code)
+            self.end_headers()
+            self.wfile.write(json.dumps(body).encode() if body else b"Not Found")
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        config = Config(api_url="", token="", slurmrestd_url="http://127.0.0.1:{0}".format(server.server_port),
+                        slurm_jwt="bad", slurm_user="chem1")
+        rest = SlurmRest(config)
+        with pytest.raises(SlurmRestError, match="rejected the token for user 'chem1'"):
+            rest.call("GET", "/diag")
+        assert rest.call("GET", "/job/9", missingOk=True) is None
+        with pytest.raises(SlurmRestError, match="HTTP 404"):
+            rest.call("GET", "/wrong/path", missingOk=True)
+    finally:
+        server.shutdown()
+
+
 def running(build="65", upload="66"):
     return Job(submission=submission(1), rundir="", workdir="", handle={"build": build, "upload": upload},
                state="running")
