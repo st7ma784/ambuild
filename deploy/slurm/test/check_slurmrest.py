@@ -91,8 +91,16 @@ def main():
     check((row["external_id"] or "").startswith("slurm:"), "submitted through slurmrestd as {0}".format(
         row["external_id"]))
     build = row["external_id"][6:].split("/")[0]
-    live = waitFor(lambda: (lambda r: r if r and r["summary"]["status"] == "running" else None)(runOrNone(sub["run_id"])),
-                   180, "the build job uploads the running run (live progress)")
+    def liveOrEnded():
+        run = runOrNone(sub["run_id"])
+        if run and run["summary"]["status"] != "running":
+            row = submission(sub["submission_id"])
+            check(False, "the run was uploaded as {0} before it could be seen running (submission {1}: {2}; run "
+                         "error: {3})".format(run["summary"]["status"], row["state"], row["error"],
+                                              run["summary"]["error"]))
+        return run
+
+    live = waitFor(liveOrEnded, 180, "the build job uploads the running run (live progress)")
     check(live["summary"]["status"] == "running", "the run is in the database while it runs (uploaded by its job)")
     rundir = os.path.join(ROOT, sub["run_id"])
     check(os.stat(rundir).st_uid == 1000, "the job runs as the token's user, ambuild")
@@ -165,7 +173,16 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except SystemExit as exc:
-        if exc.code not in (0, None) and os.path.exists(LOG):
-            with open(LOG) as f:
-                print("--- slurmrest agent log\n" + f.read()[-6000:])
+        if exc.code not in (0, None):
+            if os.path.exists(LOG):
+                with open(LOG) as f:
+                    print("--- slurmrest agent log\n" + f.read()[-6000:])
+            print("--- squeue\n" + subprocess.run(["squeue"], capture_output=True, text=True).stdout)
+            outputs = sorted((p for p in os.listdir(ROOT) if p.endswith(".out")),
+                             key=lambda p: os.path.getmtime(os.path.join(ROOT, p)))
+            for name in outputs[-4:]:
+                with open(os.path.join(ROOT, name), errors="replace") as f:
+                    print("--- job output {0}\n{1}".format(name, f.read()[-3000:]))
+            with open("/var/log/slurm/slurmrestd.log", errors="replace") as f:
+                print("--- slurmrestd log\n" + f.read()[-2000:])
         raise
