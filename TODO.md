@@ -395,33 +395,69 @@ In order:
   atoms or more, or long runs on ~2,000 or more (`docs/benchmarks.md`). The
   dispatcher could set `AMBUILD_HOOMD_LAUNCHER` per job from the recipe.
 - [ ] Ion permeation and intercalation analysis: whether Li+ (and Na+, K+, Mg2+)
-  can get into a structure, under what applied voltage, and how easily it gets
-  back out if the voltage is reversed. Poreblazer only answers the geometric
-  question (does a hard sphere of the ion's size fit through the pores). This
-  would be a new analysis operation, written from scratch.
-  - **Energy grid:** the ion's interaction energy with the framework on a grid
-    over the cell. Use the recipe's force field (LJ, Lorentz-Berthelot) with ion
-    parameters such as Joung-Cheatham. The cation's charge polarises the
-    framework, so add an ion-induced-dipole term to the energy.
-  - **Sites and barriers:** local minima of the grid are candidate
-    intercalation sites. A flood fill from each site finds its escape barrier:
-    the lowest energy at which the reachable region percolates the cell (the
-    energy counterpart of the pore limiting diameter).
-  - **Voltage:** an applied field E tilts the landscape by -qE.r. Sweeping E
-    along each axis gives the field at which the barrier for entry vanishes,
-    and the barrier for exit when E is reversed. That asymmetry is the "how
-    easily they exit" answer.
-  - **Dynamic check:** HOOMD-blue can run ions in the framework with an
-    external electric field (`hoomd.md.external.field.Electric`). It can count
-    ions that cross the cell or stay trapped, forward and reversed, to check
-    the static barriers.
-  - **Visualise:** energy isosurfaces, sites and percolation paths in the web
-    GUI's 3D viewer, and barrier-against-voltage curves per ion. Expose the
-    results as campaign metrics (e.g. entry and exit barriers, site density) so
-    campaigns can target them.
-  - **Caveat:** these are classical, relative numbers for screening and
-    ranking structures. An absolute intercalation voltage against Li/Li+ needs
-    electronic structure (DFT), so the page should label them as relative.
+  can get into a structure, at what voltage, and how easily it gets back out.
+  Poreblazer only answers the geometric question (does a hard sphere of the
+  ion's size fit through the pores). This is new analysis, written from
+  scratch.
+  - **What "voltage" means.** The intercalation voltage is the chemical
+    potential of lithium relative to Li metal:
+    V = -[E(host + n Li) - E(host) - n E(Li metal)] / (n e). It comes from
+    binding energies at increasing Li loadings. It isn't an electric field
+    across the host: in a cell the field drops mostly across the electrolyte
+    and the interfaces. How easily ions exit is the escape barrier from their
+    sites, and how that changes with loading. An applied field (below) measures
+    mobility, a separate quantity.
+  - **Order: DFT first, then models calibrated against it.** Our structures
+    (amorphous, organic, porous carbon) are outside what the universal ML
+    potentials were mostly trained on, so their predictions are only trusted
+    once checked against our own DFT.
+  1. **Classical energy map** (fast, every structure). It finds candidate
+     sites and paths and chooses where DFT is spent.
+     - The ion's energy on a grid over the cell: the recipe's force field (LJ,
+       Lorentz-Berthelot), ion parameters such as Joung-Cheatham, and an
+       ion-induced-dipole term for the cation polarising the framework.
+     - Local minima are candidate sites. A flood fill from each finds its
+       escape barrier: the lowest energy at which the reachable region
+       percolates the cell (the energy counterpart of the pore limiting
+       diameter).
+     - Mobility: an applied field E tilts the map by -qE.r. HOOMD-blue
+       (`hoomd.md.external.field.Electric`) can count ions that cross the cell
+       or stay trapped, forward and reversed.
+  2. **DFT reference set** (expensive, a chosen few). This is the ground truth.
+     - CP2K (open source; suits ~500-atom amorphous carbon; GPU support), PBE
+       with D3 dispersion.
+     - A few representative structures, plus 100-150-atom fragments cut
+       around sites chosen from the energy map.
+     - For each: relaxed binding energies at several Li loadings (the voltage
+       curve), NEB escape barriers for a few paths, and the Li-metal reference.
+     - Keep every energy and force: the relaxation trajectories are the
+       training data for step 3.
+     - Cost: a relaxation of 500 atoms is about 1-3 node-days, and a voltage
+       curve plus barriers for one structure is thousands to tens of thousands
+       of core-hours. Runs go through the Slurm agent as their own job type.
+     - Accuracy is typically +-0.1-0.3 V on voltages.
+  3. **ML potentials, benchmarked then fine-tuned on the DFT set.**
+     - Benchmark CHGNet (Python, notebooks, fine-tuning examples) and
+       MACE-MP-0 (the more thoroughly documented) out of the box against the
+       DFT energies, forces, binding energies and barriers. Keep whichever is
+       more accurate on held-out structures, or both, if each is better
+       somewhere.
+     - Fine-tune on the DFT trajectories, holding out whole structures (not
+       frames) to test.
+     - A fine-tuned model takes milliseconds per step for 500 atoms on a GPU,
+       enough for voltage curves and NEB barriers on every campaign candidate.
+  4. **Calibrate the classical map.** Fit a small correction model
+     (delta learning): DFT or fine-tuned ML binding energies minus the
+     classical map's, predicted from the site's local environment and
+     structure statistics (pore size, ring density, nearby H). This makes the
+     cheap map a better screen and tells us where it can't be trusted.
+  - **Active learning:** where the ML models disagree with each other or the
+    correction is large, that structure is the next one to run with DFT, as a
+    campaign round.
+  - **Visualise:** energy isosurfaces, sites and paths in the web GUI's 3D
+    viewer, voltage curves and barriers per ion, each labelled with its tier
+    (classical, ML, DFT). Results become campaign metrics (e.g. voltage at a
+    given loading, escape barrier, site density) so campaigns can target them.
 
 ## GPU clarification
 
