@@ -27,13 +27,16 @@ def pore(step, sa, pld, directory):
 
 
 def structure(step, natoms=6):
-    """An extended XYZ checkpoint, as Cell.writeStructure writes it"""
+    """An extended XYZ checkpoint, as Cell.writeStructure writes it (export format 1)"""
     lines = ["{0}".format(natoms),
              'Lattice="25.000000 0.0 0.0 0.0 25.000000 0.0 0.0 0.0 25.000000" '
-             'Properties=species:S:1:pos:R:3:fragment:S:1:block:I:1 pbc="T T T" step={0}'.format(step)]
+             'Properties=species:S:1:pos:R:3:type:S:1:charge:R:1:fragment:S:1:block:I:1 pbc="T T T" step={0} '
+             'run_id="test" ambuild_version="2.0.1" export_version=1'.format(step)]
     for i in range(natoms):
-        lines.append("{0} {1:.6f} {2:.6f} {3:.6f} {4} {5}".format(
-            "C" if i % 2 == 0 else "H", 1.0 + i, 2.0 + step, 3.0, "A" if i < natoms // 2 else "B", 1 + i // 3))
+        carbon = i % 2 == 0
+        lines.append("{0} {1:.6f} {2:.6f} {3:.6f} {4} {5:.4f} {6} {7}".format(
+            "C" if carbon else "H", 1.0 + i, 2.0 + step, 3.0, "ca" if carbon else "ha", 0.0,
+            "A" if i < natoms // 2 else "B", 1 + i // 3))
     return ("\n".join(lines) + "\n").encode()
 
 

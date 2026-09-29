@@ -94,10 +94,11 @@ class Test(unittest.TestCase):
         self.cell.writeCml("cell.cml")
 
         artifacts = [e["data"] for e in self.sink.ofType(ab_analyse.ARTIFACT)]
-        self.assertEqual([a["kind"] for a in artifacts], ["pickle", "structure", "xyz", "cml"])
+        self.assertEqual([a["kind"] for a in artifacts], ["pickle", "structure", "topology", "xyz", "cml"])
         self.assertEqual(artifacts[0]["path"], pkl)
         self.assertEqual(artifacts[1]["path"], os.path.join(self.tmpdir, "step_1.xyz"))  # dump's structure
-        self.assertEqual(artifacts[2]["path"], os.path.join(self.tmpdir, "cell.xyz"))
+        self.assertEqual(artifacts[2]["path"], os.path.join(self.tmpdir, "step_1.topology.json"))
+        self.assertEqual(artifacts[3]["path"], os.path.join(self.tmpdir, "cell.xyz"))
         for a in artifacts:
             with open(a["path"], "rb") as f:
                 content = f.read()

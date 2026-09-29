@@ -111,16 +111,18 @@ class Test(unittest.TestCase):
             lines = f.read().splitlines()
         self.assertEqual(int(lines[0]), len(expected))
         self.assertIn('Lattice="20.000000 0.0 0.0 0.0 20.000000 0.0 0.0 0.0 20.000000"', lines[1])
-        self.assertIn("Properties=species:S:1:pos:R:3:fragment:S:1:block:I:1", lines[1])
+        self.assertIn("Properties=species:S:1:pos:R:3:type:S:1:charge:R:1:fragment:S:1:block:I:1", lines[1])
         self.assertIn("step={0}".format(step), lines[1])
         self.assertEqual(len(lines) - 2, len(expected))
         for line, (symbol, wrapped, fragment, blockId) in zip(lines[2:], expected):
             fields = line.split()
             self.assertEqual(fields[0], symbol)
             np.testing.assert_allclose([float(x) for x in fields[1:4]], wrapped, atol=1e-6)
-            self.assertTrue(all(0.0 <= float(x) <= 20.0 for x in fields[1:4]))
-            self.assertEqual(fields[4], fragment)
-            self.assertEqual(int(fields[5]), blockId)
+            self.assertTrue(all(0.0 <= float(x) < 20.0 for x in fields[1:4]))
+            self.assertEqual(fields[6], fragment)
+            self.assertEqual(int(fields[7]), blockId)
+        # and its topology beside it (tests/testExport.py checks what is in it)
+        self.assertTrue(os.path.isfile(os.path.join(self.tmpdir, "run", "step_1.topology.json")))
         self.assertEqual({e[2] for e in expected}, {"A", "B"})
 
     def testTwoCellsSeparateDirs(self):

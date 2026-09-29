@@ -7,6 +7,7 @@ import collections
 import copy
 import functools
 import hashlib
+import json
 import logging
 import math
 import os
@@ -35,6 +36,17 @@ BONDTYPESEP = "-"  # Character for separating bonds
 ENDGROUPSEP = ":"  # Character for separating endGroups in bonds
 
 logger = logging.getLogger(__name__)
+
+# Structure export format (docs/export.md): the extended XYZ and topology files dump() writes
+EXPORT_VERSION = 1
+
+
+def _sha256File(path):
+    sha256 = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            sha256.update(chunk)
+    return sha256.hexdigest()
 
 
 
@@ -1559,39 +1571,123 @@ class Cell:
 
     def dump(self, prefix="step", addCount=True, structure=True):
         """Write out our current state: a pickle (to restore the cell) and, unless structure
-        is False, the same name with .xyz: the structure in extended XYZ (writeStructure),
-        for viewers such as the web GUI's"""
+        is False, the structure for other programs (docs/export.md): the same name with .xyz
+        (writeStructure) and with .topology.json (writeTopology)"""
         if addCount:
             self._fileCount += 1
             prefix = prefix + "_{0}".format(self._fileCount)
         pklFile = self.writePickle(prefix)
         if structure:
-            self.writeStructure(prefix + ".xyz")
+            xyz = self.writeStructure(prefix + ".xyz")
+            self.writeTopology(prefix + ".topology.json", xyz)
         return pklFile
 
-    def writeStructure(self, ofile):
-        """Write the cell's atoms as extended XYZ (readable by ASE, OVITO and the web GUI):
-        the cell as the lattice, and for each atom its element, its position wrapped into the
-        cell, its fragment type and the serial number of its block. Recorded as a
-        "structure" artifact. Returns the path."""
-        A, B, C = (float(d) for d in self.dim[:3])
-        dim = np.array([A, B, C])
-        lines = []
+    def _exportAtoms(self):
+        """For each atom, in export order (block by block, each block's atoms in order):
+        (block, index in the block, wrapped position), and the blocks' atom ranges"""
+        dim = np.array([float(d) for d in self.dim[:3]])
+        atoms, ranges = [], []
         for block in self.blocks.values():
+            start = len(atoms)
             for i, coord in enumerate(block.iterCoord()):
-                coord, _ = xyz_core.wrapCoord3(coord, dim, center=False)
-                lines.append("{0} {1:.6f} {2:.6f} {3:.6f} {4} {5}".format(
-                    block.symbol(i), coord[0], coord[1], coord[2], block.fragmentType(i), block.id))
+                wrapped, _ = xyz_core.wrapCoord3(coord, dim, center=False)
+                # rounded as written, and kept in [0, L)
+                wrapped = [round(float(x), 6) for x in wrapped]
+                wrapped = [x - L if x >= L else x for x, L in zip(wrapped, dim)]
+                atoms.append((block, i, wrapped))
+            ranges.append((block, start, len(atoms)))
+        return atoms, ranges
+
+    def _exportProvenance(self):
+        """The export's provenance: the run id and recipe hash when the run is recorded"""
+        info = {}
+        if self.runId:
+            info["run_id"] = self.runId
+        recorder = getattr(self, "_runRecorder", None)
+        if recorder is not None:
+            for entry in recorder.run["inputs"]:
+                if entry["kind"] == "recipe" and entry.get("recipe_sha256"):
+                    info["recipe_sha256"] = entry["recipe_sha256"]
+        info["ambuild_version"] = __version__
+        info["export_version"] = EXPORT_VERSION
+        return info
+
+    def writeStructure(self, ofile):
+        """Write the cell's atoms as extended XYZ (readable by ASE, OVITO and the web GUI),
+        export format version 1 (docs/export.md): the cell as the lattice; for each atom its
+        element, its position wrapped into the cell, its force-field type, its charge, its
+        fragment type and the serial number of its block; and the run's provenance in the
+        header. Recorded as a "structure" artifact. Returns the path."""
+        A, B, C = (float(d) for d in self.dim[:3])
+        atoms, _ = self._exportAtoms()
+        lines = []
+        for block, i, (x, y, z) in atoms:
+            lines.append("{0} {1:.6f} {2:.6f} {3:.6f} {4} {5:.4f} {6} {7}".format(
+                block.symbol(i), x, y, z, block.type(i) or "X", float(block.charge(i) or 0.0),
+                block.fragmentType(i), block.id))
+        info = " ".join('{0}="{1}"'.format(k, v) if isinstance(v, str) else "{0}={1}".format(k, v)
+                        for k, v in self._exportProvenance().items())
         header = ('Lattice="{0:.6f} 0.0 0.0 0.0 {1:.6f} 0.0 0.0 0.0 {2:.6f}" '
-                  "Properties=species:S:1:pos:R:3:fragment:S:1:block:I:1 "
-                  'pbc="T T T" step={3}').format(A, B, C, self.analyse.step)
+                  "Properties=species:S:1:pos:R:3:type:S:1:charge:R:1:fragment:S:1:block:I:1 "
+                  'pbc="T T T" step={3} {4}').format(A, B, C, self.analyse.step, info)
         path = self.outputPath(ofile)
-        with open(path, "w") as f:
+        with open(path, "w", newline="\n") as f:
             f.write("{0}\n{1}\n".format(len(lines), header))
             f.write("\n".join(lines))
             f.write("\n")
         logger.info("Wrote structure file: {0}".format(path))
         self._recordArtifact(path, "structure")
+        return path
+
+    def writeTopology(self, ofile, structureFile):
+        """Write what extended XYZ cannot hold, for the structure writeStructure wrote to
+        structureFile (export format version 1, docs/export.md; schema
+        ambuild/schemas/topology-v1.json): the blocks' atom ranges; every bond as [i, j,
+        image] (i < j, indices in the structure's atom order), image being the lattice shift
+        that makes it short: pos[j] + image . L - pos[i]; and the free end groups with their
+        cap atoms. Recorded as a "topology" artifact. Returns the path."""
+        dim = np.array([float(d) for d in self.dim[:3]])
+        atoms, ranges = self._exportAtoms()
+        blocks, bonds, freeEndGroups = [], [], []
+        for block, start, end in ranges:
+            blocks.append({"id": block.id, "start": start, "end": end, "fragments": sorted(block.fragmentTypes())})
+            for a, b in block.bonds():
+                if a > b:
+                    a, b = b, a
+                # the bond's real vector, from the block's (continuous) coordinates
+                d = np.asarray(block.coord(b)) - np.asarray(block.coord(a))
+                wa, wb = atoms[start + a][2], atoms[start + b][2]
+                image = [int(round((wa[k] + d[k] - wb[k]) / dim[k])) for k in range(3)]
+                bonds.append([start + a, start + b, image])
+            for endGroup in block.freeEndGroups():
+                freeEndGroups.append({"atom": start + endGroup.blockEndGroupIdx, "cap": start + endGroup.blockCapIdx,
+                                      "type": endGroup.type(), "block": block.id})
+        params = {}
+        if self.paramsDir and os.path.isdir(self.paramsDir):
+            for name in sorted(os.listdir(self.paramsDir)):
+                path = os.path.join(self.paramsDir, name)
+                if os.path.isfile(path) and name.endswith(".csv"):
+                    params[name] = _sha256File(path)
+        provenance = self._exportProvenance()
+        data = {
+            "format": "ambuild-topology",
+            "version": EXPORT_VERSION,
+            "structure": os.path.basename(structureFile),
+            "structure_sha256": _sha256File(structureFile),
+            "atoms": len(atoms),
+            "run_id": provenance.get("run_id"),
+            "step": self.analyse.step,
+            "params": params,
+            "blocks": blocks,
+            "bonds": sorted(bonds),
+            "free_end_groups": sorted(freeEndGroups, key=lambda e: (e["atom"], e["cap"])),
+        }
+        path = self.outputPath(ofile)
+        with open(path, "w", newline="\n") as f:
+            json.dump(data, f, sort_keys=True, separators=(",", ":"))
+            f.write("\n")
+        logger.info("Wrote topology file: {0}".format(path))
+        self._recordArtifact(path, "topology")
         return path
 
     def endGroupConfig(self, fragmentType):

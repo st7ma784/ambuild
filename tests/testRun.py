@@ -104,8 +104,9 @@ class Test(unittest.TestCase):
         self.assertIn(ab_run.INPUT, types)
         self.assertIn(ab_analyse.STEP, types)
         artifacts = [e["data"] for e in events if e["type"] == ab_analyse.ARTIFACT]
-        self.assertEqual([a["relpath"] for a in artifacts], ["step_1.pkl.gz", "step_1.xyz", "final.xyz"])
-        self.assertEqual([a["kind"] for a in artifacts], ["pickle", "structure", "xyz"])
+        self.assertEqual([a["relpath"] for a in artifacts],
+                         ["step_1.pkl.gz", "step_1.xyz", "step_1.topology.json", "final.xyz"])
+        self.assertEqual([a["kind"] for a in artifacts], ["pickle", "structure", "topology", "xyz"])
 
         # The step events match the csv file
         with open(os.path.join(self.rundir, "ambuild.csv"), newline="") as f:

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/st7ma784/ambuild/ambuild/schemas/topology-v1.json",
+  "title": "Ambuild topology, export format version 1",
+  "description": "What extended XYZ cannot hold, for the structure file named in 'structure' (docs/export.md). Atom indices are 0-based, in the structure file's atom order.",
+  "type": "object",
+  "required": ["format", "version", "structure", "structure_sha256", "atoms", "step", "params", "blocks", "bonds", "free_end_groups"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": "ambuild-topology"},
+    "version": {"const": 1},
+    "structure": {"type": "string", "description": "the extended XYZ file's name, beside this one"},
+    "structure_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "atoms": {"type": "integer", "minimum": 0},
+    "run_id": {"type": ["string", "null"]},
+    "step": {"type": "integer", "minimum": 0},
+    "params": {
+      "type": "object",
+      "description": "the parameter directory's CSV files by name, and their sha256",
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "blocks": {
+      "type": "array",
+      "description": "each block's atoms are start..end-1; together the blocks cover every atom once",
+      "items": {
+        "type": "object",
+        "required": ["id", "start", "end", "fragments"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "integer"},
+          "start": {"type": "integer", "minimum": 0},
+          "end": {"type": "integer", "minimum": 0},
+          "fragments": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "bonds": {
+      "type": "array",
+      "description": "[i, j, image], i < j: pos[j] + image . lattice - pos[i] is the bond vector",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {"type": "integer", "minimum": 0},
+          {"type": "integer", "minimum": 0},
+          {"type": "array", "items": {"type": "integer"}, "minItems": 3, "maxItems": 3}
+        ],
+        "minItems": 3,
+        "maxItems": 3
+      }
+    },
+    "free_end_groups": {
+      "type": "array",
+      "description": "end groups still unbonded: the end-group atom, the cap atom that bonding would remove, the end group's type (fragment:end group) and its block",
+      "items": {
+        "type": "object",
+        "required": ["atom", "cap", "type", "block"],
+        "additionalProperties": false,
+        "properties": {
+          "atom": {"type": "integer", "minimum": 0},
+          "cap": {"type": "integer", "minimum": 0},
+          "type": {"type": "string"},
+          "block": {"type": "integer"}
+        }
+      }
+    }
+  }
+}

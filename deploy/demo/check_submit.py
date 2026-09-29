@@ -10,6 +10,7 @@ import glob
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -50,10 +51,16 @@ def waitForAgent(seconds=120):
         time.sleep(2)
 
 
+def withoutRunId(text):
+    """A structure file's text without its header's run id and recipe hash: two runs of the
+    same build write the same atoms, but those can differ (docs/export.md)"""
+    return re.sub(r' (run_id|recipe_sha256)="[^"]*"', "", text)
+
+
 def lastStructure(rundir):
     files = sorted(glob.glob(os.path.join(rundir, "step_*.xyz")), key=lambda p: int(os.path.basename(p)[5:-4]))
     with open(files[-1]) as f:
-        return f.read()
+        return withoutRunId(f.read())
 
 
 def main():
@@ -76,7 +83,7 @@ def main():
     check(len(run["pore_results"]) == 1, "the run has its Poreblazer result")
     frames = webapi.call("GET", "/api/runs/{0}/structures".format(sub["run_id"]))["frames"]
     check(len(frames) == 4, "a structure for each checkpoint (seed, two passes, Poreblazer): {0}".format(len(frames)))
-    web = webapi.get(frames[-1]["url"]).decode()
+    web = withoutRunId(webapi.get(frames[-1]["url"]).decode())
 
     # 2. the same recipe from the command line
     work = tempfile.mkdtemp()
