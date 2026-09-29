@@ -172,7 +172,7 @@ def test_structures_api_lists_checkpoints_in_step_order(client, recorded):
     assert frame.status_code == 200 and frame.headers["content-type"].startswith("text/plain")
     lines = frame.text.splitlines()
     assert lines[0] == "6" and 'Lattice="25.000000' in lines[1] and "step=3" in lines[1]
-    assert lines[2].split()[4:] == ["A", "1"]
+    assert lines[2].split()[4:] == ["ca", "0.0000", "A", "1"]  # type, charge, fragment, block
 
 
 def test_run_page_has_the_viewer(client, recorded):
