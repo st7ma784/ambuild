@@ -1,0 +1,115 @@
+{
+  "recipe_version": 1,
+  "name": "Triazines, benzenes and alkynes, large",
+  "description": "s-Triazine rings, 1,3,5- and 1,4-benzenes and alkynes, each able to join itself and the others (triazine-triazine and ring-ring biaryl links, ring-alkyne, polyyne alkyne-alkyne like end to like end): a mixed covalent triazine framework with three-way nodes of two kinds and struts of several lengths. Built large: a 60 A cell with 8 seeds, then ten passes, each growing 60 blocks, joining clusters twice (moving whole clusters to bond them to each other, so the seeds' clusters become one or two large frameworks), zipping and a rigid-body optimisation with dihedrals (GAFF 1.81, params/gaff_ctf); then Poreblazer on a 0.3 A grid (about 340 MB). Sized for a Slurm node (resources); sweep the cell size or grow counts to go larger. See docs/ctf-networks.md.",
+  "cell": {
+    "box": [
+      60,
+      60,
+      60
+    ],
+    "bond_margin": 0.5,
+    "bond_angle_margin": 15,
+    "typed_bond_lengths": true
+  },
+  "fragments": [
+    {
+      "type": "T",
+      "car": "triazine.car",
+      "csv": "triazine.csv",
+      "name": "triazine"
+    },
+    {
+      "type": "A",
+      "car": "benzene_135.car",
+      "csv": "benzene_135.csv",
+      "name": "benzene_135"
+    },
+    {
+      "type": "P",
+      "car": "benzene_14.car",
+      "csv": "benzene_14.csv",
+      "name": "benzene_14"
+    },
+    {
+      "type": "B",
+      "car": "acetylene_cg.car",
+      "csv": "acetylene_cg.csv",
+      "name": "acetylene_cg"
+    }
+  ],
+  "params": {
+    "angle_params.csv": "params/gaff_ctf/angle_params.csv",
+    "bond_params.csv": "params/gaff_ctf/bond_params.csv",
+    "dihedral_params.csv": "params/gaff_ctf/dihedral_params.csv",
+    "improper_params.csv": "params/gaff_ctf/improper_params.csv",
+    "pair_params.csv": "params/gaff_ctf/pair_params.csv"
+  },
+  "bond_types": [
+    "T:t-T:t",
+    "T:t-A:a",
+    "T:t-P:a",
+    "T:t-B:g",
+    "T:t-B:h",
+    "A:a-A:a",
+    "A:a-P:a",
+    "A:a-B:g",
+    "A:a-B:h",
+    "P:a-P:a",
+    "P:a-B:g",
+    "P:a-B:h",
+    "B:g-B:g",
+    "B:h-B:h"
+  ],
+  "stages": [
+    {
+      "op": "seed",
+      "count": 8,
+      "fragment_type": "T"
+    },
+    {
+      "op": "seed",
+      "count": 4,
+      "fragment_type": "A"
+    },
+    {
+      "repeat": 10,
+      "stages": [
+        {
+          "op": "grow",
+          "count": 60,
+          "max_tries": 50
+        },
+        {
+          "op": "join",
+          "count": 2,
+          "max_tries": 100
+        },
+        {
+          "op": "zip",
+          "bond_margin": 1.0,
+          "bond_angle_margin": 30
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": true,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "op": "poreblazer",
+      "threads": 8,
+      "settings": {
+        "cubelet_size": 0.3
+      }
+    }
+  ],
+  "seed": 23,
+  "resources": {
+    "cpus": 8,
+    "memory_mb": 8000,
+    "time": "08:00:00"
+  }
+}
