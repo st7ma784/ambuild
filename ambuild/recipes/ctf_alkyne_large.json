@@ -1,0 +1,88 @@
+{
+  "recipe_version": 1,
+  "name": "Triazine and alkyne framework, large",
+  "description": "s-Triazine rings linked by alkynes (ethynylene, and butadiyne or longer polyynes where alkynes join each other like end to like end, single bonds of 1.369 A): long, stiff struts between three-way nodes for large pores. Built large: a 60 A cell with 8 seeds, then ten passes, each growing 60 blocks, joining clusters twice (moving whole clusters to bond them to each other, so the seeds' clusters become one or two large frameworks), zipping and a rigid-body optimisation with dihedrals (GAFF 1.81, params/gaff_ctf); then Poreblazer on a 0.3 A grid (about 340 MB). Sized for a Slurm node (resources); sweep the cell size or grow counts to go larger. See docs/ctf-networks.md.",
+  "cell": {
+    "box": [
+      60,
+      60,
+      60
+    ],
+    "bond_margin": 0.5,
+    "bond_angle_margin": 15,
+    "typed_bond_lengths": true
+  },
+  "fragments": [
+    {
+      "type": "T",
+      "car": "triazine.car",
+      "csv": "triazine.csv",
+      "name": "triazine"
+    },
+    {
+      "type": "B",
+      "car": "acetylene_cg.car",
+      "csv": "acetylene_cg.csv",
+      "name": "acetylene_cg"
+    }
+  ],
+  "params": {
+    "angle_params.csv": "params/gaff_ctf/angle_params.csv",
+    "bond_params.csv": "params/gaff_ctf/bond_params.csv",
+    "dihedral_params.csv": "params/gaff_ctf/dihedral_params.csv",
+    "improper_params.csv": "params/gaff_ctf/improper_params.csv",
+    "pair_params.csv": "params/gaff_ctf/pair_params.csv"
+  },
+  "bond_types": [
+    "T:t-B:g",
+    "T:t-B:h",
+    "B:g-B:g",
+    "B:h-B:h"
+  ],
+  "stages": [
+    {
+      "op": "seed",
+      "count": 8,
+      "fragment_type": "T"
+    },
+    {
+      "repeat": 10,
+      "stages": [
+        {
+          "op": "grow",
+          "count": 60,
+          "max_tries": 50
+        },
+        {
+          "op": "join",
+          "count": 2,
+          "max_tries": 100
+        },
+        {
+          "op": "zip",
+          "bond_margin": 1.0,
+          "bond_angle_margin": 30
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": true,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "op": "poreblazer",
+      "threads": 8,
+      "settings": {
+        "cubelet_size": 0.3
+      }
+    }
+  ],
+  "seed": 22,
+  "resources": {
+    "cpus": 8,
+    "memory_mb": 8000,
+    "time": "08:00:00"
+  }
+}

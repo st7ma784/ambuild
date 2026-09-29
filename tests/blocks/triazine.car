@@ -1,0 +1,15 @@
+!BIOSYM archive 3
+PBC=OFF
+s-Triazine (C3N3) linked at its three carbons; measured C-N 1.338 A, N-C-N 126.8, C-N-C 113.2 degrees, C-H 1.084 A; GAFF types (linking carbons cp, ring nitrogens nb)
+!DATE Tue Sep 29 15:00:00 2026
+C1        0.000000000     1.289831033     0.000000000 XXXX 1      cp      C   0.000
+N1       -1.196378369     0.690729373     0.000000000 XXXX 1      nb      N   0.000
+C2       -1.117026441    -0.644915516     0.000000000 XXXX 1      cp      C   0.000
+N2       -0.000000000    -1.381458747     0.000000000 XXXX 1      nb      N   0.000
+C3        1.117026441    -0.644915516     0.000000000 XXXX 1      cp      C   0.000
+N3        1.196378369     0.690729373     0.000000000 XXXX 1      nb      N   0.000
+H1        0.000000000     2.373831033     0.000000000 XXXX 1      ha      H   0.000
+H2       -2.055797979    -1.186915516     0.000000000 XXXX 1      ha      H   0.000
+H3        2.055797979    -1.186915516     0.000000000 XXXX 1      ha      H   0.000
+end
+end

@@ -16,6 +16,17 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Large covalent triazine frameworks (`docs/ctf-networks.md`).
+  - **A `triazine` block:** C₃N₃ from measured geometry, linked at its three carbons (`cp`, with ring nitrogens `nb`).
+  - **A GAFF 1.81 set, `params/gaff_ctf`,** with one stand-in (`nb-cp-*` as `nb-cp-cp`).
+  - **Three recipes in 60 Å cells:**
+    - `ctf1_large`: triazine and 1,4-phenylene, strictly alternating;
+    - `ctf_alkyne_large`: triazine and polyyne-capable alkynes;
+    - `ctf_mixed_large`: triazine, both benzenes and alkynes, all joining each other.
+
+    Each seeds 8 blocks, then runs ten passes of grow 60, join 2, zip and optimise, then Poreblazer on a 0.3 Å grid, with Slurm resources. Without the join steps, builds ended as one separate cluster per seed.
+  - **Measured full builds:** 2,000–5,300 atoms in one or two frameworks; pore limiting diameters of 10.4–19.4 Å; 0.6–12 minutes on 10 CPUs.
+  - **Tests:** `tests/testCtf.py` covers the block, the recipes, the joins, parameter completeness, and scaled-down builds (each one framework, and, with HOOMD-blue, geometry after optimisation).
 - Carbon linkers that join themselves and each other (`docs/carbon-linkers.md`).
   - **Blocks:**
     - `carbon_node`: a trigonal sp² carbon linked three ways;
