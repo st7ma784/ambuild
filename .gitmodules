@@ -1,0 +1,3 @@
+[submodule "external/liminal"]
+	path = external/liminal
+	url = https://github.com/st7ma784/liminal.git

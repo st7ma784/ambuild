@@ -406,6 +406,10 @@ In order:
   - Milestones: E1 files at checkpoints; E2 converters and command line; E3 web
     API, Export menu and skill command; E4 a CP2K smoke test.
   - The input to the DFT spin-out, which reads these files and never imports Ambuild.
+- [x] The DFT work's own repository: [liminal](https://github.com/st7ma784/liminal)
+  (private, MIT), a git submodule at `external/liminal` and not part of Ambuild. It is
+  seeded with a reader for the export format and a roadmap (its `docs/roadmap.md`)
+  that carries the plan below forward.
 - [ ] Ion permeation and intercalation analysis: whether Li+ (and Na+, K+, Mg2+)
   can get into a structure, at what voltage, and how easily it gets back out.
   Poreblazer only answers the geometric question (does a hard sphere of the

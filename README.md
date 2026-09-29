@@ -193,6 +193,17 @@ See [deploy/README.md](deploy/README.md) for Slurm, K3s and the Helm chart,
 [docs/deployment.md](docs/deployment.md) for running each part on its own machine (from
 the published images), and [docs/web-gui.md](docs/web-gui.md) for the design.
 
+## Related projects
+
+`external/liminal` is a git submodule: [liminal](https://github.com/st7ma784/liminal)
+(private for now), a separate project for electronic-structure calculations of ions
+getting into and out of porous materials. It isn't part of Ambuild, in the same way
+Poreblazer and HOOMD-blue aren't.
+- **How they connect:** liminal reads the boxes Ambuild exports ([docs/export.md](docs/export.md)).
+  Neither imports the other's code.
+- **Cloning:** you need it only to work on liminal: `git submodule update --init
+  external/liminal`, with access to the repository. Ambuild's builds, images and CI never use it.
+
 ## Working with an AI assistant
 
 `.claude/skills/ambuild/SKILL.md` teaches an AI assistant to use the web GUI:

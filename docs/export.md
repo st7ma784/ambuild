@@ -27,8 +27,10 @@ files plus one documented JSON file.
 
 ## Non-goals: the boundary with the DFT spin-out
 
-Ambuild exports boxes. The separate DFT repository (a submodule, like Poreblazer and
-HOOMD-blue: not part of Ambuild) does everything after that: finding ion sites, cutting
+Ambuild exports boxes. The separate DFT project, [liminal](https://github.com/st7ma784/liminal)
+(the submodule `external/liminal`; like Poreblazer and HOOMD-blue, not part of Ambuild), does
+everything after that. Its `liminal.boxes` already reads export version 1 as specified here.
+It handles: finding ion sites, cutting
 clusters, capping them, and running calculations. Neither side imports the other's code.
 The DFT side reads the export files (extended XYZ through ASE, plus the topology JSON by its
 published schema). How results come back into Ambuild, as campaign metrics, gets a spec of
