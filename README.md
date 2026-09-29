@@ -270,6 +270,7 @@ through Docker Compose ([deploy/README.md](deploy/README.md)).
 | [docs/ion-maps.md](docs/ion-maps.md) | ion maps: where Li⁺, Na⁺ and K⁺ sit and how easily they cross a structure (liminal), as a recipe stage, metrics and viewer overlays |
 | [docs/carbon-linkers.md](docs/carbon-linkers.md) | carbon linkers that join themselves and each other: rings, polyyne alkynes, sp² nodes, allene, cyclopropenyl, propargyl |
 | [docs/ctf-networks.md](docs/ctf-networks.md) | large covalent triazine frameworks: triazines, benzenes and alkynes in 60 Å cells |
+| [docs/carbon-families.md](docs/carbon-families.md) | porous aromatic frameworks (PAF-1, adamantane), graphyne and graphdiyne; the recipe gallery |
 | [docs/benchmarks.md](docs/benchmarks.md) | HOOMD-blue and Poreblazer performance |
 | [docs/install.md](docs/install.md) | Docker and NVIDIA set-up on a Linux host |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md), [TODO.md](TODO.md) | what changed, and what is planned |

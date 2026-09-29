@@ -299,10 +299,15 @@ def campaignsPage(request: Request):
 
 
 @router.get("/campaigns/new", response_class=HTMLResponse, include_in_schema=False)
-def newCampaignPage(request: Request, recipe: int = None, campaign: int = None):
-    """New campaign: from a saved recipe (?recipe=), or a copy of a campaign (?campaign=)"""
+def newCampaignPage(request: Request, recipe: int = None, campaign: int = None, spec: str = ""):
+    """New campaign: from a saved recipe (?recipe=), or a copy of a campaign (?campaign=);
+    ?spec= starts from one of Ambuild's example campaigns (ambuild.campaign.examples)"""
     with _connect(request) as conn:
-        body, spec, name = TEMPLATE, SHOWCASE, ""
+        examples = ab_campaign.examples()
+        if spec and spec not in examples:
+            raise HTTPException(404, "No example campaign {0!r}".format(spec))
+        body, name = TEMPLATE, ""
+        spec = examples[spec] if spec else SHOWCASE
         if recipe is not None:
             saved = queue.getRecipe(conn, recipe)
             if saved is None:

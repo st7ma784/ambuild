@@ -1,0 +1,10 @@
+A,B,k,r0,comments
+c3,c3,601.8,1.5375,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) c3-c3"
+c3,hc,661.2,1.0969,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) c3-hc"
+c3,ca,642,1.5156,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) c3-ca"
+c3,cp,642,1.5156,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) c3-ca (cp as ca)"
+ca,ca,922.2,1.3984,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) ca-ca"
+ca,cp,900.4,1.4058,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) ca-cp"
+ca,ha,691.6,1.086,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) ca-ha"
+cp,cp,702.8,1.4854,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) cp-cp"
+cp,ha,691.6,1.086,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) ca-ha (cp as ca)"

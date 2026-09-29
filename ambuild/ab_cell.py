@@ -954,11 +954,49 @@ class Cell:
                     self.delBlock(idxBlock)
         return
 
-    def checkMove(self, idxAddBlock):
+    def checkMove(self, idxAddBlock, selfImage=True):
+        """Whether the block sits clear of the others and, with selfImage, of its own periodic
+        images. A static block is a periodic slab that meets its own images by design."""
         clashing = self._checkMove(idxAddBlock)
+        if clashing == 0 and selfImage:
+            clashing = self._selfImageClashes(self.blocks[idxAddBlock])
         if clashing > 0:
             return False
         return True
+
+    def _selfImageClashes(self, block):
+        """How many pairs of the block's atoms clash through a periodic image: a block larger
+        than the cell (e.g. one moved by joinBlocks) can wrap round onto itself, which
+        closeAtoms, checking the other blocks, cannot see. The same clash rule (the atoms'
+        radii plus atomMargin); pairs bonded to each other, e.g. through a zipped bond to
+        the block's own image, are not clashes."""
+        dim = np.array([float(d) for d in self.dim[:3]])
+        periodic = np.array([bool(p) for p in (self.pbc if self.pbc is not None else (True, True, True))][:3])
+        n = block.numAtoms()
+        if n < 2 or not periodic.any():
+            return 0
+        coords = np.array([block.coord(i) for i in range(n)], dtype=float)
+        radii = np.array([block.radius(i) for i in range(n)], dtype=float)
+        reach = 2 * radii.max() + self.atomMargin
+        # nothing can meet its own image unless the block is nearly as large as the cell
+        if not np.any(periodic & (coords.max(axis=0) - coords.min(axis=0) > dim - reach)):
+            return 0
+        bonded = {(min(a, b), max(a, b)) for a, b in block.bonds()}
+        clashes = 0
+        for i in range(n - 1):
+            raw = coords[i + 1:] - coords[i]
+            shift = np.where(periodic, np.round(raw / dim), 0.0)
+            viaImage = np.any(shift != 0, axis=1)
+            if not viaImage.any():
+                continue
+            distance = np.linalg.norm(raw - shift * dim, axis=1)
+            limit = radii[i] + radii[i + 1:] + self.atomMargin
+            for j in np.nonzero(viaImage & (distance <= limit))[0]:
+                if (i, i + 1 + int(j)) not in bonded:
+                    clashes += 1
+        if clashes:
+            logger.debug("_selfImageClashes: block %s clashes with its own image %d times", block.id, clashes)
+        return clashes
 
     def _checkMove(self, idxAddBlock):
         """
@@ -2959,7 +2997,7 @@ class Cell:
             del self.blocks
             self.blocks = d
             # Also need to test for Clashes with other molecules
-            if not self.checkMove(idxBlock):
+            if not self.checkMove(idxBlock, selfImage=False):
                 raise RuntimeError("Problem adding static block: got clashes!")
             if self.processBonds() > 0:
                 raise RuntimeError("Problem adding static block-we made bonds!")

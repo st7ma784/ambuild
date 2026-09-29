@@ -1,0 +1,85 @@
+{
+  "recipe_version": 1,
+  "name": "Graphdiyne-like network, large",
+  "description": "Benzene rings (1,3,5) linked only through butadiyne: ring-C#C-C#C-ring, exactly two alkynes per strut, as in graphdiyne, built as an amorphous 3D network. Built large: a 60 A cell with 8 seeds, then ten passes, each growing 60 blocks, joining clusters twice (so the seeds' clusters become one or two large frameworks), zipping and a rigid-body optimisation with dihedrals (GAFF 1.81, params/gaff_carbon); then Poreblazer on a 0.3 A grid (about 340 MB). Sized for a Slurm node (resources); sweep the cell size or grow counts to go larger. See docs/carbon-families.md.",
+  "cell": {
+    "box": [
+      60,
+      60,
+      60
+    ],
+    "bond_margin": 0.5,
+    "bond_angle_margin": 15,
+    "typed_bond_lengths": true
+  },
+  "fragments": [
+    {
+      "type": "A",
+      "car": "benzene_135.car",
+      "csv": "benzene_135.csv",
+      "name": "benzene_135"
+    },
+    {
+      "type": "D",
+      "car": "butadiyne.car",
+      "csv": "butadiyne.csv",
+      "name": "butadiyne"
+    }
+  ],
+  "params": {
+    "angle_params.csv": "params/gaff_carbon/angle_params.csv",
+    "bond_params.csv": "params/gaff_carbon/bond_params.csv",
+    "dihedral_params.csv": "params/gaff_carbon/dihedral_params.csv",
+    "improper_params.csv": "params/gaff_carbon/improper_params.csv",
+    "pair_params.csv": "params/gaff_carbon/pair_params.csv"
+  },
+  "bond_types": [
+    "A:a-D:d"
+  ],
+  "stages": [
+    {
+      "op": "seed",
+      "count": 8,
+      "fragment_type": "A"
+    },
+    {
+      "repeat": 10,
+      "stages": [
+        {
+          "op": "grow",
+          "count": 60,
+          "max_tries": 50
+        },
+        {
+          "op": "join",
+          "count": 2,
+          "max_tries": 100
+        },
+        {
+          "op": "zip",
+          "bond_margin": 1.0,
+          "bond_angle_margin": 30
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": true,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "op": "poreblazer",
+      "threads": 8,
+      "settings": {
+        "cubelet_size": 0.3
+      }
+    }
+  ],
+  "seed": 34,
+  "resources": {
+    "cpus": 8,
+    "memory_mb": 8000,
+    "time": "08:00:00"
+  }
+}

@@ -1,0 +1,11 @@
+!BIOSYM archive 3
+PBC=OFF
+Tetrahedral sp3 carbon node, linked four ways (tetraphenylmethane-style, as in PAF-1); GAFF c3, C-H 1.09 A
+!DATE Tue Sep 29 18:00:00 2026
+C1        0.000000000     0.000000000     0.000000000 XXXX 1      c3      C   0.000
+H1        0.629311793     0.629311793     0.629311793 XXXX 1      hc      H   0.000
+H2        0.629311793    -0.629311793    -0.629311793 XXXX 1      hc      H   0.000
+H3       -0.629311793     0.629311793    -0.629311793 XXXX 1      hc      H   0.000
+H4       -0.629311793    -0.629311793     0.629311793 XXXX 1      hc      H   0.000
+end
+end

@@ -1,0 +1,12 @@
+!BIOSYM archive 3
+PBC=OFF
+Butadiyne (H-C#C-C#C-H) linked at both ends, for graphdiyne struts; GAFF cg#ch-ch#cg; C#C 1.217 A, C-C 1.384 A, C-H 1.06 A
+!DATE Tue Sep 29 18:00:00 2026
+C1       -1.909000000     0.000000000     0.000000000 XXXX 1      cg      C   0.000
+C2       -0.692000000     0.000000000     0.000000000 XXXX 1      ch      C   0.000
+C3        0.692000000     0.000000000     0.000000000 XXXX 1      ch      C   0.000
+C4        1.909000000     0.000000000     0.000000000 XXXX 1      cg      C   0.000
+H1       -2.969000000     0.000000000     0.000000000 XXXX 1      ha      H   0.000
+H2        2.969000000     0.000000000     0.000000000 XXXX 1      ha      H   0.000
+end
+end

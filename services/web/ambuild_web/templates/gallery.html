@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Gallery · {{ title }}{% endblock %}
+{% block content %}
+<h1>Recipe gallery</h1>
+<p class="lede">Ambuild's example recipes, by the kind of structure they build. Run one, sweep it over
+  settings, or aim a campaign at a result. The median results are over each recipe's latest finished
+  runs in this GUI.</p>
+<nav class="toc" aria-label="Families">{% for f in families %}<a href="#{{ f.id }}">{{ f.title }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</nav>
+
+{% for f in families %}
+<section id="{{ f.id }}" class="family">
+  <h2>{{ f.title }}</h2>
+  <p>{{ f.blurb }} <span class="note">({{ f.doc }})</span></p>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">Recipe</th><th scope="col">Blocks</th><th scope="col">Build</th>
+        <th scope="col">Measures</th>
+        <th scope="col" class="num">Runs</th><th scope="col" class="num">PLD<br><span class="unit">Å</span></th>
+        <th scope="col" class="num">Surface<br><span class="unit">m²/g</span></th>
+        <th scope="col" class="num">Density<br><span class="unit">g/cm³</span></th><th scope="col">Start</th></tr></thead>
+      <tbody>
+        {% for r in f.recipes %}
+        <tr>
+          <td><strong>{{ r.name }}</strong><br><code>{{ r.example }}</code>
+            <details><summary class="note">what it builds</summary><p class="note">{{ r.description }}</p></details></td>
+          <td>{{ r.blocks | join(", ") }}<br><span class="note">{{ r.joins }} kind{{ "" if r.joins == 1 else "s" }} of join; {{ r.params }}</span></td>
+          <td>{{ r.box | join(" × ") }} Å, {{ r.seeds }} seeds{% if r.passes %}, {{ r.passes }} passes{% endif %}{% if r.optimised %}, optimised{% endif %}
+            {% if r.resources %}<br><span class="note">{{ r.resources.cpus or "?" }} CPUs{% if r.resources.memory_mb %}, {{ (r.resources.memory_mb / 1000) | round(0) | int }} GB{% endif %}{% if r.resources.time %}, {{ r.resources.time }}{% endif %}</span>{% endif %}</td>
+          <td>{{ r.measures | join("; ") or "–" }}</td>
+          {% if r.results %}
+          <td class="num"><a href="/runs/{{ r.results.latest }}" title="the latest">{{ r.results.runs }}</a></td>
+          <td class="num">{{ r.results.pld | number(1) }}</td><td class="num">{{ r.results.surface | number(0) }}</td>
+          <td class="num">{{ r.results.density | number(3) }}</td>
+          {% else %}<td class="num">0</td><td class="num">–</td><td class="num">–</td><td class="num">–</td>{% endif %}
+          <td>{% if r.saved %}<a href="/submit?recipe={{ r.saved.recipe_id }}">Run</a> ·
+              <a href="/sweeps/new?recipe={{ r.saved.recipe_id }}">Sweep</a> ·
+              <a href="/campaigns/new?recipe={{ r.saved.recipe_id }}">Campaign</a>
+              <br><span class="note">saved v{{ r.saved.version }}</span>
+            {% else %}<span class="note">not saved in this GUI yet: <code>deploy/demo/seed_recipes.py</code> saves the examples</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if f.campaigns %}
+  <p class="note">Example campaigns for these recipes:
+    {% for c in f.campaigns %}<a href="/campaigns/new?spec={{ c.name }}">{{ c.name }}</a>
+      ({% for k, v in (c.objective or {}).items() %}{{ k }} {{ v if v is string else v.metric }}{% endfor %}{% if c.constraints %}; {{ c.constraints | map(attribute="metric") | join(", ") }}{% endif %}){% if not loop.last %} · {% endif %}{% endfor %}
+    (paste the recipe too, or open it from its Campaign link).</p>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}
