@@ -408,92 +408,18 @@ In order:
   - The input to the DFT spin-out, which reads these files and never imports Ambuild.
 - [x] The DFT work's own repository: [liminal](https://github.com/st7ma784/liminal)
   (private, MIT), a git submodule at `external/liminal` and not part of Ambuild. It is
-  seeded with a reader for the export format and a roadmap (its `docs/roadmap.md`)
-  that carries the plan below forward.
-- [ ] Ion permeation and intercalation analysis: whether Li+ (and Na+, K+, Mg2+)
-  can get into a structure, at what voltage, and how easily it gets back out.
-  Poreblazer only answers the geometric question (does a hard sphere of the
-  ion's size fit through the pores). This is new analysis, written from
-  scratch.
-  - **What "voltage" means.** The intercalation voltage is the chemical
-    potential of lithium relative to Li metal:
-    V = -[E(host + n Li) - E(host) - n E(Li metal)] / (n e). It comes from
-    binding energies at increasing Li loadings. It isn't an electric field
-    across the host: in a cell the field drops mostly across the electrolyte
-    and the interfaces. How easily ions exit is the escape barrier from their
-    sites, and how that changes with loading. An applied field (below) measures
-    mobility, a separate quantity.
-  - **Order: DFT first, then models calibrated against it.** Our structures
-    (amorphous, organic, porous carbon) are outside what the universal ML
-    potentials were mostly trained on, so their predictions are only trusted
-    once checked against our own DFT.
-  1. **Classical energy map** (fast, every structure). It finds candidate
-     sites and paths and chooses where DFT is spent.
-     - The ion's energy on a grid over the cell: the recipe's force field (LJ,
-       Lorentz-Berthelot), ion parameters such as Joung-Cheatham, and an
-       ion-induced-dipole term for the cation polarising the framework.
-     - Local minima are candidate sites. A flood fill from each finds its
-       escape barrier: the lowest energy at which the reachable region
-       percolates the cell (the energy counterpart of the pore limiting
-       diameter).
-     - Mobility: an applied field E tilts the map by -qE.r. HOOMD-blue
-       (`hoomd.md.external.field.Electric`) can count ions that cross the cell
-       or stay trapped, forward and reversed.
-  2. **DFT reference set** (expensive, a chosen few). This is the ground truth.
-     - CP2K (open source; suits ~500-atom amorphous carbon; GPU support), PBE
-       with D3 dispersion.
-     - A few representative structures, plus 100-150-atom fragments cut
-       around sites chosen from the energy map.
-     - For each: relaxed binding energies at several Li loadings (the voltage
-       curve), NEB escape barriers for a few paths, and the Li-metal reference.
-     - Keep every energy and force: the relaxation trajectories are the
-       training data for step 3.
-     - Cost: a relaxation of 500 atoms is about 1-3 node-days, and a voltage
-       curve plus barriers for one structure is thousands to tens of thousands
-       of core-hours. Runs go through the Slurm agent as their own job type.
-     - Accuracy is typically +-0.1-0.3 V on voltages.
-     - **Skala on the fragments** (Microsoft's deep-learned exchange-correlation
-       functional; MIT licence; PySCF, GPU4PySCF, ASE, and CP2K through GauXC).
-       It is as accurate as the best hybrid functionals on main-group chemistry
-       (GMTKN55 2.8 kcal/mol) at about 3x r2SCAN's cost, and its training
-       covers H, Li and C. Its limits for us:
-       - no periodic systems yet, CP2K's interface included, so whole cells,
-         the Li-metal reference and NEB paths stay PBE-D3;
-       - trained on neutral molecules, and "not a production model": Li+ in
-         a carbon pore is outside its training;
-       - whether to add a D3-style dispersion correction is undocumented.
-     - Use it to correct PBE-D3 site by site: compute binding energies and
-       barriers on each fragment with both, and apply the Skala - PBE-D3
-       difference to that site's periodic result.
-     - Validate Skala first on a few fragments against DLPNO-CCSD(T), starting
-       with Li+ on benzene (a standard benchmark).
-     - Watch for periodic Skala, and for CIDER26SS (an ML functional already
-       tested on solids and surfaces, arXiv 2608.21525).
-  3. **ML potentials, benchmarked then fine-tuned on the DFT set.**
-     - Benchmark CHGNet (Python, notebooks, fine-tuning examples) and
-       MACE-MP-0 (the more thoroughly documented) out of the box against the
-       DFT energies, forces, binding energies and barriers. Keep whichever is
-       more accurate on held-out structures, or both, if each is better
-       somewhere.
-     - Fine-tune on the DFT trajectories, holding out whole structures (not
-       frames) to test.
-     - Keep PBE-D3 and Skala-corrected labels as separate levels of theory,
-       never one mixed set: MACE's multi-head fine-tuning takes both; for
-       CHGNet, fine-tune on one level at a time.
-     - A fine-tuned model takes milliseconds per step for 500 atoms on a GPU,
-       enough for voltage curves and NEB barriers on every campaign candidate.
-  4. **Calibrate the classical map.** Fit a small correction model
-     (delta learning): DFT or fine-tuned ML binding energies minus the
-     classical map's, predicted from the site's local environment and
-     structure statistics (pore size, ring density, nearby H). This makes the
-     cheap map a better screen and tells us where it can't be trusted.
-  - **Active learning:** where the ML models disagree with each other or the
-    correction is large, that structure is the next one to run with DFT, as a
-    campaign round.
-  - **Visualise:** energy isosurfaces, sites and paths in the web GUI's 3D
-    viewer, voltage curves and barriers per ion, each labelled with its tier
-    (classical, ML, DFT). Results become campaign metrics (e.g. voltage at a
-    given loading, escape barrier, site density) so campaigns can target them.
+  seeded with a reader for the export format and a roadmap (its `docs/roadmap.md`).
+- [ ] Ion permeation and intercalation analysis: whether Li+ (and Na+, K+, Mg2+) gets
+  into a structure, at what voltage, and how easily it gets back out. Poreblazer only
+  answers the geometric question. The analysis lives in liminal, not here: the classical
+  energy map, DFT (CP2K PBE-D3, Skala on clusters, DLPNO-CCSD(T) checks), ML potentials,
+  and calibrating the map (its roadmap, stages L0-L7). Ambuild's side:
+  - export boxes for it (the structure export item above, `docs/export.md`);
+  - read liminal's results file, once it is specified (its L7), as campaign metrics
+    (e.g. voltage at a loading, escape barrier, site density), each labelled with its
+    tier; and show its energy grids, sites and paths in the 3D viewer;
+  - take its proposals for the next structures to compute as campaign rounds (method
+    "external").
 
 ## GPU clarification
 
