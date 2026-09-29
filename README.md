@@ -267,6 +267,7 @@ through Docker Compose ([deploy/README.md](deploy/README.md)).
 | [deploy/README.md](deploy/README.md) | Docker Compose, Slurm, K3s and Helm |
 | [docs/deployment.md](docs/deployment.md) | a server-room deployment: which machine runs what, the network, and which URLs and secrets go where |
 | [docs/export.md](docs/export.md) | exporting boxes for DFT and other codes (spec): the files, formats and tests |
+| [docs/ion-maps.md](docs/ion-maps.md) | ion maps: where Li⁺, Na⁺ and K⁺ sit and how easily they cross a structure (liminal), as a recipe stage, metrics and viewer overlays |
 | [docs/benchmarks.md](docs/benchmarks.md) | HOOMD-blue and Poreblazer performance |
 | [docs/install.md](docs/install.md) | Docker and NVIDIA set-up on a Linux host |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md), [TODO.md](TODO.md) | what changed, and what is planned |

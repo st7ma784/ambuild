@@ -1,0 +1,81 @@
+{
+  "recipe_version": 1,
+  "name": "Carbon network: Li+, Na+ and K+ maps",
+  "description": "Benzene rings linked at 1,3,5 through alkyne (ethynylene, -C#C-) linkers, as in conjugated microporous polymers: seeded, grown and zipped into a network, with a rigid-body geometry optimisation (GAFF 1.81 parameters, params/gaff_benzene_alkyne) after each pass, then analysed with Poreblazer. The goal is a percolating pore network whose pore limiting diameter admits a lithium ion (a bare Li+ is about 1.52 A across; a solvated one several times that). The same build as li_ion_carbon, then mapped for Li+, Na+ and K+ with liminal (an ion_map stage, LIMINAL_EXE; docs/ion-maps.md): where each ion sits, its escape barrier and crossing paths, shown over the structure in the viewer. Classical, uncalibrated energies, for comparing ions and structures.",
+  "cell": {
+    "box": [
+      30,
+      30,
+      30
+    ],
+    "bond_margin": 0.5,
+    "bond_angle_margin": 15,
+    "typed_bond_lengths": true
+  },
+  "fragments": [
+    {
+      "type": "A",
+      "car": "benzene_135.car",
+      "csv": "benzene_135.csv",
+      "name": "benzene_135"
+    },
+    {
+      "type": "B",
+      "car": "acetylene.car",
+      "csv": "acetylene.csv",
+      "name": "acetylene"
+    }
+  ],
+  "params": {
+    "angle_params.csv": "params/gaff_benzene_alkyne/angle_params.csv",
+    "bond_params.csv": "params/gaff_benzene_alkyne/bond_params.csv",
+    "dihedral_params.csv": "params/gaff_benzene_alkyne/dihedral_params.csv",
+    "improper_params.csv": "params/gaff_benzene_alkyne/improper_params.csv",
+    "pair_params.csv": "params/gaff_benzene_alkyne/pair_params.csv"
+  },
+  "bond_types": [
+    "A:a-B:a"
+  ],
+  "stages": [
+    {
+      "op": "seed",
+      "count": 10,
+      "fragment_type": "A"
+    },
+    {
+      "repeat": 6,
+      "stages": [
+        {
+          "op": "grow",
+          "count": 12,
+          "max_tries": 50
+        },
+        {
+          "op": "zip",
+          "bond_margin": 1.0,
+          "bond_angle_margin": 30
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": true
+        }
+      ]
+    },
+    {
+      "op": "poreblazer",
+      "threads": 2
+    },
+    {
+      "op": "ion_map",
+      "ions": [
+        "Li+",
+        "Na+",
+        "K+"
+      ],
+      "spacing": 0.5,
+      "max_paths": 20
+    }
+  ],
+  "seed": 7
+}

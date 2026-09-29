@@ -50,6 +50,16 @@
       <button type="button" id="viewer-screenshot">Save image</button>
     </div>
     <div class="viewer-fragments"></div>
+    <div class="viewer-ions" hidden>
+      <label for="ion-map">Ion map</label>
+      <select id="ion-map"><option value="">none</option></select>
+      <label class="check"><input type="checkbox" id="ion-surface" checked> surface at</label>
+      <input type="number" id="ion-level" step="0.1" size="6" aria-label="surface energy (kcal/mol)">
+      <span class="note">kcal/mol</span>
+      <label class="check"><input type="checkbox" id="ion-sites" checked> sites</label>
+      <label class="check"><input type="checkbox" id="ion-paths" checked> paths</label>
+      <span class="note ion-tier"></span>
+    </div>
     <div class="viewer-canvas" role="img" aria-label="3D view of the structure"></div>
     <p class="viewer-status note" aria-live="polite">Loading…</p>
   </div>
@@ -143,6 +153,37 @@
   {% endif %}
   {% else %}<p class="empty">No Poreblazer results for this run or its child runs.</p>{% endif %}
 </section>
+
+{% if r.ion_maps %}
+<section id="run-ions">
+  <h2>Ion maps</h2>
+  <p class="note">Where each ion sits and how hard it is for it to cross the cell, mapped by
+    <a href="https://github.com/st7ma784/liminal">liminal</a> (an <code>ion_map</code> stage). Energies in kcal/mol;
+    shown in the viewer above. {% set tiers = r.ion_maps | map(attribute="tier") | select | unique | list %}{% if tiers %}Tier: {{ tiers | join("; ") }}.{% endif %}</p>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col" class="num">Step</th><th scope="col">Ion</th>
+        <th scope="col" class="num">Sites</th><th scope="col" class="num">Escaping sites</th>
+        <th scope="col" class="num">Lowest site<br><span class="unit">kcal/mol</span></th>
+        <th scope="col" class="num">Its escape barrier<br><span class="unit">kcal/mol</span></th>
+        <th scope="col" class="num">Lowest barrier<br><span class="unit">kcal/mol</span></th>
+        <th scope="col" class="num">Median barrier<br><span class="unit">kcal/mol</span></th>
+        <th scope="col">Files</th></tr></thead>
+      <tbody>
+        {% for i in r.ion_maps %}
+        <tr><td class="num">{{ i.step if i.step is not none else "–" }}</td><td>{{ i.ion }}</td>
+          {% if i.returncode %}<td colspan="6"><span class="status state-fail">liminal exit {{ i.returncode }}</span>{% if i.log %} <a href="/runs/{{ r.summary.run_id }}/files/{{ i.log }}?inline=1">log</a>{% endif %}</td>
+          {% else %}<td class="num">{{ i.sites }}</td><td class="num">{{ i.escaping_sites }}</td>
+          <td class="num">{{ i.site_energy | number(2) }}</td><td class="num">{{ i.escape_barrier | number(2) }}</td>
+          <td class="num">{{ i.lowest_barrier | number(2) }}</td><td class="num">{{ i.median_barrier | number(2) }}</td>{% endif %}
+          <td>{% if i.map %}<a href="/runs/{{ r.summary.run_id }}/files/{{ i.map }}?inline=1">map.json</a>{% endif %}
+            {% if i.cube %} · <a href="/runs/{{ r.summary.run_id }}/files/{{ i.cube }}">energy.cube</a>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
 
 <section>
   <h2>Files</h2>

@@ -67,6 +67,7 @@ last analysis of the run or of its child runs):
 | `helium_volume_cm3_g`, `geometric_volume_cm3_g` | pore volume |
 | `density` | g/cm³, from the last build step. Ambuild's cells are often sparse (0.2–0.9). |
 | `num_particles`, `num_blocks` | atoms, and separate blocks. Fewer blocks means a more connected network. |
+| `li_site_energy`, `li_escape_barrier`, `li_lowest_barrier`, `li_sites` (and `na_…`, `k_…`) | from an `ion_map` stage (liminal, docs/ion-maps.md), kcal/mol: the lowest site's energy for Li⁺ (Na⁺, K⁺), the barrier to leave it and cross the cell, the lowest barrier of any site, and the number of sites. None without an `ion_map` stage for that ion. These are classical, uncalibrated energies: good for comparing ions and structures, not for absolute values. A barrier under a few kcal/mol means the ion moves easily at room temperature (kT ≈ 0.6). |
 
 ## Recipes
 

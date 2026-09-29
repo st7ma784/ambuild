@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 import psycopg
 from psycopg.rows import dict_row
 
+from ambuild import ionmap as ab_ionmap
+
 PAGE_SIZE = 50
 
 # Poreblazer results shown for a run: its own, or its child runs' (a Slurm fan-out
@@ -71,7 +73,11 @@ def _summarySql():
                jsonb_path_query_first(r.run_json, '$.inputs[*] ? (@.kind == "recipe").name') #>> '{{}}' AS recipe,
                s.step AS last_step, s.num_particles, s.num_blocks, s.density,
                p.run_id AS pore_run_id, p.directory AS pore_directory, {pore},
-               (SELECT count(*) FROM runs c WHERE c.parent_run_id = r.run_id) AS children
+               (SELECT count(*) FROM runs c WHERE c.parent_run_id = r.run_id) AS children,
+               (SELECT jsonb_object_agg(latest.ion, latest.data) FROM (
+                    SELECT DISTINCT ON (e.data->>'ion') e.data->>'ion' AS ion, e.data FROM events e
+                    WHERE e.run_id = r.run_id AND e.type = 'ion_map_result' AND e.data->>'sites' IS NOT NULL
+                    ORDER BY e.data->>'ion', e.step DESC NULLS LAST, e.seq DESC) latest) AS ion_maps
         FROM runs r
         LEFT JOIN LATERAL (
             SELECT step, num_particles, num_blocks, density FROM steps
@@ -140,6 +146,7 @@ def getRun(conn, runId):
         "children": [_label(c) for c in children],
         "steps": steps(conn, runId),
         "pore_results": poreResults(conn, runId),
+        "ion_maps": ionMaps(conn, runId),
         "files": files(conn, runId),
         "structures": structures(conn, runId),
         "event_counts": dict(
@@ -151,6 +158,14 @@ def getRun(conn, runId):
 
 def steps(conn, runId):
     return conn.execute("SELECT * FROM steps WHERE run_id = %s ORDER BY step", (runId,)).fetchall()
+
+
+def ionMaps(conn, runId):
+    """The run's ion maps (ion_map_result events: ambuild.ionmap), by step and ion"""
+    rows = conn.execute(
+        "SELECT step, data FROM events WHERE run_id = %s AND type = 'ion_map_result' ORDER BY step, seq",
+        (runId,)).fetchall()
+    return [dict(r["data"], step=r["step"]) for r in rows]
 
 
 def poreResults(conn, runId, withChildren=True):
@@ -204,6 +219,7 @@ def _label(row):
         row["parent_run_id"] = str(row["parent_run_id"])
     if row.get("pore_run_id"):
         row["pore_run_id"] = str(row["pore_run_id"])
+    row.update(ab_ionmap.metrics(row.get("ion_maps")))  # li_escape_barrier etc., from the latest map of each ion
     command = row.get("command") or []
     script = row.get("script")
     if script:

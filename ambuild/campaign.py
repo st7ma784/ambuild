@@ -23,19 +23,22 @@ at least feasible_fraction of its replicates meet it. Standard library only, lik
 ambuild.recipe and ambuild.sweep.
 """
 import copy
+import json
+import os
 import statistics
 
 from ambuild import recipe as ab_recipe
+from ambuild import ionmap as ab_ionmap
 from ambuild import sweep as ab_sweep
 
-# Results a campaign can aim at: the run summaries' columns (Poreblazer results, and the
-# last build step's)
+# Results a campaign can aim at: the run summaries' columns (Poreblazer results, the last
+# build step's, and the ion maps', e.g. li_escape_barrier: ambuild.ionmap)
 METRICS = [
     "surface_area_m2_g", "surface_area_a2", "surface_area_m2_cm3", "helium_volume_a3", "helium_volume_cm3_g",
     "geometric_volume_a3", "geometric_volume_cm3_g", "pore_limiting_diameter_a", "maximum_pore_diameter_a",
     "percolated_dimensions", "system_volume_a3", "system_mass_g_mol", "system_density_g_cm3",
     "density", "num_particles", "num_blocks",
-]
+] + ab_ionmap.METRICS
 METHODS = ["tpe", "gp", "qmc", "random", "grid", "external"]
 DEFAULTS = {"replicates": 3, "method": "tpe", "initial_points": 8, "batch_size": 6, "feasible_fraction": 0.5,
             "budget": {"runs": 150}, "stop": {}, "sampler_seed": 0}
@@ -55,6 +58,20 @@ def _isInt(v):
 
 def _isNumber(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recipes", "campaigns")
+
+
+def examples():
+    """{name: spec} of the example campaigns shipped with Ambuild (recipes/campaigns), for
+    the example recipes of the same shape (li_ion_carbon and its variants)"""
+    out = {}
+    for fname in sorted(os.listdir(EXAMPLES_DIR)) if os.path.isdir(EXAMPLES_DIR) else []:
+        if fname.endswith(".json"):
+            with open(os.path.join(EXAMPLES_DIR, fname), encoding="utf-8") as f:
+                out[fname[:-5]] = json.load(f)
+    return out
 
 
 def normalise(spec):

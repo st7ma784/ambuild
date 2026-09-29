@@ -29,7 +29,7 @@ Homepage = "https://github.com/linucks/ambuild"
 include = ["ambuild"]
 
 [tool.setuptools.package-data]
-ambuild = ["recipes/*.json", "recipes/params/*/*", "schemas/*.json"]  # example recipes and their parameters; export schemas
+ambuild = ["recipes/*.json", "recipes/params/*/*", "recipes/campaigns/*.json", "schemas/*.json"]  # example recipes, their parameters and campaigns; export schemas
 
 [tool.setuptools.dynamic]
 version = { attr = "ambuild.version.__version__" }

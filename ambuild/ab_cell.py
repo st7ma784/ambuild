@@ -1612,7 +1612,7 @@ class Cell:
         info["export_version"] = EXPORT_VERSION
         return info
 
-    def writeStructure(self, ofile):
+    def writeStructure(self, ofile, kind="structure"):
         """Write the cell's atoms as extended XYZ (readable by ASE, OVITO and the web GUI),
         export format version 1 (docs/export.md): the cell as the lattice; for each atom its
         element, its position wrapped into the cell, its force-field type, its charge, its
@@ -1636,10 +1636,10 @@ class Cell:
             f.write("\n".join(lines))
             f.write("\n")
         logger.info("Wrote structure file: {0}".format(path))
-        self._recordArtifact(path, "structure")
+        self._recordArtifact(path, kind)
         return path
 
-    def writeTopology(self, ofile, structureFile):
+    def writeTopology(self, ofile, structureFile, kind="topology"):
         """Write what extended XYZ cannot hold, for the structure writeStructure wrote to
         structureFile (export format version 1, docs/export.md; schema
         ambuild/schemas/topology-v1.json): the blocks' atom ranges; every bond as [i, j,
@@ -1687,7 +1687,7 @@ class Cell:
             json.dump(data, f, sort_keys=True, separators=(",", ":"))
             f.write("\n")
         logger.info("Wrote topology file: {0}".format(path))
-        self._recordArtifact(path, "topology")
+        self._recordArtifact(path, kind)
         return path
 
     def endGroupConfig(self, fragmentType):
@@ -2412,6 +2412,54 @@ class Cell:
                 )
                 return True
         return False
+
+    def ionMap(self, liminal_exe=None, ions=("Li+",), spacing=0.5, cutoff=10.0, max_energy=30.0, max_paths=20):
+        """Map where each ion sits in the current cell and how hard it is to cross it, with
+        liminal, an external program (ambuild.ionmap, docs/ion-maps.md).
+
+        The cell's structure and topology are written to a new ion_map_<fileCount>
+        directory in outputDir, and `liminal map` is run on them once per ion, writing
+        <ion>/map.json and <ion>/energy.cube. liminal_exe: the command (default LIMINAL_EXE,
+        else liminal on the PATH). spacing, cutoff: the energy grid's spacing and cutoff
+        (Å); max_energy: barriers above this (kcal/mol) are left unresolved; max_paths:
+        crossing paths for this many of the lowest sites.
+
+        Each ion's summary (ambuild.ionmap.summarise, plus its files, directory and exit
+        code) is recorded as an ion_map_result event, and the files as artifacts. Returns
+        the summaries; a summary with a non-zero returncode has no figures.
+        """
+        from ambuild import ionmap
+
+        if isinstance(ions, str):
+            ions = [ions]
+        command = ionmap.executable(liminal_exe)
+        if command is None:
+            raise RuntimeError("liminal was not found: set LIMINAL_EXE, or put liminal on the PATH")
+        directory = os.path.abspath(self.outputPath("{0}_{1}".format(ionmap.NAME_STEM, self._fileCount)))
+        if os.path.isdir(directory):
+            raise RuntimeError("Ion map directory already exists: {0}".format(directory))
+        os.makedirs(directory)
+        structure = self.writeStructure(os.path.join(directory, "structure.xyz"), kind="ion_map_structure")
+        self.writeTopology(os.path.join(directory, "structure.topology.json"), structure, kind="ion_map_topology")
+        results = []
+        for ion in ions:
+            out = os.path.join(directory, ionmap.ionDirectoryName(ion))
+            log = out + ".log"
+            code = ionmap.runLiminal(command, structure, out, ion, spacing, cutoff, max_energy, max_paths, log)
+            result = {"ion": ion, "returncode": code, "directory": directory, "log": self._relativeOutputPath(log)}
+            mapFile = os.path.join(out, "map.json")
+            if code == 0 and os.path.isfile(mapFile):
+                data = ionmap.readMap(mapFile)
+                result.update(ionmap.summarise(data))
+                cube = os.path.join(out, (data.get("grid") or {}).get("file") or "energy.cube")
+                result["map"] = self._relativeOutputPath(mapFile)
+                self._recordArtifact(mapFile, "ion_map")
+                if os.path.isfile(cube):
+                    result["cube"] = self._relativeOutputPath(cube)
+                    self._recordArtifact(cube, "ion_grid")
+            self.analyse.emit(ionmap.EVENT, result)
+            results.append(result)
+        return results
 
     def poreblazer(self, poreblazer_exe, threads=None, memory_limit_mb=None, **settings):
         """Run Poreblazer on the current cell and return its results.
