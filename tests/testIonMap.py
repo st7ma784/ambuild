@@ -26,6 +26,9 @@ def recipe(ions=("Li+", "Na+", "K+"), **stage):
         "cell": {"box": [20, 20, 20]},
         "fragments": [{"type": "A", "car": os.path.join(BLOCKS_DIR, "benzene2.car"),
                        "csv": os.path.join(BLOCKS_DIR, "benzene2.csv"), "name": "benzene2"}],
+        # its parameters named, as an installed Ambuild has no default directory of them
+        "params": {name: os.path.join(PARAMS_DIR, name) for name in (
+            "angle_params.csv", "bond_params.csv", "dihedral_params.csv", "improper_params.csv", "pair_params.csv")},
         "bond_types": ["A:a-A:a"],
         "stages": [{"op": "seed", "count": 3}, dict({"op": "ion_map", "ions": list(ions), "spacing": 1.0}, **stage)],
         "seed": 4,
