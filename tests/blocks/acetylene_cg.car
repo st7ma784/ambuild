@@ -1,0 +1,10 @@
+!BIOSYM archive 3
+PBC=OFF
+Acetylene linked at both carbons, typed for polyyne links: cg#ch (GAFF conjugated sp); C#C 1.203 A, C-H 1.063 A
+!DATE Tue Sep 29 12:00:00 2026
+C1       -0.601500000     0.000000000     0.000000000 XXXX 1      cg      C   0.000
+C2        0.601500000     0.000000000     0.000000000 XXXX 1      ch      C   0.000
+H1       -1.664500000     0.000000000     0.000000000 XXXX 1      ha      H   0.000
+H2        1.664500000     0.000000000     0.000000000 XXXX 1      ha      H   0.000
+end
+end

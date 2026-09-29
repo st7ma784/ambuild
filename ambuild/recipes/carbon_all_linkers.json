@@ -1,0 +1,137 @@
+{
+  "recipe_version": 1,
+  "name": "Carbon network from six linkers",
+  "description": "Benzene rings (C6), acetylene (C2), trigonal sp2 carbon nodes, allene (a C3 cumulene), cyclopropenyl nodes (a C3 ring) and propargyl linkers (-CH2-C#C-), each able to join itself and the others, except where GAFF would give the wrong bond: an alkyne's cg end to another's ch end (the triple bond's length), cyclopropenyl to cyclopropenyl and allene to cyclopropenyl (double-bond lengths). GAFF 1.81 parameters (params/gaff_carbon), a rigid-body optimisation with dihedrals after each pass, then Poreblazer. See docs/carbon-linkers.md.",
+  "cell": {
+    "box": [
+      30,
+      30,
+      30
+    ],
+    "bond_margin": 0.5,
+    "bond_angle_margin": 15,
+    "typed_bond_lengths": true
+  },
+  "fragments": [
+    {
+      "type": "A",
+      "car": "benzene_135.car",
+      "csv": "benzene_135.csv",
+      "name": "benzene_135"
+    },
+    {
+      "type": "B",
+      "car": "acetylene_cg.car",
+      "csv": "acetylene_cg.csv",
+      "name": "acetylene_cg"
+    },
+    {
+      "type": "C",
+      "car": "carbon_node.car",
+      "csv": "carbon_node.csv",
+      "name": "carbon_node"
+    },
+    {
+      "type": "D",
+      "car": "allene.car",
+      "csv": "allene.csv",
+      "name": "allene"
+    },
+    {
+      "type": "E",
+      "car": "cyclopropenyl.car",
+      "csv": "cyclopropenyl.csv",
+      "name": "cyclopropenyl"
+    },
+    {
+      "type": "F",
+      "car": "propargyl.car",
+      "csv": "propargyl.csv",
+      "name": "propargyl"
+    }
+  ],
+  "params": {
+    "angle_params.csv": "params/gaff_carbon/angle_params.csv",
+    "bond_params.csv": "params/gaff_carbon/bond_params.csv",
+    "dihedral_params.csv": "params/gaff_carbon/dihedral_params.csv",
+    "improper_params.csv": "params/gaff_carbon/improper_params.csv",
+    "pair_params.csv": "params/gaff_carbon/pair_params.csv"
+  },
+  "bond_types": [
+    "A:a-A:a",
+    "A:a-B:g",
+    "A:a-B:h",
+    "A:a-C:a",
+    "A:a-D:e",
+    "A:a-E:u",
+    "A:a-F:c",
+    "A:a-F:h",
+    "B:g-B:g",
+    "B:g-C:a",
+    "B:g-D:e",
+    "B:g-E:u",
+    "B:g-F:c",
+    "B:h-B:h",
+    "B:h-C:a",
+    "B:h-D:e",
+    "B:h-E:u",
+    "B:h-F:c",
+    "B:h-F:h",
+    "C:a-C:a",
+    "C:a-D:e",
+    "C:a-E:u",
+    "C:a-F:c",
+    "C:a-F:h",
+    "D:e-D:e",
+    "D:e-F:c",
+    "D:e-F:h",
+    "E:u-F:c",
+    "E:u-F:h",
+    "F:c-F:c",
+    "F:c-F:h",
+    "F:h-F:h"
+  ],
+  "stages": [
+    {
+      "op": "seed",
+      "count": 4,
+      "fragment_type": "A"
+    },
+    {
+      "op": "seed",
+      "count": 4,
+      "fragment_type": "C"
+    },
+    {
+      "op": "seed",
+      "count": 2,
+      "fragment_type": "E"
+    },
+    {
+      "repeat": 6,
+      "stages": [
+        {
+          "op": "grow",
+          "count": 12,
+          "max_tries": 50
+        },
+        {
+          "op": "zip",
+          "bond_margin": 1.0,
+          "bond_angle_margin": 30
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": true,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "op": "poreblazer",
+      "threads": 2
+    }
+  ],
+  "seed": 13
+}

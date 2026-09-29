@@ -1,0 +1,10 @@
+!BIOSYM archive 3
+PBC=OFF
+Trigonal sp2 carbon node, linked three ways at 120 degrees; GAFF ca (conjugated, as in graphitic carbon)
+!DATE Tue Sep 29 12:00:00 2026
+C1        0.000000000     0.000000000     0.000000000 XXXX 1      ca      C   0.000
+H1        1.084000000     0.000000000     0.000000000 XXXX 1      ha      H   0.000
+H2       -0.542000000     0.938771538     0.000000000 XXXX 1      ha      H   0.000
+H3       -0.542000000    -0.938771538     0.000000000 XXXX 1      ha      H   0.000
+end
+end

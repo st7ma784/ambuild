@@ -1,0 +1,12 @@
+!BIOSYM archive 3
+PBC=OFF
+Cyclopropenyl node: a C3 ring (C-C 1.363 A, as aromatic cyclopropenylium) linked three ways radially; GAFF cu
+!DATE Tue Sep 29 12:00:00 2026
+C1        0.000000000     0.786928417     0.000000000 XXXX 1      cu      C   0.000
+C2       -0.681500000    -0.393464208     0.000000000 XXXX 1      cu      C   0.000
+C3        0.681500000    -0.393464208     0.000000000 XXXX 1      cu      C   0.000
+H1        0.000000000     1.864928417     0.000000000 XXXX 1      ha      H   0.000
+H2       -1.615075385    -0.932464208     0.000000000 XXXX 1      ha      H   0.000
+H3        1.615075385    -0.932464208     0.000000000 XXXX 1      ha      H   0.000
+end
+end

@@ -1,0 +1,13 @@
+!BIOSYM archive 3
+PBC=OFF
+Allene (propadiene, a C3 cumulene) linked at both end carbons; GAFF ce=c1=ce; C=C 1.308 A, C-H 1.087 A, end planes perpendicular
+!DATE Tue Sep 29 12:00:00 2026
+C1       -1.308000000     0.000000000     0.000000000 XXXX 1      ce      C   0.000
+C2        0.000000000     0.000000000     0.000000000 XXXX 1      c1      C   0.000
+C3        1.308000000     0.000000000     0.000000000 XXXX 1      ce      C   0.000
+H1       -1.871095359     0.929780951     0.000000000 XXXX 1      ha      H   0.000
+H2       -1.871095359    -0.929780951     0.000000000 XXXX 1      ha      H   0.000
+H3        1.871095359     0.000000000     0.929780951 XXXX 1      ha      H   0.000
+H4        1.871095359     0.000000000    -0.929780951 XXXX 1      ha      H   0.000
+end
+end
