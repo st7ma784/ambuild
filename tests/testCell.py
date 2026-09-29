@@ -624,7 +624,8 @@ class Test(unittest.TestCase):
     def testDump(self):
         """Test we can dump a cell"""
         boxDim = [30, 30, 30]
-        mycell = Cell(boxDim, paramsDir=PARAMS_DIR)
+        # seeded: with maxTries=1 the grow depends on the random state earlier tests leave
+        mycell = Cell(boxDim, paramsDir=PARAMS_DIR, seed=1)
         mycell.libraryAddFragment(filename=self.ch4Car, fragmentType="A")
         mycell.addBondType("A:a-A:a")
 

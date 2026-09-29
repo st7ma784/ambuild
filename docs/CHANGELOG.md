@@ -16,6 +16,23 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Porous aromatic frameworks, graphyne and graphdiyne (`docs/carbon-families.md`).
+  - **Blocks:**
+    - `carbon_tetrahedral`: an sp³ carbon linked four ways;
+    - `adamantane`: linked at its four bridgeheads;
+    - `biphenyl`: 4,4′-linked, with the gas-phase 44° twist;
+    - `butadiyne`: `cg≡ch–ch≡cg`, linked at both ends.
+  - **A GAFF 1.81 set, `params/gaff_paf`.**
+  - **Four recipes in 60 Å cells,** each allowing only its own topology's joins:
+    - `paf1_large`: tetrahedral carbon and biphenyl;
+    - `paf_adamantane_large`: adamantane and biphenyl;
+    - `graphyne_large`: 1,3,5-benzene and alkyne;
+    - `graphdiyne_large`: 1,3,5-benzene and butadiyne.
+  - **Tests:** `tests/testCarbonFamilies.py`.
+- **A recipe gallery in the web GUI** (`/gallery`, `GET /api/gallery`).
+  - It lists every example recipe by family (`ambuild/gallery.json`, `ambuild/gallery.py`).
+  - For each recipe it shows the blocks, build, measures and the median results of its latest runs, with Run, Sweep and Campaign links.
+  - The New campaign page takes `?spec=NAME` to start from an example campaign.
 - Large covalent triazine frameworks (`docs/ctf-networks.md`).
   - **A `triazine` block:** C₃N₃ from measured geometry, linked at its three carbons (`cp`, with ring nitrogens `nb`).
   - **A GAFF 1.81 set, `params/gaff_ctf`,** with one stand-in (`nb-cp-*` as `nb-cp-cp`).
@@ -376,6 +393,10 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   install. Install HOOMD-blue from conda-forge.
 
 ### Fixed
+- A block larger than the cell could overlap its own periodic image. `Cell._checkMove` checks a moved block only against the other blocks, so when `joinBlocks` made a cluster about 90 Å across in a 60 Å cell, its atoms could land under 1 Å from their own images. The next HOOMD-blue optimisation failed with "Particle ... is no longer in the simulation box" (`paf1_large`).
+  - `checkMove` now also counts non-bonded pairs of the block's atoms that meet through an image (`Cell._selfImageClashes`).
+  - A static block is exempt: it is a periodic slab that meets its own images by design (`tests/testSelfImage.py`).
+- `testCell.testDump` grew with one try on whatever random state earlier tests left, so it failed when new test modules ran before it. It now seeds its cell.
 - `xyz_core.vectorAngle` returned 180° for *parallel* vectors whenever rounding put their unit vectors' dot product just above 1. It returned π for every NaN from `arccos`, and whether the rounding happens can depend on how NumPy vectorises the sum, so it varied between runs.
   - It is used when a grown block is aligned (`alignAtoms`) and when bonds are checked, so a block could occasionally be flipped or a good bond rejected. Regular geometry (exactly 180° junctions) made this frequent: `testCell.testBond` failed in some CI runs.
   - The dot product is now clipped to [−1, 1] (`tests/testXyzCore.py`).

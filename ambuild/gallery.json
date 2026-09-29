@@ -1,0 +1,44 @@
+{
+  "families": [
+    {
+      "id": "li-ion",
+      "title": "Carbon networks for Li-ion channels",
+      "blurb": "Benzene rings joined by alkyne linkers, built to have pores a lithium ion can pass through; the _ions variants also map where Li+, Na+ and K+ sit and how easily they cross (liminal).",
+      "doc": "docs/ion-maps.md",
+      "recipes": ["li_ion_carbon", "li_ion_carbon_ions"],
+      "campaigns": ["easiest_li_transport", "ion_sieve"]
+    },
+    {
+      "id": "carbon-linkers",
+      "title": "Carbon linkers that join themselves and each other",
+      "blurb": "Rings, polyyne alkynes, trigonal sp2 carbon nodes and C3 units (allene, cyclopropenyl, propargyl), each able to bond its own kind as well as the others.",
+      "doc": "docs/carbon-linkers.md",
+      "recipes": ["benzene_network", "benzene_network_ions", "carbon_nodes_network", "carbon_all_linkers"],
+      "campaigns": []
+    },
+    {
+      "id": "graphyne",
+      "title": "Graphyne and graphdiyne",
+      "blurb": "The sp-sp2 carbon allotropes: benzene rings joined only through one alkyne (graphyne) or exactly two (graphdiyne), built as large amorphous 3D networks.",
+      "doc": "docs/carbon-families.md",
+      "recipes": ["graphyne_large", "graphdiyne_large"],
+      "campaigns": []
+    },
+    {
+      "id": "ctf",
+      "title": "Covalent triazine frameworks",
+      "blurb": "Triazine rings linked through phenylene, alkyne or mixed struts, in 60 A cells sized for a Slurm node.",
+      "doc": "docs/ctf-networks.md",
+      "recipes": ["ctf1_large", "ctf_alkyne_large", "ctf_mixed_large"],
+      "campaigns": []
+    },
+    {
+      "id": "paf",
+      "title": "Porous aromatic frameworks",
+      "blurb": "Tetrahedral nodes, a single sp3 carbon as in PAF-1 or an adamantane cage, joined through biphenyl struts: 3D by construction, with very high surface areas.",
+      "doc": "docs/carbon-families.md",
+      "recipes": ["paf1_large", "paf_adamantane_large"],
+      "campaigns": []
+    }
+  ]
+}

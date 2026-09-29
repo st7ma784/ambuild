@@ -578,3 +578,39 @@ def test_campaign_pages_and_external_points(client, blobs, conn):
     client.post("/api/campaigns/{0}/stop".format(cid))
     created = client.post("/api/agents", json={"name": "controller-" + TOKEN, "backend": "campaigns"})
     assert created.status_code == 201
+
+
+# --- the recipe gallery
+
+def test_gallery_lists_every_example_by_family(client, blobs, conn):
+    from ambuild import gallery as ab_gallery
+    from ambuild import recipe as ab_recipe
+
+    data = client.get("/api/gallery").json()
+    listed = [r["example"] for f in data["families"] for r in f["recipes"]]
+    assert sorted(listed) == sorted(ab_recipe.examples())
+    paf = next(f for f in data["families"] if f["id"] == "paf")
+    assert [r["example"] for r in paf["recipes"]] == ["paf1_large", "paf_adamantane_large"]
+    card = paf["recipes"][0]
+    assert card["box"] == [60, 60, 60] and card["blocks"] == ["carbon_tetrahedral", "biphenyl"]
+    assert card["resources"]["cpus"] == 8 and "pores (Poreblazer)" in card["measures"]
+    # an example saved under its name links to it, to run, sweep or aim a campaign at
+    body = recipe(blobs, name=ab_gallery.exampleBody("graphyne_large")["name"])
+    body["name"] = ab_gallery.exampleBody("graphyne_large")["name"]
+    saved = client.post("/api/recipes", json=body)
+    assert saved.status_code in (200, 201), saved.text
+    rid = saved.json()["recipe_id"]
+    try:
+        cards = {r["example"]: r for f in client.get("/api/gallery").json()["families"] for r in f["recipes"]}
+        assert cards["graphyne_large"]["saved"]["recipe_id"] == rid
+        html = client.get("/gallery").text
+        assert "/submit?recipe={0}".format(rid) in html and "/sweeps/new?recipe={0}".format(rid) in html
+        assert 'href="/campaigns/new?spec=ion_sieve"' in html and "Porous aromatic frameworks" in html
+    finally:
+        conn.execute("DELETE FROM recipes WHERE recipe_id = %s", (rid,))
+
+
+def test_a_campaign_can_start_from_an_example_spec(client):
+    html = client.get("/campaigns/new", params={"spec": "ion_sieve"}).text
+    assert "k_escape_barrier" in html and "li_escape_barrier" in html
+    assert client.get("/campaigns/new", params={"spec": "nothing"}).status_code == 404

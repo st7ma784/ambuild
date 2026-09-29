@@ -191,6 +191,10 @@ submitted) work back to the queue.
   files, set seed (or "random": the recorded state makes it replayable either way),
   resources and backend. Before submitting: schema validation, a memory estimate
   (`ab_poreblazer.memory_estimate_mb`) and a run-time estimate from similar past runs.
+- **Gallery** (`/gallery`, added later): Ambuild's example recipes by family
+  (`ambuild/gallery.json`). Each shows what it builds, the median results of its recent
+  runs, and Run, Sweep and Campaign links from its saved version; example campaigns open
+  the New campaign page with their spec (`?spec=`). See `docs/carbon-families.md`.
 - **Batch / sweep**: one recipe over N seeds, a parameter grid (e.g. box size ×
   fragment ratio × bond margin), or rows of an uploaded CSV. Shows the number of runs
   and total estimated core-hours before submitting; becomes one Slurm array per sweep.

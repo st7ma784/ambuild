@@ -1,0 +1,85 @@
+{
+  "recipe_version": 1,
+  "name": "Adamantane and biphenyl framework, large",
+  "description": "A porous aromatic framework with adamantane nodes (linked at the four bridgehead carbons) and biphenyl struts, strictly node to biphenyl: a larger tetrahedral node than PAF-1's single carbon, for larger cages. Built large: a 60 A cell with 8 seeds, then ten passes, each growing 60 blocks, joining clusters twice (so the seeds' clusters become one or two large frameworks), zipping and a rigid-body optimisation with dihedrals (GAFF 1.81, params/gaff_paf); then Poreblazer on a 0.3 A grid (about 340 MB). Sized for a Slurm node (resources); sweep the cell size or grow counts to go larger. See docs/carbon-families.md.",
+  "cell": {
+    "box": [
+      60,
+      60,
+      60
+    ],
+    "bond_margin": 0.5,
+    "bond_angle_margin": 15,
+    "typed_bond_lengths": true
+  },
+  "fragments": [
+    {
+      "type": "M",
+      "car": "adamantane.car",
+      "csv": "adamantane.csv",
+      "name": "adamantane"
+    },
+    {
+      "type": "L",
+      "car": "biphenyl.car",
+      "csv": "biphenyl.csv",
+      "name": "biphenyl"
+    }
+  ],
+  "params": {
+    "angle_params.csv": "params/gaff_paf/angle_params.csv",
+    "bond_params.csv": "params/gaff_paf/bond_params.csv",
+    "dihedral_params.csv": "params/gaff_paf/dihedral_params.csv",
+    "improper_params.csv": "params/gaff_paf/improper_params.csv",
+    "pair_params.csv": "params/gaff_paf/pair_params.csv"
+  },
+  "bond_types": [
+    "M:q-L:b"
+  ],
+  "stages": [
+    {
+      "op": "seed",
+      "count": 8,
+      "fragment_type": "M"
+    },
+    {
+      "repeat": 10,
+      "stages": [
+        {
+          "op": "grow",
+          "count": 60,
+          "max_tries": 50
+        },
+        {
+          "op": "join",
+          "count": 2,
+          "max_tries": 100
+        },
+        {
+          "op": "zip",
+          "bond_margin": 1.0,
+          "bond_angle_margin": 30
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": true,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "op": "poreblazer",
+      "threads": 8,
+      "settings": {
+        "cubelet_size": 0.3
+      }
+    }
+  ],
+  "seed": 32,
+  "resources": {
+    "cpus": 8,
+    "memory_mb": 8000,
+    "time": "08:00:00"
+  }
+}

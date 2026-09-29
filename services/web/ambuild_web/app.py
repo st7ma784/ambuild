@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from ambuild_web import __version__, agents, campaigns, checks, formatting, identity, runs, submissions, sweeps
+from ambuild_web import __version__, agents, campaigns, checks, formatting, gallery, identity, runs, submissions, sweeps
 from ambuild_web.config import Settings
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -33,6 +33,7 @@ def createApp(settings=None):
     app.include_router(submissions.router)
     app.include_router(sweeps.router)
     app.include_router(campaigns.router)
+    app.include_router(gallery.router)
     app.include_router(agents.router)
     app.include_router(agents.manage)
 

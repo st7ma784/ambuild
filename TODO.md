@@ -416,6 +416,13 @@ In order:
 - [x] Large covalent triazine frameworks (`docs/ctf-networks.md`): a triazine block, the GAFF
   set `params/gaff_ctf`, and recipes `ctf1_large`, `ctf_alkyne_large` and `ctf_mixed_large`
   (60 A cells; join steps connect the seeds' clusters into one or two frameworks).
+- [x] Porous aromatic frameworks, graphyne and graphdiyne (`docs/carbon-families.md`):
+  blocks `carbon_tetrahedral`, `adamantane`, `biphenyl` and `butadiyne`, the GAFF set
+  `params/gaff_paf`, and recipes `paf1_large`, `paf_adamantane_large`, `graphyne_large` and
+  `graphdiyne_large`; a recipe gallery in the web GUI (`/gallery`).
+- [ ] Let the adamantane PAF's blocks flex (optimise with `rigid: false` after the rigid
+  passes, or a final flexible pass) to relieve the CH2/ortho-H crowding that stretches its
+  joins by 0.03-0.06 A.
 - [ ] Larger networks from the mixed linkers: sweep or campaign the cell size and grow
   counts of `carbon_nodes_network` (the MPI HOOMD launcher above for the largest cells).
 - [ ] Ion permeation and intercalation analysis: whether Li+ (and Na+, K+, Mg2+) gets

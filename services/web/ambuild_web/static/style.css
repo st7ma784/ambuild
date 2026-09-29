@@ -189,3 +189,9 @@ tr.just-added td { background: var(--highlight); }
 .live-note { color: var(--run); font-size: 12px; font-weight: 600; }
 .inline-form { display: flex; gap: 6px; align-items: center; }
 .inline-form input { font: inherit; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 4px; background: var(--bg); color: var(--ink); }
+
+/* recipe gallery */
+.toc { margin: 0 0 18px; font-size: 14px; }
+.family { margin-bottom: 28px; }
+.family details summary { cursor: pointer; }
+.family details p { max-width: 60ch; margin: 4px 0 0; }
