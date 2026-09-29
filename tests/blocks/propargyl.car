@@ -1,0 +1,13 @@
+!BIOSYM archive 3
+PBC=OFF
+Propargyl linker -CH2-C#C- (propyne linked at a methyl H and the alkyne H); GAFF c3-cg#ch
+!DATE Tue Sep 29 12:00:00 2026
+C1        0.000000000     0.000000000     0.000000000 XXXX 1      c3      C   0.000
+C2        1.458000000     0.000000000     0.000000000 XXXX 1      cg      C   0.000
+C3        2.661000000     0.000000000     0.000000000 XXXX 1      ch      C   0.000
+H1        3.724000000     0.000000000     0.000000000 XXXX 1      ha      H   0.000
+H2       -0.364666667     1.031433046     0.000000000 XXXX 1      hc      H   0.000
+H3       -0.364666667    -0.515716523     0.893247220 XXXX 1      hc      H   0.000
+H4       -0.364666667    -0.515716523    -0.893247220 XXXX 1      hc      H   0.000
+end
+end

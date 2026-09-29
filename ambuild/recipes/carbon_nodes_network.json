@@ -1,0 +1,91 @@
+{
+  "recipe_version": 1,
+  "name": "Carbon network of rings, alkynes and sp2 nodes",
+  "description": "Benzene rings (C6, linked 1,3,5), acetylene linkers (C2) and trigonal sp2 carbon nodes (one carbon, linked three ways), each able to join itself and the others: ring-ring (biaryl), ring-alkyne, alkyne-alkyne (polyyne: a single bond, 1.369 A), node-node (graphitic, 1.398 A), and node to ring or alkyne. Alkynes are typed cg#ch (GAFF's conjugated sp carbons), and an alkyne joins another only like end to like end, so every alkyne-alkyne link is the single bond. GAFF 1.81 parameters (params/gaff_carbon), a rigid-body optimisation with dihedrals after each pass, then Poreblazer. See docs/carbon-linkers.md.",
+  "cell": {
+    "box": [
+      30,
+      30,
+      30
+    ],
+    "bond_margin": 0.5,
+    "bond_angle_margin": 15,
+    "typed_bond_lengths": true
+  },
+  "fragments": [
+    {
+      "type": "A",
+      "car": "benzene_135.car",
+      "csv": "benzene_135.csv",
+      "name": "benzene_135"
+    },
+    {
+      "type": "B",
+      "car": "acetylene_cg.car",
+      "csv": "acetylene_cg.csv",
+      "name": "acetylene_cg"
+    },
+    {
+      "type": "C",
+      "car": "carbon_node.car",
+      "csv": "carbon_node.csv",
+      "name": "carbon_node"
+    }
+  ],
+  "params": {
+    "angle_params.csv": "params/gaff_carbon/angle_params.csv",
+    "bond_params.csv": "params/gaff_carbon/bond_params.csv",
+    "dihedral_params.csv": "params/gaff_carbon/dihedral_params.csv",
+    "improper_params.csv": "params/gaff_carbon/improper_params.csv",
+    "pair_params.csv": "params/gaff_carbon/pair_params.csv"
+  },
+  "bond_types": [
+    "A:a-A:a",
+    "A:a-B:g",
+    "A:a-B:h",
+    "A:a-C:a",
+    "B:g-B:g",
+    "B:g-C:a",
+    "B:h-B:h",
+    "B:h-C:a",
+    "C:a-C:a"
+  ],
+  "stages": [
+    {
+      "op": "seed",
+      "count": 6,
+      "fragment_type": "A"
+    },
+    {
+      "op": "seed",
+      "count": 6,
+      "fragment_type": "C"
+    },
+    {
+      "repeat": 6,
+      "stages": [
+        {
+          "op": "grow",
+          "count": 12,
+          "max_tries": 50
+        },
+        {
+          "op": "zip",
+          "bond_margin": 1.0,
+          "bond_angle_margin": 30
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": true,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "op": "poreblazer",
+      "threads": 2
+    }
+  ],
+  "seed": 11
+}

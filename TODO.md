@@ -409,6 +409,12 @@ In order:
 - [x] The DFT work's own repository: [liminal](https://github.com/st7ma784/liminal)
   (private, MIT), a git submodule at `external/liminal` and not part of Ambuild. It is
   seeded with a reader for the export format and a roadmap (its `docs/roadmap.md`).
+- [x] Carbon linkers that join themselves and each other (`docs/carbon-linkers.md`): C6 rings,
+  C2 alkynes (polyyne links, like end to like end), trigonal sp2 carbon nodes, and the C3
+  units (allene, cyclopropenyl, propargyl); recipes `carbon_nodes_network` and
+  `carbon_all_linkers`, GAFF set `params/gaff_carbon`.
+- [ ] Larger networks from the mixed linkers: sweep or campaign the cell size and grow
+  counts of `carbon_nodes_network` (the MPI HOOMD launcher above for the largest cells).
 - [ ] Ion permeation and intercalation analysis: whether Li+ (and Na+, K+, Mg2+) gets
   into a structure, at what voltage, and how easily it gets back out. Poreblazer only
   answers the geometric question. The analysis lives in liminal, not here: the classical
