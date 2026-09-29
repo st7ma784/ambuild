@@ -413,7 +413,9 @@ In order:
   into a structure, at what voltage, and how easily it gets back out. Poreblazer only
   answers the geometric question. The analysis lives in liminal, not here: the classical
   energy map, DFT (CP2K PBE-D3, Skala on clusters, DLPNO-CCSD(T) checks), ML potentials,
-  and calibrating the map (its roadmap, stages L0-L7). Ambuild's side:
+  and calibrating the map (its roadmap, stages L0-L7, and its milestone track A-E).
+  Ambuild's side (the `ion_map` stage, metrics and viewer overlay are done:
+  `docs/ion-maps.md`):
   - export boxes for it (the structure export item above, `docs/export.md`);
   - read liminal's results file, once it is specified (its L7), as campaign metrics
     (e.g. voltage at a loading, escape barrier, site density), each labelled with its

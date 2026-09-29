@@ -1,0 +1,12 @@
+{
+  "parameters": [
+    {"name": "box", "path": "/cell/box", "all": true, "type": "float", "low": 20, "high": 35},
+    {"name": "grow", "path": "/stages/1/stages/0/count", "type": "int", "low": 4, "high": 20},
+    {"name": "passes", "path": "/stages/1/repeat", "type": "int", "low": 3, "high": 10}
+  ],
+  "constraints": [{"metric": "pore_limiting_diameter_a", "min": 1.52},
+                  {"metric": "percolated_dimensions", "min": 1}],
+  "objective": {"minimise": "li_lowest_barrier"},
+  "replicates": 3, "method": "tpe", "initial_points": 8, "batch_size": 6,
+  "budget": {"runs": 90}, "stop": {"no_improvement_rounds": 4}
+}

@@ -107,11 +107,30 @@ def _poreStepCharts(poreRows):
 
 
 def _structureSpec(run):
-    """The viewer's frames: each structure file's step and where to fetch it"""
+    """The viewer's frames: each structure file's step and where to fetch it, with the ion
+    maps (liminal, docs/ion-maps.md) made of it: those at its step, else at the latest
+    step before the next frame"""
     runId = run["summary"]["run_id"]
-    frames = [{"step": f["step"], "path": f["path"], "kind": f["kind"], "size": f["size"],
-               "url": "/runs/{0}/files/{1}?inline=1".format(runId, quote(f["path"]))}
-              for f in run["structures"]]
+
+    def url(path):
+        return "/runs/{0}/files/{1}?inline=1".format(runId, quote(path))
+
+    frames = [{"step": f["step"], "path": f["path"], "kind": f["kind"], "size": f["size"], "url": url(f["path"]),
+               "ion_maps": []} for f in run["structures"]]
+    for m in run.get("ion_maps") or []:
+        if not m.get("map") or m.get("step") is None:
+            continue
+        stepped = [f for f in frames if f["step"] is not None and f["step"] <= m["step"]]
+        target = stepped[-1] if stepped else (frames[0] if frames else None)
+        if target is None:
+            continue
+        escape = None
+        if m.get("site_energy") is not None and m.get("escape_barrier") is not None:
+            escape = m["site_energy"] + m["escape_barrier"]
+        target["ion_maps"].append({
+            "ion": m["ion"], "step": m["step"], "map": url(m["map"]), "cube": url(m["cube"]) if m.get("cube") else None,
+            "site_energy": m.get("site_energy"), "escape_barrier": m.get("escape_barrier"), "escape_energy": escape,
+            "tier": m.get("tier")})
     box = (run["run"]["run_json"].get("cell") or {}).get("box_dim")
     return {"box": box, "frames": frames}
 

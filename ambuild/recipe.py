@@ -192,6 +192,19 @@ OPERATIONS = {
                  "memory_limit_mb", minimum=1),
         ],
     },
+    "ion_map": {
+        "method": "ionMap",
+        "help": "Map where ions sit and how hard it is for them to cross the cell, with liminal (LIMINAL_EXE); "
+                "each ion's figures are recorded with the run (docs/ion-maps.md).",
+        "args": [
+            _arg("ions", "strings", ["Li+"], "ions to map, e.g. [\"Li+\", \"Na+\", \"K+\"]", "ions"),
+            _arg("spacing", "number", 0.5, "energy grid spacing (Å)", "spacing", minimum=0.1),
+            _arg("cutoff", "number", 10.0, "interaction cut-off (Å)", "cutoff", minimum=1),
+            _arg("max_energy", "number", 30.0, "barriers above this (kcal/mol) are left unresolved", "max_energy"),
+            _arg("max_paths", "integer", 20, "crossing paths for this many of the lowest sites", "max_paths",
+                 minimum=0),
+        ],
+    },
 }
 
 _FRAGMENT_KEYS = {"type", "car", "csv", "ambody", "name", "solvent", "catalyst", "mark_bonded"}
@@ -586,11 +599,12 @@ def _kwargs(spec, stage, staging, resolver, index):
 
 
 class _Runner:
-    def __init__(self, cell, staging, resolver, poreblazerExe):
+    def __init__(self, cell, staging, resolver, poreblazerExe, liminalExe=None):
         self.cell = cell
         self.staging = staging
         self.resolver = resolver
         self.poreblazerExe = poreblazerExe
+        self.liminalExe = liminalExe
         self.count = 0
 
     def stages(self, stages, top):
@@ -616,6 +630,14 @@ class _Runner:
                 raise RuntimeError("Poreblazer failed (exit code {0}); see {1}".format(
                     results["returncode"], results["directory"]))
             return results
+        if stage["op"] == "ion_map":
+            results = method(self.liminalExe, **kwargs)
+            failed = [r for r in results if r["returncode"] != 0 or r.get("sites") is None]
+            if failed:
+                raise RuntimeError("liminal failed for {0}; see {1}".format(
+                    ", ".join("{0} (exit code {1})".format(r["ion"], r["returncode"]) for r in failed),
+                    ", ".join(r["log"] or r["directory"] for r in failed)))
+            return results
         return method(**kwargs)
 
 
@@ -624,13 +646,13 @@ def _raiseCancelled(signum, frame):
 
 
 def run(recipe, outputDir, blobDirs=(), baseDir=None, runId=None, parentRunId=None, seed=None,
-        poreblazerExe=None):
+        poreblazerExe=None, liminalExe=None):
     """Build the recipe as a recorded run in outputDir; returns the run id.
 
     blobDirs: directories holding referenced files named by sha256; baseDir: the directory
     file paths are relative to (None: paths not allowed); seed overrides the recipe's.
-    poreblazerExe: default POREBLAZER_EXE. A failed build raises, with the run recorded as
-    failed.
+    poreblazerExe: default POREBLAZER_EXE; liminalExe: default LIMINAL_EXE, else liminal on
+    the PATH (for ion_map stages). A failed build raises, with the run recorded as failed.
     """
     errors = validate(recipe, allowPaths=baseDir is not None)
     if errors:
@@ -642,6 +664,11 @@ def run(recipe, outputDir, blobDirs=(), baseDir=None, runId=None, parentRunId=No
     poreblazerExe = poreblazerExe or os.environ.get("POREBLAZER_EXE")
     if any(s.get("op") == "poreblazer" for s in _allStages(recipe["stages"])) and not poreblazerExe:
         raise RuntimeError("The recipe runs Poreblazer: set POREBLAZER_EXE")
+    if any(s.get("op") == "ion_map" for s in _allStages(recipe["stages"])):
+        from ambuild import ionmap
+
+        if ionmap.executable(liminalExe) is None:
+            raise RuntimeError("The recipe maps ions with liminal: set LIMINAL_EXE, or put liminal on the PATH")
     outputDir = os.path.abspath(outputDir)
     ab_run.checkRunDirectory(outputDir)
     resolver = Resolver(blobDirs, baseDir)
@@ -686,7 +713,7 @@ def run(recipe, outputDir, blobDirs=(), baseDir=None, runId=None, parentRunId=No
                 cell.addBondType(bt)
             for bt, count in sorted(recipe.get("max_bonds", {}).items()):
                 cell.setMaxBond(bt, count)
-            _Runner(cell, staging, resolver, poreblazerExe).stages(recipe["stages"], top=True)
+            _Runner(cell, staging, resolver, poreblazerExe, liminalExe).stages(recipe["stages"], top=True)
         return cell.runId
     finally:
         shutil.rmtree(staging, ignore_errors=True)

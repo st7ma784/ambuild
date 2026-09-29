@@ -16,6 +16,18 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Ion maps (`docs/ion-maps.md`): an `ion_map` recipe stage runs liminal (`LIMINAL_EXE`, or `liminal` on the PATH) as an external program, like Poreblazer. It maps where Li⁺, Na⁺ and K⁺ sit in the current cell and how hard it is for each to cross it.
+  - **Recording:** each ion's figures are recorded as an `ion_map_result` event: sites, the lowest site's energy and escape barrier, the lowest and median barriers, and the tier. The files are recorded as artifacts: `ion_map_<n>/<ion>/map.json` and `energy.cube`, plus the mapped structure. The stage checks the results format ("liminal-map" version 1), and a failure for any ion fails the build.
+  - **Metrics:** new metrics for sweeps and campaigns, `li_/na_/k_` + `site_energy`, `escape_barrier`, `lowest_barrier` and `sites` (`ambuild.ionmap`), taken from each run's latest map of each ion.
+  - **Run page:** an Ion maps table. The 3D viewer overlays a frame's maps: an energy surface at an adjustable level, the sites (escaping or trapped), and the crossing paths with their bottlenecks. The address can set the view: `?ion=`, `?layers=`.
+  - **Examples:**
+    - recipes `li_ion_carbon_ions` and `benzene_network_ions`, which map Li⁺, Na⁺ and K⁺;
+    - campaigns `easiest_li_transport` and `ion_sieve` (`ambuild/recipes/campaigns`, `ambuild.campaign.examples()`).
+  - **The demo:** `deploy/demo/liminal.Dockerfile` and `deploy/docker-compose.liminal.yml` add liminal to the demo's agent. The published images leave it out while liminal is private.
+  - **Tests:**
+    - `tests/testIonMap.py` uses `tests/fake_liminal.py`, a stand-in for liminal that writes its documented format, plus one test with the real liminal when it's installed;
+    - the web tests cover metrics, the table and the per-frame maps.
+  - **The structure writers:** `Cell.writeStructure` and `writeTopology` take the artifact `kind` to record, so a map's copy of the structure isn't a viewer frame.
 - Structure export, milestone E1 (`docs/export.md`). Every checkpoint (`Cell.dump()`) now writes:
   - `step_N.xyz` with two new columns, `type` (force-field type) and `charge`, and provenance in its header (`run_id`, `recipe_sha256`, `ambuild_version`, `export_version=1`). Positions are wrapped into [0, L) as written.
   - A new `step_N.topology.json` (artifact kind `topology`, uploaded like any other file). It holds every bond as `[i, j, image]` with the lattice shift that makes it short across the boundary, each block's atom range, the free end groups with their cap atoms, the parameter files' sha256, and the structure file's sha256.

@@ -10,6 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from ambuild import campaign as ab_campaign
+from ambuild import ionmap as ab_ionmap
 from ambuild import sweep as ab_sweep
 from ambuild_web import db, queue
 from ambuild_web.submissions import TEMPLATE, _connect, _int, _owner, checkRecipe, recipeText
@@ -22,6 +23,7 @@ LABELS = {
     "percolated_dimensions": "percolated dimensions", "density": "density (g/cm³)", "num_particles": "atoms",
     "num_blocks": "blocks",
 }
+LABELS.update({m: ab_ionmap.metricLabel(m) for m in ab_ionmap.METRICS})  # from ion_map stages (liminal)
 
 # The New campaign page's starting point: the Li-ion showcase (for li_ion_carbon, or any
 # recipe of the same shape: a seed stage, then a repeat of grow and zip)

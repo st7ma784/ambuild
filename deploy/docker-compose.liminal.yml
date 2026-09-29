@@ -1,0 +1,9 @@
+# Adds liminal to the demo's agent, so recipes can map ions (docs/ion-maps.md):
+#   docker compose -f deploy/docker-compose.yml --profile web build agent
+#   docker build -f deploy/demo/liminal.Dockerfile -t ambuild-agent-liminal external/liminal
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.liminal.yml --profile web up -d
+services:
+  agent:
+    image: ambuild-agent-liminal
+    build: !reset null
+    pull_policy: never

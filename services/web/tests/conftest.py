@@ -40,10 +40,26 @@ def structure(step, natoms=6):
     return ("\n".join(lines) + "\n").encode()
 
 
+def ionMap(step, ion, siteEnergy, barrier, directory="ion_map_1"):
+    """An ion_map stage's result for one ion (ambuild.ionmap), and its files"""
+    name = ion.replace("+", "_plus")
+    data = {"ion": ion, "returncode": 0, "tier": "classical: test", "liminal_version": "test", "sites": 3,
+            "escaping_sites": 2, "site_energy": siteEnergy, "escape_barrier": barrier, "lowest_barrier": 0.2,
+            "median_barrier": 0.85, "paths": 1, "grid": [2, 2, 2], "spacing": [0.5, 0.5, 0.5],
+            "map": "{0}/{1}/map.json".format(directory, name), "cube": "{0}/{1}/energy.cube".format(directory, name),
+            "directory": "/x/" + directory, "log": "{0}/{1}.log".format(directory, name)}
+    files = {data["map"]: json.dumps({"format": "liminal-map", "version": 1, "ion": ion, "sites": [], "paths": []}).encode(),
+             data["cube"]: b"cube\n"}
+    return {"step": step, "data": data, "files": files}
+
+
 def writeRun(path, name, status="finished", parentRunId=None, seed=None, nsteps=3, pores=(), error=None,
-             extraFiles=None, structures=(), xyzArtifact=False):
+             extraFiles=None, structures=(), xyzArtifact=False, ionMaps=()):
     """A run directory in the format of ambuild.ab_run; returns (run id, {relpath: bytes})"""
     runId = str(uuid.uuid4())
+    extraFiles = dict(extraFiles or {})
+    for m in ionMaps:
+        extraFiles.update(m["files"])
     script = "inputs/script/webtest-{0}-{1}.py".format(TOKEN, name)
     files = {
         script: b"# build script\n",
@@ -96,6 +112,11 @@ def writeRun(path, name, status="finished", parentRunId=None, seed=None, nsteps=
                        "data": {"relpath": "final.xyz", "kind": "xyz"}})
     for p in pores:
         events.append({"type": "pore_result", "step": p["step"], "timestamp": 21.0, "data": p["result"]})
+    for m in ionMaps:
+        events.append({"type": "ion_map_result", "step": m["step"], "timestamp": 22.0, "data": m["data"]})
+        for kind, key in (("ion_map", "map"), ("ion_grid", "cube")):
+            events.append({"type": "artifact", "step": m["step"], "timestamp": 22.0,
+                           "data": {"relpath": m["data"][key], "kind": kind}})
     if status != "running":
         events.append({"type": "run_finished", "step": nsteps, "timestamp": 30.0,
                        "data": {"status": status, "error": error}})
@@ -118,9 +139,12 @@ def recorded(tmp_path_factory):
 
     root = tmp_path_factory.mktemp("runs")
     runs = {}
+    # ion maps: Li+ twice (the later one counts), and K+
     a, filesA = writeRun(str(root / "a"), "alpha", seed=11, nsteps=3, structures=(2, 1, 3),
                          pores=[{"step": 3, "result": pore(3, 1500.0, 7.5, "/runs/a/poreblazer_1")}],
-                         extraFiles={"notes/odd name & more.txt": b"a file with an awkward name\n"})
+                         extraFiles={"notes/odd name & more.txt": b"a file with an awkward name\n"},
+                         ionMaps=[ionMap(2, "Li+", -1.0, 9.0, "ion_map_0"), ionMap(3, "Li+", -2.0, 1.5),
+                                  ionMap(3, "K+", -4.0, 6.0)])
     child, filesChild = writeRun(str(root / "child"), "alpha-child", parentRunId=a, nsteps=0,
                                  pores=[{"step": 2, "result": pore(2, 1400.0, 7.0, "/runs/child/poreblazer_2")}])
     b, filesB = writeRun(str(root / "b"), "beta", status="failed", seed=12, nsteps=2, xyzArtifact=True,

@@ -196,3 +196,31 @@ def test_poreblazer_over_the_build(client, recorded):
     html = client.get("/runs/" + recorded["a"]).text  # results at steps 2 (child) and 3 (own)
     assert "Over the build" in html and 'id="pore-surface_area_m2_g-data"' in html
     assert "Over the build" not in client.get("/runs/" + recorded["c"]).text  # one result only
+
+
+# --- ion maps (ion_map stages running liminal: docs/ion-maps.md)
+
+def test_ion_maps_give_metrics_a_table_and_viewer_overlays(client, recorded):
+    summary = client.get("/api/runs/" + recorded["a"]).json()["summary"]
+    # the latest map of each ion: Li+ at step 3, not step 2
+    assert (summary["li_site_energy"], summary["li_escape_barrier"], summary["li_sites"]) == (-2.0, 1.5, 3)
+    assert (summary["k_site_energy"], summary["k_escape_barrier"]) == (-4.0, 6.0)
+    assert summary["na_site_energy"] is None
+    html = client.get("/runs/" + recorded["a"]).text
+    assert "Ion maps" in html and 'id="ion-map"' in html and "Tier: classical: test" in html
+    assert "ion_map_1/K_plus/map.json" in html
+    spec = client.get("/api/runs/{0}/structures".format(recorded["a"])).json()
+    byStep = {f["step"]: f["ion_maps"] for f in spec["frames"]}
+    assert byStep[1] == []
+    assert [m["ion"] for m in byStep[2]] == ["Li+"] and byStep[2][0]["escape_energy"] == 8.0
+    assert sorted(m["ion"] for m in byStep[3]) == ["K+", "Li+"]
+    li = next(m for m in byStep[3] if m["ion"] == "Li+")
+    assert li["escape_energy"] == -0.5 and li["map"].endswith("ion_map_1/Li_plus/map.json?inline=1")
+    assert client.get(li["map"]).json()["format"] == "liminal-map"
+
+
+def test_ion_metrics_can_be_plotted_and_aimed_at():
+    from ambuild_web import campaigns, sweeps
+
+    assert ("li_escape_barrier", "Li+ escape barrier from the lowest site (kcal/mol)") in sweeps.METRICS
+    assert campaigns.LABELS["k_site_energy"] == "K+ lowest site energy (kcal/mol)"

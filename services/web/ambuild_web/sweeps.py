@@ -8,6 +8,7 @@ from fastapi import APIRouter, Body, File, Form, HTTPException, Request, UploadF
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from ambuild import ionmap as ab_ionmap
 from ambuild import sweep as ab_sweep
 from ambuild_web import db, queue
 from ambuild_web.submissions import _connect, _int, _owner, checkRecipe, recipeText
@@ -23,7 +24,7 @@ METRICS = [
     ("density", "density (g/cm³)"),
     ("num_particles", "atoms"),
     ("num_blocks", "blocks"),
-]
+] + [(m, ab_ionmap.metricLabel(m)) for m in ab_ionmap.METRICS]  # from ion_map stages (liminal)
 PREVIEW_ROWS = 50
 DEFAULT_PARAMETERS = [{"name": "box", "path": "/cell/box", "all": True, "values": [25, 30, 35]}]
 
