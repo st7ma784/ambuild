@@ -398,12 +398,12 @@ In order:
 - [ ] Use the MPI HOOMD launcher only for large cells: all-atom MD on ~5,000
   atoms or more, or long runs on ~2,000 or more (`docs/benchmarks.md`). The
   dispatcher could set `AMBUILD_HOOMD_LAUNCHER` per job from the recipe.
-- [ ] Structure export (spec: `docs/export.md`): every checkpoint writes an
+- [ ] Structure export (spec: `docs/export.md`; E1 done): every checkpoint writes an
   extended XYZ with force-field types and charges, and a topology JSON (bonds with
   periodic images, blocks, free end groups; JSON Schema `topology-v1.json`).
   `ambuild/export.py` (standard library only) derives CIF, POSCAR, a CP2K
   `&SUBSYS` and a LAMMPS data file from those two files, never from pickles.
-  - Milestones: E1 files at checkpoints; E2 converters and command line; E3 web
+  - Milestones: E1 files at checkpoints (done); E2 converters and command line; E3 web
     API, Export menu and skill command; E4 a CP2K smoke test.
   - The input to the DFT spin-out, which reads these files and never imports Ambuild.
 - [x] The DFT work's own repository: [liminal](https://github.com/st7ma784/liminal)

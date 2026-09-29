@@ -1,6 +1,6 @@
 # Structure export (spec)
 
-Status: proposed. It isn't built yet; milestones E1–E4 are at the end.
+Status: E1 (the files every checkpoint writes) is built; E2–E4 are proposed. Milestones are at the end.
 
 Ambuild's periodic boxes are the input to everything downstream: DFT, other MD codes,
 visualisers and the planned ion-intercalation work (`TODO.md`). Today a checkpoint writes an
@@ -23,7 +23,7 @@ files plus one documented JSON file.
   them without Ambuild's objects.
 - **Traceable:** every export names its run, step, recipe hash, Ambuild version and
   parameter files, with a sha256 per file.
-- **Deterministic:** the same checkpoint always gives byte-identical files.
+- **Deterministic:** the same checkpoint always gives byte-identical files. Two runs of the same build write the same atoms; their headers differ only in `run_id` (and `recipe_sha256` if the recipe text differs), so compare without those.
 
 ## Non-goals: the boundary with the DFT spin-out
 
@@ -64,10 +64,10 @@ C 12.345678 1.234567 30.000001 cp 0.000 A 0
   "format": "ambuild-topology", "version": 1,
   "structure": "step_7.xyz", "structure_sha256": "…", "atoms": 488,
   "run_id": "…", "step": 7,
-  "params": {"bond": {"file": "bond_params.csv", "sha256": "…"}, "angle": {…}, "dihedral": {…}, "pair": {…}},
+  "params": {"angle_params.csv": "…", "bond_params.csv": "…", "dihedral_params.csv": "…", "improper_params.csv": "…", "pair_params.csv": "…"},
   "blocks": [{"id": 0, "start": 0, "end": 12, "fragments": ["A"]}, …],
   "bonds": [[0, 1, [0, 0, 0]], [5, 131, [1, 0, 0]], …],
-  "free_end_groups": [{"atom": 4, "cap": 10, "type": "a", "block": 0}, …]
+  "free_end_groups": [{"atom": 4, "cap": 10, "type": "A:a", "block": 0}, …]
 }
 ```
 
@@ -78,7 +78,11 @@ C 12.345678 1.234567 30.000001 cp 0.000 A 0
   list holds both kinds of bond, within blocks and between them, sorted.
 - **Free end groups:** end groups still unbonded when the checkpoint was written. For each:
   its atom, its cap atom (the atom that would be removed on bonding, usually an H), the end
-  group's type and its block. The DFT side uses these for capping and for choosing sites.
+  group's type as in bond types (`fragment:end group`, e.g. `A:a`) and its block. The DFT
+  side uses these for capping and for choosing sites.
+- **Bonds are within blocks:** blocks that bond merge into one block, so every bond joins
+  two atoms of the same block, including bonds between fragments.
+- **Parameters:** `params` maps each CSV file in the parameter directory to its sha256.
 - **Schema:** `ambuild/schemas/topology-v1.json` (JSON Schema). A reader must check
   `format` and `version`.
 

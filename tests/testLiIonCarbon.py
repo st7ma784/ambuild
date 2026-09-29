@@ -13,6 +13,7 @@ import glob
 import json
 import math
 import os
+import re
 import shutil
 import statistics
 import tempfile
@@ -33,7 +34,13 @@ def lastStructure(rundir):
     with open(files[-1]) as f:
         lines = f.read().splitlines()
     box = float(lines[1].split('"')[1].split()[0])
-    return box, [(a[0], tuple(map(float, a[1:4])), a[4]) for a in (l.split() for l in lines[2:2 + int(lines[0])])]
+    # columns by name, from Properties (docs/export.md)
+    spec = re.search(r"Properties=(\S+)", lines[1]).group(1).split(":")
+    names = []
+    for n in range(0, len(spec), 3):
+        names += [spec[n]] * int(spec[n + 2])
+    fragment = names.index("fragment")
+    return box, [(a[0], tuple(map(float, a[1:4])), a[fragment]) for a in (l.split() for l in lines[2:2 + int(lines[0])])]
 
 
 def _vec(a, b, box):
@@ -147,10 +154,33 @@ class LiIonCarbon(unittest.TestCase):
         self.assertGreater(len(lengths), 20)
         self.assertLess(max(abs(d - TRIPLE_BOND) for d in lengths), 0.01, lengths)
 
+    def assertTopologyHasTheBonds(self, rundir, box, atoms):
+        """The exported topology (docs/export.md, test 9) holds every C#C and ring-alkyne
+        bond, at the lengths measured here, and nothing longer than 1.8 A"""
+        files = sorted(glob.glob(os.path.join(rundir, "step_*.topology.json")),
+                       key=lambda p: int(os.path.basename(p)[5:].split(".")[0]))
+        with open(files[-1]) as f:
+            topology = json.load(f)
+        self.assertEqual(topology["atoms"], len(atoms))
+        byKind = collections.defaultdict(list)
+        for i, j, image in topology["bonds"]:
+            vector = [atoms[j][1][k] + image[k] * box - atoms[i][1][k] for k in range(3)]
+            length = _norm(vector)
+            self.assertLess(length, 1.8, (i, j, image))
+            byKind[tuple(sorted((atoms[i][0] + atoms[i][2], atoms[j][0] + atoms[j][2])))].append(length)
+        triple = byKind[("CB", "CB")]
+        ringAlkyne = byKind[("CA", "CB")]
+        self.assertEqual(len(triple), len(linkers(box, atoms)))
+        self.assertLess(max(abs(d - TRIPLE_BOND) for d in triple), 0.01)
+        self.assertEqual(len(ringAlkyne), len(junctions(box, atoms)[0]))
+        self.assertLess(max(abs(d - RING_ALKYNE_BOND) for d in ringAlkyne), 0.05)
+
     @unittest.skipUnless(ab_util.HOOMDVERSION, "Needs HOOMD-blue")
     def testOptimisedJunctionsHaveTheRightGeometry(self):
-        box, atoms = lastStructure(self.build(dict(self.recipe, stages=self.recipe["stages"][:-1])))
+        rundir = self.build(dict(self.recipe, stages=self.recipe["stages"][:-1]))
+        box, atoms = lastStructure(rundir)
         self.assertLinkersIntact(box, atoms)
+        self.assertTopologyHasTheBonds(rundir, box, atoms)
         lengths, straight, trigonal = junctions(box, atoms)
         self.assertGreater(len(lengths), 20)
         self.assertLess(max(abs(d - RING_ALKYNE_BOND) for d in lengths), 0.05, lengths)

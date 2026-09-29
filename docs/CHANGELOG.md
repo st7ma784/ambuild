@@ -16,6 +16,12 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- Structure export, milestone E1 (`docs/export.md`). Every checkpoint (`Cell.dump()`) now writes:
+  - `step_N.xyz` with two new columns, `type` (force-field type) and `charge`, and provenance in its header (`run_id`, `recipe_sha256`, `ambuild_version`, `export_version=1`). Positions are wrapped into [0, L) as written.
+  - A new `step_N.topology.json` (artifact kind `topology`, uploaded like any other file). It holds every bond as `[i, j, image]` with the lattice shift that makes it short across the boundary, each block's atom range, the free end groups with their cap atoms, the parameter files' sha256, and the structure file's sha256.
+  - A JSON Schema for the topology, `ambuild/schemas/topology-v1.json` (shipped with the package).
+  - **Tests:** `tests/testExport.py` checks types, charges and provenance; every bond's image against the blocks' real bond vectors, in a box small enough for bonds to cross the boundary; free end groups and caps; byte-identical rewrites; and the schema. `testLiIonCarbon.py` checks that the optimised network's topology holds every C≡C and ring–alkyne bond and nothing over 1.8 Å.
+  - **Comparing runs:** two runs of the same build now differ in their structure headers' `run_id` (and `recipe_sha256` when the recipe text differs). Tests that compare structures across runs ignore those keys.
 - `external/liminal`, a git submodule: [liminal](https://github.com/st7ma784/liminal), a separate project (private for now) for DFT on the boxes Ambuild exports. It is not part of Ambuild, and Ambuild's builds, images and CI don't use it. `.dockerignore` keeps it out of image builds.
 - A spec for structure export, `docs/export.md`: extended XYZ with types and charges, a topology JSON, derived formats (CIF, POSCAR, CP2K, LAMMPS), and its tests.
 - A third agent backend, `slurmrest`, which submits to Slurm through slurmrestd with a cluster user's JWT, from any machine (e.g. a container beside the web GUI):

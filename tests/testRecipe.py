@@ -6,6 +6,7 @@ import hashlib
 import inspect
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -43,11 +44,12 @@ def example(ref=lambda name: name):
 
 
 def lastStructure(rundir):
-    """Text of the last checkpoint's structure file, without its header's step"""
+    """Text of the last checkpoint's structure file, without its header's run id and recipe
+    hash: two runs of the same build write the same atoms, but those can differ"""
     files = sorted(glob.glob(os.path.join(rundir, "step_*.xyz")),
                    key=lambda p: int(os.path.basename(p)[5:-4]))
     with open(files[-1]) as f:
-        return f.read()
+        return re.sub(r' (run_id|recipe_sha256)="[^"]*"', "", f.read())
 
 
 class Validation(unittest.TestCase):
