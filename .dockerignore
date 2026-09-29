@@ -8,3 +8,4 @@ tests/*.log
 tests/*.cml
 tests/poreblazer_*
 deploy/runs
+external

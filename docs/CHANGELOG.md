@@ -16,6 +16,8 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- `external/liminal`, a git submodule: [liminal](https://github.com/st7ma784/liminal), a separate project (private for now) for DFT on the boxes Ambuild exports. It is not part of Ambuild, and Ambuild's builds, images and CI don't use it. `.dockerignore` keeps it out of image builds.
+- A spec for structure export, `docs/export.md`: extended XYZ with types and charges, a topology JSON, derived formats (CIF, POSCAR, CP2K, LAMMPS), and its tests.
 - A third agent backend, `slurmrest`, which submits to Slurm through slurmrestd with a cluster user's JWT, from any machine (e.g. a container beside the web GUI):
   - **What the agent needs:** no login node, Slurm commands, munge key, shared filesystem, or database or storage credentials.
   - **Jobs:** each job script is one of `deploy/slurm`'s, carrying its recipe and input files (base64, checked by sha256), which it stages on the cluster. Sweeps are one array job, followed by an upload job, as from a login node.
