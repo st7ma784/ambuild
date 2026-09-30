@@ -203,8 +203,9 @@ docker compose --env-file agent.env up -d
 through slurmrestd they inherit nothing from the agent. Set `PATH` (or activate an
 environment with `AMBUILD_SLURM_SETUP`), `AMBUILD_PARAMS_DIR` (the force-field
 parameters, `tests/params` of a clone; the published image sets it itself),
-`POREBLAZER_EXE`, and, for recipes with `ion_map` stages, `LIMINAL_EXE`
-([ion-maps.md](ion-maps.md)). A job without `AMBUILD_PARAMS_DIR` fails at once, saying so,
+`POREBLAZER_EXE`, and, for recipes with `ion_map` or `conduction` stages, `LIMINAL_EXE`
+([ion-maps.md](ion-maps.md), [conduction.md](conduction.md); conduction needs liminal's
+`conduct` extra, `pip install "liminal[map,conduct]"`). A job without `AMBUILD_PARAMS_DIR` fails at once, saying so,
 in its output file under `AMBUILD_RUNS_ROOT`. `AMBUILD_SLURMREST_JOB` adds job fields such
 as `{"account": "chem", "qos": "normal"}`. The agent uses the newest slurmrestd API
 version it has been tested with that slurmrestd offers: v0.0.42, v0.0.41 or v0.0.40, all

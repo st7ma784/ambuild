@@ -205,6 +205,18 @@ OPERATIONS = {
                  minimum=0),
         ],
     },
+    "conduction": {
+        "method": "conduction",
+        "help": "The π network's conjugated domains, Hückel gap and conductance, with tunnelling through sp3 "
+                "atoms, from liminal (LIMINAL_EXE); recorded with the run (docs/conduction.md).",
+        "args": [
+            _arg("t_sp3", "number", 0.3, "coupling through one sp3 atom (eV)", "t_sp3", minimum=0),
+            _arg("sp3_decay", "number", 0.455, "decay of that coupling per extra sp3 atom", "sp3_decay", minimum=0),
+            _arg("max_bridge", "integer", 3, "longest chain of sp3 atoms followed", "max_bridge", minimum=1),
+            _arg("max_dense", "integer", 8000, "largest conjugated domain diagonalised (π sites)", "max_dense",
+                 minimum=1),
+        ],
+    },
 }
 
 _FRAGMENT_KEYS = {"type", "car", "csv", "ambody", "name", "solvent", "catalyst", "mark_bonded"}
@@ -638,6 +650,12 @@ class _Runner:
                     ", ".join("{0} (exit code {1})".format(r["ion"], r["returncode"]) for r in failed),
                     ", ".join(r["log"] or r["directory"] for r in failed)))
             return results
+        if stage["op"] == "conduction":
+            result = method(self.liminalExe, **kwargs)
+            if result["returncode"] != 0 or result.get("sites") is None:
+                raise RuntimeError("liminal conduct failed (exit code {0}); see {1}".format(
+                    result["returncode"], result["log"] or result["directory"]))
+            return result
         return method(**kwargs)
 
 
@@ -652,7 +670,7 @@ def run(recipe, outputDir, blobDirs=(), baseDir=None, runId=None, parentRunId=No
     blobDirs: directories holding referenced files named by sha256; baseDir: the directory
     file paths are relative to (None: paths not allowed); seed overrides the recipe's.
     poreblazerExe: default POREBLAZER_EXE; liminalExe: default LIMINAL_EXE, else liminal on
-    the PATH (for ion_map stages). A failed build raises, with the run recorded as failed.
+    the PATH (for ion_map and conduction stages). A failed build raises, with the run recorded as failed.
     """
     errors = validate(recipe, allowPaths=baseDir is not None)
     if errors:
@@ -664,11 +682,12 @@ def run(recipe, outputDir, blobDirs=(), baseDir=None, runId=None, parentRunId=No
     poreblazerExe = poreblazerExe or os.environ.get("POREBLAZER_EXE")
     if any(s.get("op") == "poreblazer" for s in _allStages(recipe["stages"])) and not poreblazerExe:
         raise RuntimeError("The recipe runs Poreblazer: set POREBLAZER_EXE")
-    if any(s.get("op") == "ion_map" for s in _allStages(recipe["stages"])):
+    if any(s.get("op") in ("ion_map", "conduction") for s in _allStages(recipe["stages"])):
         from ambuild import ionmap
 
         if ionmap.executable(liminalExe) is None:
-            raise RuntimeError("The recipe maps ions with liminal: set LIMINAL_EXE, or put liminal on the PATH")
+            raise RuntimeError("The recipe runs liminal (ion maps or conduction): set LIMINAL_EXE, or put liminal "
+                               "on the PATH")
     outputDir = os.path.abspath(outputDir)
     ab_run.checkRunDirectory(outputDir)
     resolver = Resolver(blobDirs, baseDir)

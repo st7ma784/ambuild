@@ -28,17 +28,19 @@ import os
 import statistics
 
 from ambuild import recipe as ab_recipe
+from ambuild import conduction as ab_conduction
 from ambuild import ionmap as ab_ionmap
 from ambuild import sweep as ab_sweep
 
 # Results a campaign can aim at: the run summaries' columns (Poreblazer results, the last
-# build step's, and the ion maps', e.g. li_escape_barrier: ambuild.ionmap)
+# build step's, the ion maps', e.g. li_escape_barrier: ambuild.ionmap, and conduction's, e.g.
+# el_gap: ambuild.conduction)
 METRICS = [
     "surface_area_m2_g", "surface_area_a2", "surface_area_m2_cm3", "helium_volume_a3", "helium_volume_cm3_g",
     "geometric_volume_a3", "geometric_volume_cm3_g", "pore_limiting_diameter_a", "maximum_pore_diameter_a",
     "percolated_dimensions", "system_volume_a3", "system_mass_g_mol", "system_density_g_cm3",
     "density", "num_particles", "num_blocks",
-] + ab_ionmap.METRICS
+] + ab_ionmap.METRICS + ab_conduction.METRICS
 METHODS = ["tpe", "gp", "qmc", "random", "grid", "external"]
 DEFAULTS = {"replicates": 3, "method": "tpe", "initial_points": 8, "batch_size": 6, "feasible_fraction": 0.5,
             "budget": {"runs": 150}, "stop": {}, "sampler_seed": 0}

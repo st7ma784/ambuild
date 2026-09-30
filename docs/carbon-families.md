@@ -7,6 +7,12 @@ triazine frameworks (`docs/ctf-networks.md`), with the same build scheme:
 - **Measure:** Poreblazer on a 0.3 Å grid.
 - **Resources:** 8 CPUs, 8 GB, 8 hours.
 
+**The two PAF recipes close their networks.** After the passes they add a closing phase:
+three rounds of a wide zip and an all-atom optimisation (`docs/closing.md`). That closes
+rings, lets the framework span the cell, and lets the blocks flex. After Poreblazer they
+run a `conduction` stage (`docs/conduction.md`). Graphyne and graphdiyne don't have these
+yet (`TODO.md`).
+
 Each recipe allows only the joins of its own topology.
 
 ## The blocks
@@ -39,21 +45,42 @@ Parameters:
 
 ## Measured builds
 
-Each recipe was run once in full, on 8–10 CPUs with HOOMD-blue 4 (`ambuild:test` image). Pores are from Poreblazer.
+Each recipe was run once in full, with HOOMD-blue 4 (`ambuild:test` image). Pores are from
+Poreblazer, and joins and angles are measured by nearest image.
+- **PAF rows:** with the closing phase and the conduction stage, on 5 CPUs with liminal 0.0.1.
+- **Graphyne and graphdiyne rows:** without them, on 10 CPUs; those builds are trees.
 
-| Recipe | Time | Atoms | Frameworks (largest, atoms) | Density g/cm³ | PLD Å | Largest pore Å | Percolates in | Surface m²/g | He volume cm³/g | Largest join stretch Å |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `paf1_large` | 11.9 min | 7,013 | 2 (4,260) | 0.390 | 8.7 | 18.7 | 1 direction | 4,592 | 1.98 | 0.065 |
-| `paf_adamantane_large` | 25.0 min | 11,780 | 4 (3,390) | 0.609 | 5.0 | 13.1 | 3 directions | 1,983 | 1.01 | 0.075 |
-| `graphyne_large` | 0.7 min | 3,530 | 1 | 0.228 | 12.7 | 18.9 | 1 direction | 8,082 | 3.86 | 0.004 |
-| `graphdiyne_large` | 8.4 min | 4,096 | 2 (2,602) | 0.284 | 10.2 | 18.0 | 1 direction | 6,763 | 2.95 | 0.004 |
+| Recipe | Time | Atoms | Frameworks (largest, atoms) | Rings between blocks | Spans the cell | Density g/cm³ | PLD Å | Largest pore Å | Pores percolate in | Surface m²/g | He volume cm³/g | Largest join stretch Å |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `paf1_large` | 10.2 min | 7,011 | 2 (4,260) | 1 | no | 0.390 | 8.6 | 18.9 | 1 direction | 4,587 | 1.98 | 0.033 |
+| `paf_adamantane_large` | 21.8 min | 11,752 | 1 | 11 | x, y, z | 0.609 | 5.2 | 13.2 | 1 direction | 1,976 | 1.01 | 0.036 |
+| `graphyne_large` | 0.7 min | 3,530 | 1 | 0 | no | 0.228 | 12.7 | 18.9 | 1 direction | 8,082 | 3.86 | 0.004 |
+| `graphdiyne_large` | 8.4 min | 4,096 | 2 (2,602) | 0 | no | 0.284 | 10.2 | 18.0 | 1 direction | 6,763 | 2.95 | 0.004 |
+
+**π conduction of the PAFs** (liminal C0, `docs/conduction.md`):
+
+| Recipe | π sites | sp³ bridges | Conjugated domains (largest) | Gap eV | Conductance g0: mean (weakest axis) | By tunnelling |
+| --- | --- | --- | --- | --- | --- | --- |
+| `paf1_large` | 3,660 | 441 | 305 (12 sites) | 4.21 | 0: no framework spans the cell | – |
+| `paf_adamantane_large` | 3,996 | 552 | 333 (12 sites) | 3.80 | 0.0010 (0.00048, x) | 100% |
 
 Notes:
-- **PAF-1:** 606 joins; the median is 0.006 Å from r0 and 5 are more than 0.05 Å from it.
-  - The amorphous build is denser than crystalline PAF-1's diamond net (about 0.32 g/cm³): its frameworks fill the cell with shorter, tangled strands. Its surface area of 4,592 m²/g is below PAF-1's reported BET of about 5,600.
-- **Adamantane PAF:** its larger node didn't give larger pores here. It fitted more blocks into the cell (213 nodes, 333 biphenyls), in four frameworks that interpenetrate. The result is denser, with narrower pores, though they percolate in all three directions.
-  - Its joins are stretched by the crowding described below.
-- **One run each:** these are single builds, not averages; a sweep over seeds gives the spread.
+- **PAF-1 hardly closes:** one ring in the closing phase. Its free ends are mostly on the
+  single-carbon nodes, whose tetrahedral caps rarely point at a partner even within 3 Å
+  and 110°. Its two frameworks stay trees, so it can't conduct across the cell.
+  - `tpm_phenylene_large` (`docs/sp3-sp2-networks.md`) builds the same kind of net from
+    pre-built tetraphenylmethane nodes. Their free ends are ring carbons, and it closes
+    into one spanning framework.
+- **PAF-1's density and surface:** the amorphous build is denser than crystalline PAF-1's
+  diamond net (about 0.32 g/cm³), with shorter, tangled strands filling the cell. Its surface
+  area of 4,587 m²/g is below PAF-1's reported BET of about 5,600.
+- **The adamantane PAF closes into one framework spanning the cell.** Its conductance is all
+  tunnelling, seven times weaker than `tpm_phenylene_large`'s: each hop crosses a chain of
+  three sp³ atoms (ring–C–CH₂–C–ring) instead of one.
+  - Its larger node didn't give larger pores. It fitted more blocks into the cell (213
+    nodes, 333 biphenyls), so the result is denser, with narrower pores.
+- **One run each:** these are single builds, not averages; a sweep over seeds gives the
+  spread.
 - **Before the self-image fix,** `paf1_large` failed in pass 3. A cluster about 90 Å across overlapped its own periodic image in the 60 Å cell (`docs/CHANGELOG.md`, Fixed).
 
 ## Tests
@@ -68,10 +95,13 @@ Notes:
     adamantane, see below), and the angles are within 10° of their ideal.
 - **The gallery:** every example recipe is in exactly one family.
 
-**Adamantane crowding:** in `paf_adamantane_large`, the joins end up 0.03–0.06 Å longer
-than r0 after optimisation, with a median of 0.037. The cage's CH₂ hydrogens and the
-phenyl's ortho hydrogens are 1.9–2.2 Å apart, inside H···H contact, and the rigid blocks
-can't flex to relieve it (`params/gaff_paf/README.md`).
+**Adamantane crowding:** in the rigid passes of `paf_adamantane_large`, the joins end up
+0.03–0.075 Å longer than r0, with a median of about 0.037. The cage's CH₂ hydrogens and the
+phenyl's ortho hydrogens are 1.9–2.2 Å apart, inside H···H contact, and rigid blocks can't
+flex to relieve it (`params/gaff_paf/README.md`). The closing phase's all-atom optimisation
+lets them flex: in the full build the worst join is then 0.036 Å long, down from 0.075.
+The scaled-down test keeps its 0.08 Å tolerance, since its builds are small and quickly
+closed.
 
 ## The gallery
 

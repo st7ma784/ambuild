@@ -1,7 +1,7 @@
 {
   "recipe_version": 1,
-  "name": "Adamantane and biphenyl framework, large",
-  "description": "A porous aromatic framework with adamantane nodes (linked at the four bridgehead carbons) and biphenyl struts, strictly node to biphenyl: a larger tetrahedral node than PAF-1's single carbon, for larger cages. Built large: a 60 A cell with 8 seeds, then ten passes, each growing 60 blocks, joining clusters twice (so the seeds' clusters become one or two large frameworks), zipping and a rigid-body optimisation with dihedrals (GAFF 1.81, params/gaff_paf). Then a closing phase: three rounds of a wide zip (3.0 A, 110 degrees, clash-checked) and an all-atom (flexible) optimisation, which closes rings, including across the periodic boundary so the framework spans the cell, and lets the blocks flex (docs/closing.md). Then Poreblazer on a 0.3 A grid, and liminal's pi-conduction analysis (conjugation broken at every sp3 node, so conduction is by tunnelling; needs liminal) (about 340 MB). Sized for a Slurm node (resources); sweep the cell size or grow counts to go larger. See docs/carbon-families.md.",
+  "name": "sp3-sp2: tetraphenylmethane nodes and phenylene struts, large",
+  "description": "An sp3-sp2 network in which every sp3 carbon is a pre-built tetraphenylmethane node, so it always carries four phenyl (sp2) arms, joined strictly through 1,4-phenylene (node arm to phenylene only, cp-cp 1.485 A): struts C-(C6H4)3-C, a diamond-like topology made amorphous, with the sp3 centres the only breaks in conjugation (GAFF 1.81, params/gaff_paf). Built large: a 60 A cell with 8 tetraphenylmethane seeds, then ten passes, each growing 60 blocks, joining clusters twice, zipping and a rigid-body optimisation with dihedrals. Then a closing phase: three rounds of a wide zip (3.0 A, 110 degrees, clash-checked) and an all-atom (flexible) optimisation, which closes rings, including across the periodic boundary so the framework spans the cell, and lets the blocks flex (docs/closing.md). Then Poreblazer on a 0.3 A grid, and liminal's pi-conduction analysis (conjugated domains, Hückel gap, conductance with and without tunnelling through the sp3 nodes; needs liminal). Sized for a Slurm node (resources). See docs/sp3-sp2-networks.md.",
   "cell": {
     "box": [
       60,
@@ -14,16 +14,16 @@
   },
   "fragments": [
     {
-      "type": "M",
-      "car": "adamantane.car",
-      "csv": "adamantane.csv",
-      "name": "adamantane"
+      "type": "T",
+      "car": "tetraphenylmethane.car",
+      "csv": "tetraphenylmethane.csv",
+      "name": "tetraphenylmethane"
     },
     {
-      "type": "L",
-      "car": "biphenyl.car",
-      "csv": "biphenyl.csv",
-      "name": "biphenyl"
+      "type": "P",
+      "car": "benzene_14.car",
+      "csv": "benzene_14.csv",
+      "name": "benzene_14"
     }
   ],
   "params": {
@@ -34,13 +34,13 @@
     "pair_params.csv": "params/gaff_paf/pair_params.csv"
   },
   "bond_types": [
-    "M:q-L:b"
+    "T:t-P:a"
   ],
   "stages": [
     {
       "op": "seed",
       "count": 8,
-      "fragment_type": "M"
+      "fragment_type": "T"
     },
     {
       "repeat": 10,
@@ -96,7 +96,7 @@
       "op": "conduction"
     }
   ],
-  "seed": 32,
+  "seed": 37,
   "resources": {
     "cpus": 8,
     "memory_mb": 8000,

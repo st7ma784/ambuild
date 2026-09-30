@@ -39,6 +39,14 @@
       "doc": "docs/carbon-families.md",
       "recipes": ["paf1_large", "paf_adamantane_large"],
       "campaigns": []
+    },
+    {
+      "id": "sp3-sp2",
+      "title": "sp3-sp2 networks",
+      "blurb": "Every sp3 carbon a pre-built tetraphenylmethane node with four phenyl (sp2) arms, joined through phenylene struts or into an sp2 network of rings and trigonal carbons. The sp3 centres break conjugation, so these recipes also measure the pi network's gap and conductance, with and without tunnelling through them (liminal).",
+      "doc": "docs/sp3-sp2-networks.md",
+      "recipes": ["tpm_phenylene_large", "tpm_sp2_network_large"],
+      "campaigns": ["semiconducting_sp3_sp2"]
     }
   ]
 }

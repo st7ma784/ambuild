@@ -27,4 +27,5 @@ are GAFF's `ca–c3–ca`, 112.2°.
 longer than r0. The cage's CH₂ hydrogens and the phenyl's ortho hydrogens are five to six
 bonds apart, so they interact (Ambuild excludes only up to 1–4 pairs), and they end up
 1.9–2.2 Å apart, inside H···H contact. The rigid blocks can't flex to relieve it, so the
-join stretches.
+join stretches. The recipes' closing phase ends with all-atom optimisations, which relieve
+it: in the full build the worst join is 0.036 Å long (`docs/closing.md`).

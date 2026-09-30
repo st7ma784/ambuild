@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import psycopg
 from psycopg.rows import dict_row
 
+from ambuild import conduction as ab_conduction
 from ambuild import ionmap as ab_ionmap
 
 PAGE_SIZE = 50
@@ -77,7 +78,10 @@ def _summarySql():
                (SELECT jsonb_object_agg(latest.ion, latest.data) FROM (
                     SELECT DISTINCT ON (e.data->>'ion') e.data->>'ion' AS ion, e.data FROM events e
                     WHERE e.run_id = r.run_id AND e.type = 'ion_map_result' AND e.data->>'sites' IS NOT NULL
-                    ORDER BY e.data->>'ion', e.step DESC NULLS LAST, e.seq DESC) latest) AS ion_maps
+                    ORDER BY e.data->>'ion', e.step DESC NULLS LAST, e.seq DESC) latest) AS ion_maps,
+               (SELECT e.data FROM events e
+                    WHERE e.run_id = r.run_id AND e.type = 'conduction_result' AND e.data->>'sites' IS NOT NULL
+                    ORDER BY e.step DESC NULLS LAST, e.seq DESC LIMIT 1) AS conduction
         FROM runs r
         LEFT JOIN LATERAL (
             SELECT step, num_particles, num_blocks, density FROM steps
@@ -147,6 +151,7 @@ def getRun(conn, runId):
         "steps": steps(conn, runId),
         "pore_results": poreResults(conn, runId),
         "ion_maps": ionMaps(conn, runId),
+        "conduction": conductionResults(conn, runId),
         "files": files(conn, runId),
         "structures": structures(conn, runId),
         "event_counts": dict(
@@ -164,6 +169,14 @@ def ionMaps(conn, runId):
     """The run's ion maps (ion_map_result events: ambuild.ionmap), by step and ion"""
     rows = conn.execute(
         "SELECT step, data FROM events WHERE run_id = %s AND type = 'ion_map_result' ORDER BY step, seq",
+        (runId,)).fetchall()
+    return [dict(r["data"], step=r["step"]) for r in rows]
+
+
+def conductionResults(conn, runId):
+    """The run's conduction results (conduction_result events: ambuild.conduction), by step"""
+    rows = conn.execute(
+        "SELECT step, data FROM events WHERE run_id = %s AND type = 'conduction_result' ORDER BY step, seq",
         (runId,)).fetchall()
     return [dict(r["data"], step=r["step"]) for r in rows]
 
@@ -220,6 +233,7 @@ def _label(row):
     if row.get("pore_run_id"):
         row["pore_run_id"] = str(row["pore_run_id"])
     row.update(ab_ionmap.metrics(row.get("ion_maps")))  # li_escape_barrier etc., from the latest map of each ion
+    row.update(ab_conduction.metrics(row.get("conduction")))  # el_gap etc., from the latest conduction result
     command = row.get("command") or []
     script = row.get("script")
     if script:

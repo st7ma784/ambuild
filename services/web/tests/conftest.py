@@ -53,12 +53,25 @@ def ionMap(step, ion, siteEnergy, barrier, directory="ion_map_1"):
     return {"step": step, "data": data, "files": files}
 
 
+def conductionResult(step, gap, conductance, directory="conduction_2"):
+    """A conduction stage's result (ambuild.conduction), and its file"""
+    data = {"returncode": 0, "tier": "C0: test", "liminal_version": "test", "sites": 120, "sp_sites": 0,
+            "nitrogen_sites": 0, "sp3_bridges": 18, "domains": 7, "largest_domain": 60,
+            "largest_domain_fraction": 0.5, "percolating_domains": 1, "percolates": ["x"], "open_shell_domains": 0,
+            "radical_domains": 0, "homo": -gap / 2, "lumo": gap / 2, "gap": gap, "median_domain_gap": 4.0,
+            "conductance": conductance, "conductance_min": 0.0, "conjugated_conductance": conductance / 4,
+            "tunnelling_share": 0.75, "axes": {"x": 3 * conductance, "y": 0.0, "z": 0.0},
+            "results": directory + "/conduct.json", "directory": "/x/" + directory, "log": directory + "/liminal.log"}
+    files = {data["results"]: json.dumps({"format": "liminal-conduction", "version": 1, "gap": gap}).encode()}
+    return {"step": step, "data": data, "files": files}
+
+
 def writeRun(path, name, status="finished", parentRunId=None, seed=None, nsteps=3, pores=(), error=None,
-             extraFiles=None, structures=(), xyzArtifact=False, ionMaps=()):
+             extraFiles=None, structures=(), xyzArtifact=False, ionMaps=(), conduction=()):
     """A run directory in the format of ambuild.ab_run; returns (run id, {relpath: bytes})"""
     runId = str(uuid.uuid4())
     extraFiles = dict(extraFiles or {})
-    for m in ionMaps:
+    for m in list(ionMaps) + list(conduction):
         extraFiles.update(m["files"])
     script = "inputs/script/webtest-{0}-{1}.py".format(TOKEN, name)
     files = {
@@ -117,6 +130,10 @@ def writeRun(path, name, status="finished", parentRunId=None, seed=None, nsteps=
         for kind, key in (("ion_map", "map"), ("ion_grid", "cube")):
             events.append({"type": "artifact", "step": m["step"], "timestamp": 22.0,
                            "data": {"relpath": m["data"][key], "kind": kind}})
+    for c in conduction:
+        events.append({"type": "conduction_result", "step": c["step"], "timestamp": 23.0, "data": c["data"]})
+        events.append({"type": "artifact", "step": c["step"], "timestamp": 23.0,
+                       "data": {"relpath": c["data"]["results"], "kind": "conduction"}})
     if status != "running":
         events.append({"type": "run_finished", "step": nsteps, "timestamp": 30.0,
                        "data": {"status": status, "error": error}})
@@ -144,7 +161,8 @@ def recorded(tmp_path_factory):
                          pores=[{"step": 3, "result": pore(3, 1500.0, 7.5, "/runs/a/poreblazer_1")}],
                          extraFiles={"notes/odd name & more.txt": b"a file with an awkward name\n"},
                          ionMaps=[ionMap(2, "Li+", -1.0, 9.0, "ion_map_0"), ionMap(3, "Li+", -2.0, 1.5),
-                                  ionMap(3, "K+", -4.0, 6.0)])
+                                  ionMap(3, "K+", -4.0, 6.0)],
+                         conduction=[conductionResult(2, 3.1, 0.002, "conduction_1"), conductionResult(3, 2.4, 0.004)])
     child, filesChild = writeRun(str(root / "child"), "alpha-child", parentRunId=a, nsteps=0,
                                  pores=[{"step": 2, "result": pore(2, 1400.0, 7.0, "/runs/child/poreblazer_2")}])
     b, filesB = writeRun(str(root / "b"), "beta", status="failed", seed=12, nsteps=2, xyzArtifact=True,

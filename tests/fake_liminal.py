@@ -3,8 +3,11 @@
 derived from the structure's atom count and the ion, so each ion's are different.
 
     python fake_liminal.py map STRUCTURE --out DIR --ion ION [...]
+    python fake_liminal.py conduct STRUCTURE --out conduct.json [--t-sp3 T ...]
 
-Ion "Xx+" fails (exit code 3); ion "Old+" writes format version 0.
+Ion "Xx+" fails (exit code 3); ion "Old+" writes format version 0. conduct writes
+"liminal-conduction" version 1 with a gap of 10 x t_sp3 (so each setting's differs);
+--t-sp3 9.5 fails (exit code 4) and --t-sp3 9.0 writes version 0.
 """
 import argparse
 import json
@@ -12,7 +15,38 @@ import os
 import sys
 
 
+def conduct(args):
+    if args.t_sp3 == 9.5:
+        print("conduct failed", file=sys.stderr)
+        return 4
+    with open(args.structure) as f:
+        atoms = int(f.readline())
+    data = {"format": "liminal-conduction", "version": 0 if args.t_sp3 == 9.0 else 1, "liminal_version": "fake",
+            "tier": "C0: fake", "structure": os.path.basename(args.structure), "run_id": None, "step": None,
+            "parameters": {"t_sp3": args.t_sp3, "sp3_decay": args.sp3_decay, "max_bridge": args.max_bridge},
+            "sites": atoms // 2, "sp_sites": 0, "nitrogen_sites": 0, "sp3_bridges": 4, "domains": 3,
+            "largest_domain": atoms // 4, "largest_domain_fraction": 0.5, "percolating_domains": 1,
+            "percolates": ["x"], "open_shell_domains": 0, "radical_domains": 0, "homo": -5 * args.t_sp3,
+            "lumo": 5 * args.t_sp3, "gap": 10 * args.t_sp3, "median_domain_gap": 5.0,
+            "axes": {"x": {"conductance": 0.03}, "y": {"conductance": 0.0}, "z": {"conductance": 0.0}},
+            "conductance": 0.01, "conductance_min": 0.0, "conjugated_conductance": 0.0025, "tunnelling_share": 0.75}
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    with open(args.out, "w") as f:
+        json.dump(data, f)
+    return 0
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "conduct":
+        parser = argparse.ArgumentParser()
+        parser.add_argument("command")
+        parser.add_argument("structure")
+        parser.add_argument("--out", required=True)
+        parser.add_argument("--t-sp3", type=float, default=0.3)
+        parser.add_argument("--sp3-decay", type=float, default=0.455)
+        parser.add_argument("--max-bridge", type=int, default=3)
+        parser.add_argument("--max-dense", type=int, default=8000)
+        return conduct(parser.parse_args())
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["map"])
     parser.add_argument("structure")

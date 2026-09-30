@@ -224,3 +224,26 @@ def test_ion_metrics_can_be_plotted_and_aimed_at():
 
     assert ("li_escape_barrier", "Li+ escape barrier from the lowest site (kcal/mol)") in sweeps.METRICS
     assert campaigns.LABELS["k_site_energy"] == "K+ lowest site energy (kcal/mol)"
+
+
+# --- conduction (conduction stages running liminal: docs/conduction.md)
+
+def test_conduction_gives_metrics_and_a_table(client, recorded):
+    summary = client.get("/api/runs/" + recorded["a"]).json()["summary"]
+    # the latest result: step 3's
+    assert (summary["el_gap"], summary["el_conductance"], summary["el_tunnelling_share"]) == (2.4, 0.004, 0.75)
+    assert summary["el_radical_domains"] == 0
+    other = client.get("/api/runs/" + recorded["c"]).json()["summary"]
+    assert other["el_gap"] is None
+    html = client.get("/runs/" + recorded["a"]).text
+    assert "π conduction" in html and "Tier: C0: test" in html and "conduction_2/conduct.json" in html
+    assert "75%" in html
+
+
+def test_conduction_metrics_can_be_plotted_and_aimed_at():
+    from ambuild import campaign as ab_campaign
+    from ambuild_web import campaigns, sweeps
+
+    assert ("el_gap", "π gap (eV, Hückel)") in sweeps.METRICS
+    assert campaigns.LABELS["el_tunnelling_share"] == "share of π conductance by sp3 tunnelling"
+    assert "el_conductance_min" in ab_campaign.METRICS

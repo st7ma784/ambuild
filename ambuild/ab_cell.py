@@ -487,6 +487,11 @@ class Cell:
         p2 = bond.endGroup2.block().coord(idxAtom2)
         idxBlock1 = bond.endGroup1.block().id
         idxBlock2 = bond.endGroup2.block().id
+        # Nor the atoms bonded to the bond's atoms: the check is for a bond through other atoms.
+        # For a well-aligned bond they lie behind its ends anyway, but for one whose end groups
+        # point well off its axis (a wide zip) they project onto it and would always count
+        neighbours = {(idxBlock1, n) for n in bond.endGroup1.block().atomBonded1(idxAtom1)}
+        neighbours |= {(idxBlock2, n) for n in bond.endGroup2.block().atomBonded1(idxAtom2)}
 
         # Get a list of the cells the bond passes through (excluding endpoints)
         cells = self._intersectedCells(p1, p2)
@@ -517,6 +522,7 @@ class Cell:
                     and idxAtom3 == idxCap1
                     or idxBlock3 == idxBlock2
                     and idxAtom3 == idxCap2
+                    or (idxBlock3, idxAtom3) in neighbours
                 ):
                     continue
                 block3 = self.blocks[idxBlock3]
@@ -1692,8 +1698,13 @@ class Cell:
             for a, b in block.bonds():
                 if a > b:
                     a, b = b, a
-                # the bond's real vector, from the block's (continuous) coordinates
-                d = np.asarray(block.coord(b)) - np.asarray(block.coord(a))
+                # the bond's real vector: the nearest image of the block's coordinates' difference.
+                # They are continuous for bonds made by growing and joining, but a bond zipped to
+                # the block's own periodic image joins atoms a cell apart in them
+                d = np.asarray(block.coord(b), dtype=float) - np.asarray(block.coord(a), dtype=float)
+                for k in range(3):
+                    if self.pbc is None or self.pbc[k]:
+                        d[k] -= dim[k] * round(d[k] / dim[k])
                 wa, wb = atoms[start + a][2], atoms[start + b][2]
                 image = [int(round((wa[k] + d[k] - wb[k]) / dim[k])) for k in range(3)]
                 bonds.append([start + a, start + b, image])
@@ -2152,6 +2163,13 @@ class Cell:
             if moveEndGroup == None or staticEndGroup == None:
                 logger.critical("joinBlocks cannot join any more blocks")
                 return added
+            # A block bonded to its own periodic image spans the cell: moving it would stretch
+            # those bonds, so move the other one, or pick again if both are
+            if self._wrapsItself(moveEndGroup.block()):
+                if self._wrapsItself(staticEndGroup.block()):
+                    tries += 1
+                    continue
+                moveEndGroup, staticEndGroup = staticEndGroup, moveEndGroup
             # Copy the original block so we can replace it if the join fails
             moveBlock = moveEndGroup.block()
             idxMoveBlock = moveBlock.id
@@ -2177,6 +2195,20 @@ class Cell:
                 tries += 1
         logger.info("After joinBlocks numBlocks: {0}".format(len(self.blocks)))
         return added
+
+    def _wrapsItself(self, block):
+        """Whether the block has a bond to its own periodic image (made by zipping across the
+        boundary): its coordinates, continuous for every other bond, put that bond's atoms more
+        than half a cell apart"""
+        bonds = block.bonds()
+        if not bonds:
+            return False
+        dim = np.array([float(d) for d in self.dim[:3]])
+        periodic = np.array([bool(p) for p in (self.pbc if self.pbc is not None else (True, True, True))][:3])
+        coords = np.array([block.coord(i) for i in range(block.numAtoms())], dtype=float)
+        pairs = np.array(bonds)
+        d = np.abs(coords[pairs[:, 1]] - coords[pairs[:, 0]])
+        return bool(np.any((d > dim / 2) & periodic))
 
     def libraryAddFragment(
         self,
@@ -2498,6 +2530,43 @@ class Cell:
             self.analyse.emit(ionmap.EVENT, result)
             results.append(result)
         return results
+
+    def conduction(self, liminal_exe=None, t_sp3=0.3, sp3_decay=0.455, max_bridge=3, max_dense=8000):
+        """The π network's conjugated domains, Hückel gap and conductance, with tunnelling
+        through sp3 atoms, from liminal (ambuild.conduction, docs/conduction.md).
+
+        The cell's structure and topology are written to a new conduction_<fileCount>
+        directory in outputDir and `liminal conduct` is run on them, writing conduct.json.
+        liminal_exe: the command (default LIMINAL_EXE, else liminal on the PATH). t_sp3: the
+        coupling through one sp3 atom (eV); sp3_decay: its decay per extra sp3 atom;
+        max_bridge: the longest sp3 chain followed; max_dense: the largest domain
+        diagonalised (π sites).
+
+        The summary (ambuild.conduction.summarise, plus the file, directory and exit code)
+        is recorded as a conduction_result event and the file as an artifact. Returns the
+        summary; with a non-zero returncode it has no figures.
+        """
+        from ambuild import conduction, ionmap
+
+        command = ionmap.executable(liminal_exe)
+        if command is None:
+            raise RuntimeError("liminal was not found: set LIMINAL_EXE, or put liminal on the PATH")
+        directory = os.path.abspath(self.outputPath("{0}_{1}".format(conduction.NAME_STEM, self._fileCount)))
+        if os.path.isdir(directory):
+            raise RuntimeError("Conduction directory already exists: {0}".format(directory))
+        os.makedirs(directory)
+        structure = self.writeStructure(os.path.join(directory, "structure.xyz"), kind="conduction_structure")
+        self.writeTopology(os.path.join(directory, "structure.topology.json"), structure, kind="conduction_topology")
+        out = os.path.join(directory, conduction.RESULTS)
+        log = os.path.join(directory, "liminal.log")
+        code = conduction.runLiminal(command, structure, out, t_sp3, sp3_decay, max_bridge, max_dense, log)
+        result = {"returncode": code, "directory": directory, "log": self._relativeOutputPath(log)}
+        if code == 0 and os.path.isfile(out):
+            result.update(conduction.summarise(conduction.readResults(out)))
+            result["results"] = self._relativeOutputPath(out)
+            self._recordArtifact(out, "conduction")
+        self.analyse.emit(conduction.EVENT, result)
+        return result
 
     def poreblazer(self, poreblazer_exe, threads=None, memory_limit_mb=None, **settings):
         """Run Poreblazer on the current cell and return its results.
@@ -3454,7 +3523,7 @@ class Cell:
             # Periodic Boundaries
             x = coord[0] % self.dim[0] if self.pbc[0] else coord[0]
             y = coord[1] % self.dim[1] if self.pbc[1] else coord[1]
-            z = coord[1] % self.dim[2] if self.pbc[2] else coord[2]
+            z = coord[2] % self.dim[2] if self.pbc[2] else coord[2]
             # Calculate which cell the atom is in
             a = int(math.floor(x / boxSize))
             b = int(math.floor(y / boxSize))
@@ -3545,6 +3614,29 @@ class Cell:
                 if not len(self._possibleBonds):
                     logger.info("zipBlocks: No bonds remaining after clash checks")
                     return 0
+        # No three-membered rings. An atom with several end groups (a trigonal carbon node has
+        # three) could bond in one pass to two atoms that are bonded to each other: the checks
+        # above only see the bonds made before the pass. So a bond is left for a later pass if
+        # its atoms already share a neighbour, counting the bonds accepted so far in this one
+        added = collections.defaultdict(set)
+
+        def neighbours(atom, block):
+            return {(atom[0], n) for n in block.atomBonded1(atom[1])} | added[atom]
+
+        kept = []
+        for bond in self._possibleBonds:
+            block1, block2 = bond.endGroup1.block(), bond.endGroup2.block()
+            a = (id(block1), bond.endGroup1.blockEndGroupIdx)
+            b = (id(block2), bond.endGroup2.blockEndGroupIdx)
+            if neighbours(a, block1) & neighbours(b, block2):
+                continue
+            added[a].add(b)
+            added[b].add(a)
+            kept.append(bond)
+        if len(kept) < len(self._possibleBonds):
+            logger.info("zipBlocks: %d bonds left out: they would close three-membered rings",
+                        len(self._possibleBonds) - len(kept))
+            self._possibleBonds = kept
         logger.info("zipBlocks found %d additional bonds", len(self._possibleBonds))
         #         for b in self._possibleBonds:
         #             print "Attempting to bond: {0} {1} {2} -> {3} {4} {5}".format( b.block1.id(),

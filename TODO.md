@@ -420,9 +420,22 @@ In order:
   blocks `carbon_tetrahedral`, `adamantane`, `biphenyl` and `butadiyne`, the GAFF set
   `params/gaff_paf`, and recipes `paf1_large`, `paf_adamantane_large`, `graphyne_large` and
   `graphdiyne_large`; a recipe gallery in the web GUI (`/gallery`).
-- [ ] Let the adamantane PAF's blocks flex (optimise with `rigid: false` after the rigid
-  passes, or a final flexible pass) to relieve the CH2/ortho-H crowding that stretches its
-  joins by 0.03-0.06 A.
+- [x] sp3-sp2 networks (`docs/sp3-sp2-networks.md`): a pre-built tetraphenylmethane node
+  (four phenyl arms per sp3 carbon), recipes `tpm_phenylene_large` and
+  `tpm_sp2_network_large`, and a `conduction` stage (liminal's C0 π-conduction model:
+  domains, Hückel gap, conductance with and without sp3 tunnelling) whose figures are
+  campaign metrics (`docs/conduction.md`).
+- [ ] Calibrate conduction (liminal's track C): t_sp3 from DFT splittings on clusters cut
+  around sp3 centres (C1), Landauer transmission (C2), and a thermally activated
+  conductivity estimate checked against measured materials (C3). Until then conduction
+  figures rank structures; they are not S/m.
+- [x] Let trigonal sp2 carbons and the adamantane PAF's blocks flex, and close rings: the
+  closing phase (`docs/closing.md`), a wide zip plus an all-atom optimisation, in the
+  sp3-node recipes. It also found that the large builds had been trees whose frameworks
+  never spanned the cell, and that the export wrote bonds across the boundary wrongly.
+- [ ] Add the closing phase to the other large recipes (`ctf*_large`, `graphyne_large`,
+  `graphdiyne_large`, the carbon linker networks) and re-measure them; their documented
+  numbers are for tree-like builds.
 - [ ] Larger networks from the mixed linkers: sweep or campaign the cell size and grow
   counts of `carbon_nodes_network` (the MPI HOOMD launcher above for the largest cells).
 - [ ] Ion permeation and intercalation analysis: whether Li+ (and Na+, K+, Mg2+) gets
