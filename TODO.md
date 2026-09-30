@@ -425,17 +425,23 @@ In order:
   `tpm_sp2_network_large`, and a `conduction` stage (liminal's C0 π-conduction model:
   domains, Hückel gap, conductance with and without sp3 tunnelling) whose figures are
   campaign metrics (`docs/conduction.md`).
-- [ ] Calibrate conduction (liminal's track C): t_sp3 from DFT splittings on clusters cut
-  around sp3 centres (C1), Landauer transmission (C2), and a thermally activated
-  conductivity estimate checked against measured materials (C3). Until then conduction
-  figures rank structures; they are not S/m.
+- [x] Calibrate conduction (liminal C1) and add coherent transmission (C2): node couplings
+  from PBE0/def2-SVP splittings (C 0.60 eV, Si 0.33 eV), Landauer transmission with
+  interference, as `el_log_transmission` metrics (`docs/conduction.md`).
+- [ ] Conductivity estimates (liminal C3): thermally activated carriers and hopping between
+  domains, checked against measured materials, including Si-noded frameworks that do and
+  don't conduct. Until then conduction figures rank structures; they are not S/m.
+- [ ] Through-space π-π couplings in liminal (stacked rings in interpenetrated frameworks),
+  and the orientation dependence of node couplings (DFT: 0.18-0.78 eV for carbon), which the
+  model leaves out.
+- [ ] Si-noded frameworks in Ambuild: a tetraphenylsilane block needs Si force-field terms,
+  which GAFF 1.81 lacks (UFF, or GAFF2 if it covers them); liminal already treats Si nodes.
 - [x] Let trigonal sp2 carbons and the adamantane PAF's blocks flex, and close rings: the
   closing phase (`docs/closing.md`), a wide zip plus an all-atom optimisation, in the
   sp3-node recipes. It also found that the large builds had been trees whose frameworks
   never spanned the cell, and that the export wrote bonds across the boundary wrongly.
-- [ ] Add the closing phase to the other large recipes (`ctf*_large`, `graphyne_large`,
-  `graphdiyne_large`, the carbon linker networks) and re-measure them; their documented
-  numbers are for tree-like builds.
+- [x] Add the closing phase to the other large recipes (`ctf*_large`, `graphyne_large`,
+  `graphdiyne_large`, the carbon linker networks) and re-measure them.
 - [ ] Larger networks from the mixed linkers: sweep or campaign the cell size and grow
   counts of `carbon_nodes_network` (the MPI HOOMD launcher above for the largest cells).
 - [ ] Ion permeation and intercalation analysis: whether Li+ (and Na+, K+, Mg2+) gets

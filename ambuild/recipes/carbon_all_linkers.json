@@ -1,7 +1,7 @@
 {
   "recipe_version": 1,
   "name": "Carbon network from six linkers",
-  "description": "Benzene rings (C6), acetylene (C2), trigonal sp2 carbon nodes, allene (a C3 cumulene), cyclopropenyl nodes (a C3 ring) and propargyl linkers (-CH2-C#C-), each able to join itself and the others, except where GAFF would give the wrong bond: an alkyne's cg end to another's ch end (the triple bond's length), cyclopropenyl to cyclopropenyl and allene to cyclopropenyl (double-bond lengths). GAFF 1.81 parameters (params/gaff_carbon), a rigid-body optimisation with dihedrals after each pass, then Poreblazer. See docs/carbon-linkers.md.",
+  "description": "Benzene rings (C6), acetylene (C2), trigonal sp2 carbon nodes, allene (a C3 cumulene), cyclopropenyl nodes (a C3 ring) and propargyl linkers (-CH2-C#C-), each able to join itself and the others, except where GAFF would give the wrong bond: an alkyne's cg end to another's ch end (the triple bond's length), cyclopropenyl to cyclopropenyl and allene to cyclopropenyl (double-bond lengths). GAFF 1.81 parameters (params/gaff_carbon), a rigid-body optimisation with dihedrals after each pass; then a closing phase: three rounds of a wide zip (3.0 A, 110 degrees, clash-checked) and an all-atom (flexible) optimisation, which closes rings, including across the periodic boundary so the framework spans the cell, and lets the blocks flex (docs/closing.md); then Poreblazer. See docs/carbon-linkers.md.",
   "cell": {
     "box": [
       30,
@@ -124,6 +124,23 @@
           "op": "optimise",
           "cycles": 20000,
           "rigid_body": true,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "stages": [
+        {
+          "op": "zip",
+          "bond_margin": 3.0,
+          "bond_angle_margin": 110,
+          "clash_check": true
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": false,
           "do_dihedral": true
         }
       ]

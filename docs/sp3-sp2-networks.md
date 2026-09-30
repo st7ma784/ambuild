@@ -59,9 +59,10 @@ can percolate between nodes. There are two things to watch:
 
 ## Measured builds
 
-Each recipe was run once in full, on 5 CPUs with HOOMD-blue 4 and liminal 0.0.1 (C0), in
-the `ambuild:test` image with liminal added. Joins and angles are measured by nearest
-image after the closing phase.
+Each recipe was run once in full, on 4–5 CPUs with HOOMD-blue 4, in the `ambuild:test`
+image with liminal added. The builds are seeded: a rerun gave identical structures. Joins
+and angles are measured by nearest image after the closing phase. Conduction is liminal's
+calibrated model (tiers C1 and C2, `docs/conduction.md`).
 
 **Structure and pores:**
 
@@ -70,22 +71,32 @@ image after the closing phase.
 | `tpm_phenylene_large` | 22.7 min | 9,714 | 1 | 8 | x, y, z | 0.559 | 6.1 | 13.6 | 1 direction | 2,567 | 1.18 | 0.025 | 6.5° |
 | `tpm_sp2_network_large` | 25.4 min | 7,951 | 1 | 83 | x, y, z | 0.463 | 6.9 | 15.0 | 1 direction | 3,867 | 1.61 | 0.051 (node–node) | 12.6° (trigonal carbon) |
 
-**π conduction** (liminal C0):
+**π conduction:**
 
-| Recipe | π sites | sp³ bridges | Conjugated domains (largest) | Radical domains | Gap eV | Conductance g0: mean (weakest axis) | Without tunnelling | By tunnelling |
+| Recipe | π sites | sp³ bridges | Conjugated domains (largest) | Radical domains | Gap eV | Resistor network, g0: mean (weakest axis) | By tunnelling | Coherent T, log10, 300 K: mean (weakest axis) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `tpm_phenylene_large` | 5,574 | 876 | 431 (18 sites) | 0 | 3.58 | 0.0073 (0.0023, y) | 0 | 100% |
-| `tpm_sp2_network_large` | 4,639 | 642 | 241 (355 sites) | 50 (41 open shell) | 0 | 0.044 (0.038, x) | 0 | 100% |
+| `tpm_phenylene_large` | 5,574 | 876 | 431 (18 sites) | 0 | 3.58 | 0.019 (0.0060) | 100% | −18.0 (−19.2) |
+| `tpm_sp2_network_large` | 4,639 | 642 | 241 (355 sites) | 50 (41 open shell) | 0 | 0.096 (0.087) | 100% | −6.7 (−16.8) |
+| the same `tpm_phenylene_large` structure with Si nodes | 5,574 | 876 | 431 (18 sites) | 0 | 3.58 | 0.0085 (0.0026) | 100% | −20.6 (−22.0) |
 
 What these show:
 - **Both conduct only by tunnelling through the sp³ nodes.** No conjugated domain spans
   the cell. The strict recipe's domains are single node-to-node struts (18 sites: three
-  rings). This is the picture of conduction through broken conjugation, as a number to
+  rings). This is the picture of conduction through broken conjugation, as numbers to
   optimise.
-- **The sp² network conducts six times better.** Its domains are bigger (up to 355 sites),
-  so fewer tunnelling steps are needed. But it is full of radical centres, trigonal carbons
-  with three aryl arms, which make the Hückel gap zero. The example campaign asks for none
-  (`el_radical_domains` ≤ 0), so it will push towards fewer trigonal carbons.
+- **The strict recipe transmits coherently far better than the fully conjugated,
+  meta-linked networks**, such as graphyne (−55) and graphdiyne (−34). Its strands are
+  para-linked, so there is no destructive interference at the Fermi level.
+- **Si nodes interrupt more strongly.** With the same geometry, Si's calibrated coupling
+  (0.33 eV against carbon's 0.60) halves the resistor-network conductance and cuts coherent
+  transmission about 400-fold. Tunnelling multiplies across the roughly five nodes on each
+  path through the cell.
+- **The sp² network's high coherent average is an artefact of its radicals.** It has 50
+  radical domains, trigonal carbons with three aryl arms. Their non-bonding levels sit
+  exactly at the Fermi level and act as resonant channels in a Hückel model; real radical
+  centres would localise or react. Its weakest axis (−16.8) is closer to the strict
+  recipe's. The example campaign rejects radical domains (`el_radical_domains` ≤ 0), so it
+  pushes towards fewer trigonal carbons.
 - **Without the closing phase both were trees.** Four frameworks (phenylene) and two (sp²
   network), none spanning the cell, both with conductance 0. Pores barely change with
   closing: the strict recipe's PLD was 6.0 Å and its surface 2,600 m²/g before.
@@ -96,8 +107,13 @@ What these show:
 
 The example campaign `semiconducting_sp3_sp2` (for `tpm_sp2_network_large`):
 - **Varies:** the cell size (40–60 Å), the grow count (30–80) and the passes (5–10).
-- **Maximises:** `el_conductance`, the mean over the three axes.
-- **Requires:** no radical domains, and pores that percolate in at least one direction.
+- **Maximises:** `el_log_transmission`, the coherent transmission at 300 K. It sees
+  interference and the gap, where the resistor-network conductance can rank structures the
+  wrong way round (`docs/conduction.md`).
+- **Requires:**
+  - no radical domains;
+  - a network that spans all three axes (`el_conductance_min` above 10⁻⁴ g0);
+  - pores that percolate in at least one direction.
 
 A gap constraint (`el_gap`) can be added, but it is a Hückel gap, uncalibrated: benzene's
 is 5.7 eV. Use it to compare structures, not as a band gap to hit.

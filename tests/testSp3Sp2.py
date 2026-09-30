@@ -104,7 +104,8 @@ class Recipes(unittest.TestCase):
             frag["car"] = frag["csv"] = ref
         body["params"] = {name: ref for name in body["params"]}
         self.assertEqual(ab_campaign.validate(spec, body), [])
-        self.assertEqual(ab_campaign.objectiveMetric(spec), "el_conductance")
+        self.assertEqual(ab_campaign.objectiveMetric(spec), "el_log_transmission")
+        self.assertIn({"metric": "el_conductance_min", "min": 0.0001}, spec["constraints"])  # spans all three axes
         self.assertIn({"metric": "el_radical_domains", "max": 0}, spec["constraints"])
 
     def testInTheGallery(self):

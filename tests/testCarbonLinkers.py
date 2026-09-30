@@ -139,6 +139,9 @@ def build(name, optimise):
     body = ab_recipe.example(name, blocksDir=BLOCKS_DIR)
     body["stages"] = [s for s in body["stages"] if s.get("op") != "poreblazer"]
     if not optimise:
+        # the closing phase (a wide zip, then the all-atom optimisation that repairs it) means
+        # nothing without its optimisation: leave it out (docs/closing.md)
+        body["stages"] = [s for s in body["stages"] if not ("repeat" in s and not any(x["op"] == "grow" for x in s["stages"]))]
         for s in body["stages"]:
             if "repeat" in s:
                 s["stages"] = [x for x in s["stages"] if x["op"] != "optimise"]
@@ -281,10 +284,12 @@ class Networks(unittest.TestCase):
 
     @unittest.skipUnless(ab_util.HOOMDVERSION, "Needs HOOMD-blue")
     def testOptimisedJoinsKeepTheirGeometry(self):
-        """After the rigid-body optimisations with dihedrals: every join within 0.05 A of
-        its r0, and the angles at its atoms within 10 degrees of their ideal: 120 at ring
+        """After the optimisations, the closing phase's included: every join within 0.05 A
+        of its r0, and the angles at its atoms within 10 degrees of their ideal (120 at ring
         and node carbons, 180 along alkynes, 148 at the cyclopropenyl ring (exocyclic),
-        about 120 at allene ends and 109.5 at propargyl CH2"""
+        about 120 at allene ends, 109.5 at propargyl CH2), 13 at the trigonal node carbons:
+        rings closed through them strain their three arms (up to 12.6 degrees in the full
+        tpm_sp2_network_large build; docs/closing.md)"""
         ideal = {"cp": 120.0, "ca": 120.0, "cg": 180.0, "ch": 180.0, "ce": 120.0, "cu": 148.0, "c3": 109.5}
         for name in ("carbon_nodes_network", "carbon_all_linkers"):
             cell = build(name, optimise=True)
@@ -300,7 +305,23 @@ class Networks(unittest.TestCase):
                             continue
                         worst[t] = max(worst[t], abs(value - ideal[t]))
             for t, deviation in worst.items():
-                self.assertLess(deviation, 10.0, (name, t, deviation))
+                self.assertLess(deviation, 13.0 if t == "ca" else 10.0, (name, t, deviation))
+
+
+class ThreeMemberedRings(unittest.TestCase):
+    def testCyclopropenylHasNoDihedralThatRepeatsAnAtom(self):
+        """An all-atom optimisation lists every dihedral in a block; the cyclopropenyl ring's
+        would include a-b-c-a, which HOOMD-blue refuses ("The same particle can only occur
+        once in a dihedral")"""
+        cell = ab_cell.Cell([20, 20, 20], paramsDir=PARAMS)
+        cell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "cyclopropenyl.car"), fragmentType="C")
+        block = cell.getLibraryBlock(fragmentType="C")
+        angles, propers, impropers = block.anglesAndDihedrals()
+        self.assertTrue(propers)
+        self.assertTrue(all(len(set(d)) == 4 for d in propers), propers)
+        for a, b in block.bonds():
+            self.assertTrue(all(len(set(d)) == 4 for d in block.dihedrals(a, b)))
+        self.assertIn((0, 1, 2), angles)  # the ring's own angles stay
 
 
 class ZipRings(unittest.TestCase):
