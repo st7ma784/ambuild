@@ -564,8 +564,11 @@ class Block(object):
         # Dot product needs to be 0
         # xu + yv + zw = 0 - set u and v to 1, so w = (x + y)/z
         # vector is 1, 1, w
-        w = -1.0 * (fvector[0] + fvector[1]) / fvector[2]
-        orth = np.array([1.0, 1.0, w])
+        if abs(fvector[2]) > 1e-9 * np.linalg.norm(fvector):
+            w = -1.0 * (fvector[0] + fvector[1]) / fvector[2]
+            orth = np.array([1.0, 1.0, w])
+        else:  # in the xy plane (e.g. a block aligned with an axis): z is perpendicular to it
+            orth = np.array([0.0, 0.0, 1.0])
 
         # Find axis that we can rotate about
         rotAxis = np.cross(fvector, orth)

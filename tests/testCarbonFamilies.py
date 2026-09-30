@@ -34,7 +34,7 @@ def scaledDown(name, optimise):
     body["cell"]["box"] = [30, 30, 30]
     stages = []
     for s in body["stages"]:
-        if s.get("op") == "poreblazer":
+        if s.get("op") in ("poreblazer", "conduction"):
             continue
         s = copy.deepcopy(s)
         if s.get("op") == "seed":
@@ -148,7 +148,7 @@ class Builds(unittest.TestCase):
             self.assertEqual(len(cell.blocks), 1, (name, sorted(b.numAtoms() for b in cell.blocks.values())))
             found = collections.defaultdict(list)
             for block, a, b in linkers.junctions(cell):
-                found[linkers.kind(block, a, b)].append(np.linalg.norm(np.asarray(block.coord(a)) - np.asarray(block.coord(b))))
+                found[linkers.kind(block, a, b)].append(linkers.length(cell, block, a, b))
             self.assertLessEqual(set(found), kinds[name], name)  # nothing else joins
             self.assertTrue(found, name)
             for k, ds in found.items():
@@ -169,11 +169,11 @@ class Builds(unittest.TestCase):
             lengths = xyz_util.BondLength(os.path.join(params, "bond_params.csv"), typed=True)
             worst = collections.defaultdict(float)
             for block, a, b in linkers.junctions(cell):
-                d = np.linalg.norm(np.asarray(block.coord(a)) - np.asarray(block.coord(b)))
+                d = linkers.length(cell, block, a, b)
                 self.assertLess(abs(d - lengths.bondLength(block.type(a), block.type(b))), tolerance.get(name, 0.05),
                                 (name, d))
                 for atom, other in ((a, b), (b, a)):
-                    for value in linkers.anglesAt(block, atom, other):
+                    for value in linkers.anglesAt(block, atom, other, cell):
                         worst[block.type(atom)] = max(worst[block.type(atom)], abs(value - ideal[block.type(atom)]))
             for t, deviation in worst.items():
                 self.assertLess(deviation, 10.0, (name, t, deviation))

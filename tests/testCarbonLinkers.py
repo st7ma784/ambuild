@@ -50,14 +50,26 @@ def kind(block, a, b):
     return tuple(sorted(("{0}:{1}".format(block._dataMap[i][0].fragmentType, block.type(i)) for i in (a, b))))
 
 
-def anglesAt(block, a, b):
-    """The angles at atom a between its junction bond to b and its other bonds"""
-    here = np.asarray(block.coord(a))
-    out = []
-    for n in block._bondedToAtom[a]:
-        if n != b:
-            out.append(angle(np.asarray(block.coord(b)) - here, np.asarray(block.coord(n)) - here))
-    return out
+def vector(cell, block, a, b):
+    """The bond vector from atom a to atom b: the nearest image, since a bond zipped to the
+    block's own periodic image joins atoms a cell apart in the block's coordinates"""
+    d = np.asarray(block.coord(b), dtype=float) - np.asarray(block.coord(a), dtype=float)
+    dim = np.asarray(cell.dim[:3], dtype=float)
+    return d - dim * np.round(d / dim)
+
+
+def length(cell, block, a, b):
+    return float(np.linalg.norm(vector(cell, block, a, b)))
+
+
+def anglesAt(block, a, b, cell=None):
+    """The angles at atom a between its junction bond to b and its other bonds (nearest
+    images, given the cell)"""
+    def v(i):
+        if cell is not None:
+            return vector(cell, block, a, i)
+        return np.asarray(block.coord(i)) - np.asarray(block.coord(a))
+    return [angle(v(b), v(n)) for n in block._bondedToAtom[a] if n != b]
 
 
 def fragmentsOf(body):
@@ -246,7 +258,7 @@ class Networks(unittest.TestCase):
         lengths = bondLengths()
         found = collections.defaultdict(list)
         for block, a, b in junctions(cell):
-            found[kind(block, a, b)].append(np.linalg.norm(np.asarray(block.coord(a)) - np.asarray(block.coord(b))))
+            found[kind(block, a, b)].append(length(cell, block, a, b))
         for k in found:
             self.assertNotIn(frozenset(t.split(":")[1] for t in k), FORBIDDEN, k)
         self.assertGreaterEqual(set(found), expectedKinds)
@@ -280,15 +292,66 @@ class Networks(unittest.TestCase):
             worst = collections.defaultdict(float)
             for block, a, b in junctions(cell):
                 t1, t2 = block.type(a), block.type(b)
-                d = np.linalg.norm(np.asarray(block.coord(a)) - np.asarray(block.coord(b)))
+                d = length(cell, block, a, b)
                 self.assertLess(abs(d - lengths.bondLength(t1, t2)), 0.05, (name, kind(block, a, b), d))
                 for atom, other, t in ((a, b, t1), (b, a, t2)):
-                    for value in anglesAt(block, atom, other):
+                    for value in anglesAt(block, atom, other, cell):
                         if t == "cu" and value < 90:  # the other ring bond's side: 360 - 60 - 148
                             continue
                         worst[t] = max(worst[t], abs(value - ideal[t]))
             for t, deviation in worst.items():
                 self.assertLess(deviation, 10.0, (name, t, deviation))
+
+
+class ZipRings(unittest.TestCase):
+    def testZipClosesNoThreeMemberedRing(self):
+        """Two bonded trigonal carbons and a third at the apex of a triangle with them: in one
+        zip pass the apex could bond to both, a three-membered ring (which HOOMD-blue rejects:
+        "The same particle can only occur once in a dihedral"). It bonds to one only"""
+        cell = ab_cell.Cell([20, 20, 20], paramsDir=PARAMS, typedBondLengths=True)
+        cell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "carbon_node.car"), fragmentType="N")
+        cell.addBondType("N:a-N:a")
+        r = 1.3984  # GAFF ca-ca
+        blocks = []
+        for position in ([10.0, 10.0, 10.0], [10.0 + r, 10.0, 10.0], [10.0 + r / 2, 10.0 + r * math.sqrt(3) / 2, 10.0]):
+            block = cell.getLibraryBlock(fragmentType="N")
+            block.translateCentroid(np.array(position))
+            cell.addBlock(block)
+            blocks.append(block)
+        # every pair is at r0; the angles are ignored (a 180 degree margin)
+        made = cell.zipBlocks(bondMargin=0.2, bondAngleMargin=180)
+        self.assertEqual(made, 2)  # two sides of the triangle, never the third
+        (block,) = cell.blocks.values()
+        carbons = [i for i in range(block.numAtoms()) if block.symbol(i) == "C"]
+        bonds = {tuple(sorted((a, b))) for a, b in block.bonds() if a in carbons and b in carbons}
+        self.assertEqual(len(bonds), 2)
+
+    def testTheClashCheckIgnoresTheBondAtomsOwnNeighbours(self):
+        """A bond 100 degrees off its end group's direction passes right by the ring's
+        neighbouring carbon; that is not a clash (so a wide zip can close rings). A third
+        block's atom on the bond still is"""
+        from ambuild import ab_bond
+
+        cell = ab_cell.Cell([30, 30, 30], paramsDir=PARAMS, typedBondLengths=True)
+        cell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "benzene_14.car"), fragmentType="P")
+        cell.libraryAddFragment(filename=os.path.join(BLOCKS_DIR, "carbon_node.car"), fragmentType="N")
+        cell.addBondType("P:a-N:a")
+        centre = np.array([15.0, 15.0, 15.0])
+        ring = cell.getLibraryBlock(fragmentType="P")
+        ring.translateCentroid(centre)  # in the xy plane, linked at C1 (+x) and C4 (-x)
+        cell.addBlock(ring)
+        c1 = np.asarray(ring.coord(0))
+        direction = np.array([math.cos(math.radians(100)), math.sin(math.radians(100)), 0.0])
+        node = cell.getLibraryBlock(fragmentType="N")
+        node.translate(c1 + 1.5 * direction - np.asarray(node.coord(0)))
+        cell.addBlock(node)
+        ringEnd = next(e for e in ring.freeEndGroups() if e.endGroupIdx() == 0)
+        bond = ab_bond.Bond(ringEnd, node.freeEndGroups()[0])
+        self.assertFalse(cell.bondClash(bond, clashDist=1.6))
+        blocker = cell.getLibraryBlock(fragmentType="N")
+        blocker.translate(c1 + 0.75 * direction + np.array([0.0, 0.0, 0.5]) - np.asarray(blocker.coord(0)))
+        cell.addBlock(blocker)
+        self.assertTrue(cell.bondClash(bond, clashDist=1.6))
 
 
 if __name__ == "__main__":

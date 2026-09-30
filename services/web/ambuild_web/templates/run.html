@@ -185,6 +185,40 @@
 </section>
 {% endif %}
 
+{% if r.conduction %}
+<section id="run-conduction">
+  <h2>π conduction</h2>
+  <p class="note">The π network's conjugated domains, Hückel gap and conductance, with tunnelling through sp3
+    atoms, from <a href="https://github.com/st7ma784/liminal">liminal</a> (a <code>conduction</code> stage).
+    Conductance in g0 (one untwisted aromatic bond, per cell): relative figures for comparing structures, not
+    S/m. {% set tiers = r.conduction | map(attribute="tier") | select | unique | list %}{% if tiers %}Tier: {{ tiers | join("; ") }}.{% endif %}</p>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col" class="num">Step</th><th scope="col" class="num">π sites</th>
+        <th scope="col" class="num">Domains</th><th scope="col" class="num">Largest<br><span class="unit">fraction</span></th>
+        <th scope="col">Percolates</th><th scope="col" class="num">sp3 bridges</th>
+        <th scope="col" class="num">Radical domains</th>
+        <th scope="col" class="num">Gap<br><span class="unit">eV</span></th>
+        <th scope="col" class="num">Conductance x / y / z<br><span class="unit">g0</span></th>
+        <th scope="col" class="num">By tunnelling</th><th scope="col">Files</th></tr></thead>
+      <tbody>
+        {% for c in r.conduction %}
+        <tr><td class="num">{{ c.step if c.step is not none else "–" }}</td>
+          {% if c.returncode %}<td colspan="9"><span class="status state-fail">liminal exit {{ c.returncode }}</span>{% if c.log %} <a href="/runs/{{ r.summary.run_id }}/files/{{ c.log }}?inline=1">log</a>{% endif %}</td>
+          {% else %}<td class="num">{{ c.sites }}</td><td class="num">{{ c.domains }}</td>
+          <td class="num">{{ c.largest_domain_fraction | number(2) }}</td><td>{{ (c.percolates or []) | join(", ") or "–" }}</td>
+          <td class="num">{{ c.sp3_bridges }}</td><td class="num">{{ c.radical_domains }}</td>
+          <td class="num">{{ c.gap | number(2) }}</td>
+          <td class="num">{% for a in "xyz" %}{{ (c.axes or {}).get(a) | number(4) }}{% if not loop.last %} / {% endif %}{% endfor %}</td>
+          <td class="num">{% if c.tunnelling_share is not none %}{{ (100 * c.tunnelling_share) | round(0) | int }}%{% else %}–{% endif %}</td>{% endif %}
+          <td>{% if c.results %}<a href="/runs/{{ r.summary.run_id }}/files/{{ c.results }}?inline=1">conduct.json</a>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
 <section>
   <h2>Files</h2>
   {% if r.files %}

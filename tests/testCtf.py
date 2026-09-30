@@ -59,7 +59,7 @@ def scaledDown(name, optimise):
 def joinKinds(cell):
     out = collections.defaultdict(list)
     for block, a, b in linkers.junctions(cell):
-        d = np.linalg.norm(np.asarray(block.coord(a)) - np.asarray(block.coord(b)))
+        d = linkers.length(cell, block, a, b)
         out[linkers.kind(block, a, b)].append((block, a, b, d))
     return out
 
@@ -160,7 +160,7 @@ class Builds(unittest.TestCase):
                     self.assertLess(abs(d - r0), 0.05, (name, k, d))
                     for atom, other in ((a, b), (b, a)):
                         key = (block._dataMap[atom][0].fragmentType, block.type(atom))
-                        for value in linkers.anglesAt(block, atom, other):
+                        for value in linkers.anglesAt(block, atom, other, cell):
                             worst[key] = max(worst[key], abs(value - ideal[key]))
             for key, deviation in worst.items():
                 self.assertLess(deviation, 10.0, (name, key, deviation))

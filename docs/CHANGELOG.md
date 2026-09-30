@@ -16,6 +16,26 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- **A closing phase for large builds** (`docs/closing.md`): three rounds of a wide zip (3.0 Å, 110°, clash-checked) and an all-atom optimisation after the growth passes.
+  - The 60 Å builds had been trees: 608 blocks joined by 607 bonds in `graphyne_large`, with no rings between blocks. So no framework spanned the cell.
+  - Closing makes rings, including across the periodic boundary, so frameworks wrap and can conduct. It also lets the blocks flex, which relieves the adamantane PAF's crowding (worst join stretch 0.059 → 0.027 Å in a scaled-down build).
+  - It is in `tpm_phenylene_large`, `tpm_sp2_network_large`, `paf1_large` and `paf_adamantane_large`, and the two PAF recipes also gain the `conduction` stage.
+- sp3–sp2 networks (`docs/sp3-sp2-networks.md`).
+  - **A `tetraphenylmethane` block:** C(C₆H₄)₄, linked at its four para carbons, so every sp³ centre always has four sp² arms. Its S₄ propeller twist keeps ortho hydrogens on different arms 2.44 Å apart.
+  - **Two recipes in 60 Å cells:**
+    - `tpm_phenylene_large`: node arms joined only through 1,4-phenylene;
+    - `tpm_sp2_network_large`: node arms joined into an sp² network of phenylene, 1,3,5-benzene and trigonal carbons.
+
+    Neither allows an sp³–sp³ join. Each ends with Poreblazer and a `conduction` stage.
+  - **An example campaign, `semiconducting_sp3_sp2`:** maximise conductance, with no radical domains and percolating pores.
+  - **A gallery family:** "sp3-sp2 networks".
+  - **Tests:** `tests/testSp3Sp2.py`.
+- **π conduction:** a `conduction` recipe stage (`docs/conduction.md`, `ambuild/conduction.py`, `Cell.conduction`).
+  - It runs liminal's `conduct` on the cell: conjugated domains, the Hückel gap, radical domains, and conductance along each axis, with and without tunnelling through sp³ atoms.
+  - Results are recorded as `conduction_result` events. They become metrics for sweeps and campaigns: `el_gap`, `el_conductance`, `el_conductance_min`, `el_conjugated_conductance`, `el_tunnelling_share`, `el_largest_domain_fraction` and `el_radical_domains`.
+  - The run page shows a **π conduction** table.
+  - The demo's liminal agent image installs liminal's `conduct` extra.
+  - **Tests:** `tests/testConduction.py`, with the stand-in `tests/fake_liminal.py` learning `conduct`.
 - Porous aromatic frameworks, graphyne and graphdiyne (`docs/carbon-families.md`).
   - **Blocks:**
     - `carbon_tetrahedral`: an sp³ carbon linked four ways;
@@ -393,6 +413,15 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
   install. Install HOOMD-blue from conda-forge.
 
 ### Fixed
+- **The structure export wrote a bond to a block's own periodic image as a cell-length "bond"** (`Cell.writeTopology`). A bond zipped across the boundary within one block joins atoms a cell apart in the block's continuous coordinates, and the export used that vector instead of the nearest image.
+  - Around any ring those vectors cancel, so no exported framework could appear to span the cell.
+  - Readers of the export saw 40 Å bonds, and liminal's conduction saw no coupling.
+  - It now writes the nearest image, the same as before for every other bond (`tests/testSelfImage.py`: a polyyne that wraps).
+- **Zip could close a three-membered ring in one pass:** an atom with several end groups (a trigonal carbon) bonded to two atoms that are bonded to each other. HOOMD-blue then failed with "The same particle can only occur once in a dihedral". Such bonds are now left out (`testCarbonLinkers.ZipRings`).
+- **Zip's clash check rejected every bond whose end groups point well off its axis** (`Cell.bondClash`). The bond atoms' own neighbours project onto such a bond and counted as clashes. It now skips atoms bonded to the bond's atoms; atoms of other blocks on the bond still count.
+- **joinBlocks could move a block bonded to its own periodic image,** stretching those bonds. It now moves the other block, or picks again.
+- **`Block.flip` divided by zero** when the bond direction had no z component (a block aligned with the x or y axis).
+- **Zip's neighbour grid binned z by the y coordinate.** Every pair was still found, with more checks than needed.
 - A block larger than the cell could overlap its own periodic image. `Cell._checkMove` checks a moved block only against the other blocks, so when `joinBlocks` made a cluster about 90 Å across in a 60 Å cell, its atoms could land under 1 Å from their own images. The next HOOMD-blue optimisation failed with "Particle ... is no longer in the simulation box" (`paf1_large`).
   - `checkMove` now also counts non-bonded pairs of the block's atoms that meet through an image (`Cell._selfImageClashes`).
   - A static block is exempt: it is a periodic slab that meets its own images by design (`tests/testSelfImage.py`).

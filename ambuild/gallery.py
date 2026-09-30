@@ -45,6 +45,8 @@ def summarise(name):
     if ionMaps:
         ions = ionMaps[0].get("ions", ["Li+"])
         measures.append("ion maps: " + ", ".join([ions] if isinstance(ions, str) else ions))
+    if "conduction" in ops:
+        measures.append("π conduction (liminal)")
     return {
         "example": name,
         "name": body["name"],
