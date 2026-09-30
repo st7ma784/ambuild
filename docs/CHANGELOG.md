@@ -16,6 +16,14 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- **The closing phase in every large carbon recipe:** `ctf1_large`, `ctf_alkyne_large`, `ctf_mixed_large`, `graphyne_large`, `graphdiyne_large`, `carbon_nodes_network` and `carbon_all_linkers`.
+  - Each 60 Å build now closes into one framework spanning the cell. The alkyne CTF and graphyne span along two axes, the others along three.
+  - The 30 Å linker networks are too small to close into one.
+  - Measurements are re-made in `docs/ctf-networks.md` and `docs/carbon-families.md`.
+- **π conduction with interference and calibrated couplings** (liminal C1 and C2; `docs/conduction.md`):
+  - **New metrics:** `el_log_transmission` and `el_log_transmission_min`, the coherent (Landauer) transmission at 300 K along the axes the network spans. It sees destructive interference, such as in meta-linked 1,3,5-benzene networks, which the resistor-network conductance can't. It reverses that metric's ranking on the built networks: the sp³-node network out-transmits graphyne by tens of orders of magnitude.
+  - **The run page** shows the coherent figure.
+  - **Couplings through nodes are fitted to DFT** (PBE0/def2-SVP, liminal's `docs/calibration.md`): carbon 0.60 eV (was a 0.3 estimate), Si 0.33 eV. Elements without a calibration interrupt conduction and are reported.
 - **A closing phase for large builds** (`docs/closing.md`): three rounds of a wide zip (3.0 Å, 110°, clash-checked) and an all-atom optimisation after the growth passes.
   - The 60 Å builds had been trees: 608 blocks joined by 607 bonds in `graphyne_large`, with no rings between blocks. So no framework spanned the cell.
   - Closing makes rings, including across the periodic boundary, so frameworks wrap and can conduct. It also lets the blocks flex, which relieves the adamantane PAF's crowding (worst join stretch 0.059 → 0.027 Å in a scaled-down build).
@@ -412,7 +420,11 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 - The `hoomd` pip extra: HOOMD-blue is not on PyPI, so it could never
   install. Install HOOMD-blue from conda-forge.
 
+### Changed
+- **The `conduction` stage's settings default to liminal's own** (its calibrated couplings). Before, they were fixed at 0.3 eV and 0.455 in Ambuild.
+
 ### Fixed
+- **An all-atom optimisation of a block with a three-membered ring failed** (`Block.anglesAndDihedrals`, `Block.dihedrals`). The cyclopropenyl ring gave a–b–c–a "dihedrals", and HOOMD-blue refused them ("The same particle can only occur once in a dihedral"). Rigid-body optimisations never listed them, so it only showed with the closing phase (`testCarbonLinkers.ThreeMemberedRings`).
 - **The structure export wrote a bond to a block's own periodic image as a cell-length "bond"** (`Cell.writeTopology`). A bond zipped across the boundary within one block joins atoms a cell apart in the block's continuous coordinates, and the export used that vector instead of the nearest image.
   - Around any ring those vectors cancel, so no exported framework could appear to span the cell.
   - Readers of the export saw 40 Å bonds, and liminal's conduction saw no coupling.

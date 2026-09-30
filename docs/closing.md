@@ -27,9 +27,9 @@ properties. Real frameworks are full of rings.
 
 ## The closing phase
 
-After the growth passes, the recipes that end with Poreblazer and a conduction stage
-(`tpm_phenylene_large`, `tpm_sp2_network_large`, `paf1_large`, `paf_adamantane_large`)
-repeat this three times:
+After the growth passes, every large carbon recipe repeats this three times: the CTFs,
+graphyne and graphdiyne, the PAFs, the sp³–sp² networks, and the two carbon-linker
+networks.
 
     {"op": "zip", "bond_margin": 3.0, "bond_angle_margin": 110, "clash_check": true}
     {"op": "optimise", "cycles": 20000, "rigid_body": false, "do_dihedral": true}
@@ -56,10 +56,21 @@ cell.
 
 | Recipe | Frameworks before → after | Rings | Spans the cell | Largest join stretch | Largest angle deviation | Conductance g0 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `tpm_phenylene_large` | 4 → 1 | 8 | x, y, z | 0.039 → 0.025 Å | 6.5° | 0 → 0.0073 |
-| `tpm_sp2_network_large` | 2 → 1 | 83 | x, y, z | 0.060 → 0.051 Å | 12.6° | 0 → 0.044 |
-| `paf_adamantane_large` | 4 → 1 | 11 | x, y, z | 0.075 → 0.036 Å | 7.7° | 0 → 0.0010 |
+| `tpm_phenylene_large` | 4 → 1 | 8 | x, y, z | 0.039 → 0.025 Å | 6.5° | 0 → 0.019 |
+| `tpm_sp2_network_large` | 2 → 1 | 83 | x, y, z | 0.060 → 0.051 Å | 12.6° | 0 → 0.096 |
+| `paf_adamantane_large` | 4 → 1 | 11 | x, y, z | 0.075 → 0.036 Å | 7.7° | 0 → 0.0056 |
 | `paf1_large` | 2 → 2 | 1 | no | 0.065 → 0.033 Å | 8.1° | 0 → 0 |
+
+| `ctf1_large` | 2 → 1 | 8 | x, y, z | 0.020 → 0.017 Å | 11.6° | 0 → 0.021 |
+| `ctf_mixed_large` | 2 → 1 | 29 | x, y, z | 0.019 → 0.032 Å | 18.4° | 0 → 0.060 |
+| `ctf_alkyne_large` | 1 → 1 | 5 | y, z | 0.002 → 0.013 Å | 17.2° | 0 → 0.013 |
+| `graphyne_large` | 1 → 1 | 6 | x, z | 0.004 → 0.008 Å | 14.4° | 0 → 0.015 |
+| `graphdiyne_large` | 2 → 1 | 8 | x, y, z | 0.004 → 0.007 Å | 18.9° | 0 → 0.042 |
+| `carbon_nodes_network` (30 Å) | 2 → 2 | 1 | no | 0.027 Å | 10.1° | 0 |
+| `carbon_all_linkers` (30 Å) | 7 → 7 | 1 | no | 0.010 Å | 6.3° | 0 |
+
+(Conductance: the resistor network, in g0, with liminal's calibrated couplings.) The 30 Å linker networks are too small, and their free ends too few, to close
+into one framework.
 
 **PAF-1 barely closes.** Its free ends are mostly on single-carbon nodes, whose tetrahedral
 caps rarely point at a partner. Pre-built nodes with ring-carbon ends close far more

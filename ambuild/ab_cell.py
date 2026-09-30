@@ -2531,16 +2531,17 @@ class Cell:
             results.append(result)
         return results
 
-    def conduction(self, liminal_exe=None, t_sp3=0.3, sp3_decay=0.455, max_bridge=3, max_dense=8000):
+    def conduction(self, liminal_exe=None, t_sp3=None, sp3_decay=None, max_bridge=None, max_dense=None):
         """The π network's conjugated domains, Hückel gap and conductance, with tunnelling
         through sp3 atoms, from liminal (ambuild.conduction, docs/conduction.md).
 
         The cell's structure and topology are written to a new conduction_<fileCount>
         directory in outputDir and `liminal conduct` is run on them, writing conduct.json.
         liminal_exe: the command (default LIMINAL_EXE, else liminal on the PATH). t_sp3: the
-        coupling through one sp3 atom (eV); sp3_decay: its decay per extra sp3 atom;
-        max_bridge: the longest sp3 chain followed; max_dense: the largest domain
-        diagonalised (π sites).
+        coupling through one sp3 carbon (eV); sp3_decay: its decay per extra sp3 atom;
+        max_bridge: the longest sp3 chain followed; max_dense: the largest domain diagonalised
+        (π sites). Each left as None uses liminal's own default: its calibrated couplings
+        (docs/conduction.md).
 
         The summary (ambuild.conduction.summarise, plus the file, directory and exit code)
         is recorded as a conduction_result event and the file as an artifact. Returns the

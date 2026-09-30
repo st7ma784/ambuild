@@ -29,7 +29,11 @@ def conduct(args):
             "percolates": ["x"], "open_shell_domains": 0, "radical_domains": 0, "homo": -5 * args.t_sp3,
             "lumo": 5 * args.t_sp3, "gap": 10 * args.t_sp3, "median_domain_gap": 5.0,
             "axes": {"x": {"conductance": 0.03}, "y": {"conductance": 0.0}, "z": {"conductance": 0.0}},
-            "conductance": 0.01, "conductance_min": 0.0, "conjugated_conductance": 0.0025, "tunnelling_share": 0.75}
+            "conductance": 0.01, "conductance_min": 0.0, "conjugated_conductance": 0.0025, "tunnelling_share": 0.75,
+            "log10_transmission": -17.5, "log10_transmission_min": -18.2,
+            "coherent": {"axes": {"x": {"thermal": 3e-18}, "y": {"thermal": 0.0}, "z": {"thermal": 6e-19}}},
+            "bridge_couplings": {"C": args.t_sp3}, "uncoupled_bridge_atoms": {},
+            "flags": [a for a in sys.argv[3:] if a.startswith("--")]}
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w") as f:
         json.dump(data, f)

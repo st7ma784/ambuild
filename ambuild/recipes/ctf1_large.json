@@ -1,7 +1,7 @@
 {
   "recipe_version": 1,
   "name": "CTF-1: triazine and phenylene, large",
-  "description": "A covalent triazine framework of the CTF-1 kind: s-triazine rings linked through para-phenylene (1,4-benzene), strictly alternating (triazine to phenylene only), as from the trimerisation of 1,4-dicyanobenzene. Built large: a 60 A cell with 8 seeds, then ten passes, each growing 60 blocks, joining clusters twice (moving whole clusters to bond them to each other, so the seeds' clusters become one or two large frameworks), zipping and a rigid-body optimisation with dihedrals (GAFF 1.81, params/gaff_ctf); then Poreblazer on a 0.3 A grid (about 340 MB). Sized for a Slurm node (resources); sweep the cell size or grow counts to go larger. See docs/ctf-networks.md.",
+  "description": "A covalent triazine framework of the CTF-1 kind: s-triazine rings linked through para-phenylene (1,4-benzene), strictly alternating (triazine to phenylene only), as from the trimerisation of 1,4-dicyanobenzene. Built large: a 60 A cell with 8 seeds, then ten passes, each growing 60 blocks, joining clusters twice (moving whole clusters to bond them to each other, so the seeds' clusters become one or two large frameworks), zipping and a rigid-body optimisation with dihedrals (GAFF 1.81, params/gaff_ctf); then a closing phase: three rounds of a wide zip (3.0 A, 110 degrees, clash-checked) and an all-atom (flexible) optimisation, which closes rings, including across the periodic boundary so the framework spans the cell, and lets the blocks flex (docs/closing.md); then Poreblazer on a 0.3 A grid (about 340 MB). Sized for a Slurm node (resources); sweep the cell size or grow counts to go larger. See docs/ctf-networks.md.",
   "cell": {
     "box": [
       60,
@@ -64,6 +64,23 @@
           "op": "optimise",
           "cycles": 20000,
           "rigid_body": true,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "stages": [
+        {
+          "op": "zip",
+          "bond_margin": 3.0,
+          "bond_angle_margin": 110,
+          "clash_check": true
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": false,
           "do_dihedral": true
         }
       ]

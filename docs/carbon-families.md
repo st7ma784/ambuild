@@ -7,11 +7,10 @@ triazine frameworks (`docs/ctf-networks.md`), with the same build scheme:
 - **Measure:** Poreblazer on a 0.3 Å grid.
 - **Resources:** 8 CPUs, 8 GB, 8 hours.
 
-**The two PAF recipes close their networks.** After the passes they add a closing phase:
+**All four recipes close their networks.** After the passes they add a closing phase:
 three rounds of a wide zip and an all-atom optimisation (`docs/closing.md`). That closes
-rings, lets the framework span the cell, and lets the blocks flex. After Poreblazer they
-run a `conduction` stage (`docs/conduction.md`). Graphyne and graphdiyne don't have these
-yet (`TODO.md`).
+rings, lets the framework span the cell, and lets the blocks flex. The two PAF recipes also
+run a `conduction` stage after Poreblazer (`docs/conduction.md`).
 
 Each recipe allows only the joins of its own topology.
 
@@ -47,22 +46,35 @@ Parameters:
 
 Each recipe was run once in full, with HOOMD-blue 4 (`ambuild:test` image). Pores are from
 Poreblazer, and joins and angles are measured by nearest image.
-- **PAF rows:** with the closing phase and the conduction stage, on 5 CPUs with liminal 0.0.1.
-- **Graphyne and graphdiyne rows:** without them, on 10 CPUs; those builds are trees.
+All with the closing phase, on 5 CPUs; the PAFs also ran their conduction stage.
 
 | Recipe | Time | Atoms | Frameworks (largest, atoms) | Rings between blocks | Spans the cell | Density g/cm³ | PLD Å | Largest pore Å | Pores percolate in | Surface m²/g | He volume cm³/g | Largest join stretch Å |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `paf1_large` | 10.2 min | 7,011 | 2 (4,260) | 1 | no | 0.390 | 8.6 | 18.9 | 1 direction | 4,587 | 1.98 | 0.033 |
 | `paf_adamantane_large` | 21.8 min | 11,752 | 1 | 11 | x, y, z | 0.609 | 5.2 | 13.2 | 1 direction | 1,976 | 1.01 | 0.036 |
-| `graphyne_large` | 0.7 min | 3,530 | 1 | 0 | no | 0.228 | 12.7 | 18.9 | 1 direction | 8,082 | 3.86 | 0.004 |
-| `graphdiyne_large` | 8.4 min | 4,096 | 2 (2,602) | 0 | no | 0.284 | 10.2 | 18.0 | 1 direction | 6,763 | 2.95 | 0.004 |
+| `graphyne_large` | 0.9 min | 3,518 | 1 | 6 | x, z | 0.228 | 12.7 | 19.1 | 1 direction | 8,058 | 3.86 | 0.008 |
+| `graphdiyne_large` | 1.3 min | 4,056 | 1 | 8 | x, y, z | 0.283 | 11.1 | 17.7 | 1 direction | 7,039 | 2.97 | 0.007 |
 
-**π conduction of the PAFs** (liminal C0, `docs/conduction.md`):
+**Graphyne and graphdiyne, π conduction** (liminal, calibrated; measured on the built
+structures, as the recipes have no conduction stage):
 
-| Recipe | π sites | sp³ bridges | Conjugated domains (largest) | Gap eV | Conductance g0: mean (weakest axis) | By tunnelling |
-| --- | --- | --- | --- | --- | --- | --- |
-| `paf1_large` | 3,660 | 441 | 305 (12 sites) | 4.21 | 0: no framework spans the cell | – |
-| `paf_adamantane_large` | 3,996 | 552 | 333 (12 sites) | 3.80 | 0.0010 (0.00048, x) | 100% |
+| Recipe | Resistor network, mean (weakest axis), g0 | Coherent T, log10, 300 K | log10 T exactly at E_F | Gap (eV) |
+| --- | --- | --- | --- | --- |
+| `graphyne_large` | 0.015 (0, along y) | −55.5 (y not spanned) | −183 | 3.54 |
+| `graphdiyne_large` | 0.042 (0.031) | −33.6 (−38.1) | −110 | 3.39 |
+
+Both are made of meta-linked 1,3,5-benzenes. Coherent transmission shows a sharp
+destructive-interference dip exactly at the Fermi level, which the resistor network can't
+see. Even at 300 K they transmit far less than the para-linked sp³-node network of
+`tpm_phenylene_large` (−18.0; `docs/sp3-sp2-networks.md`). Alkyne carbons bend up to
+14–19° from linear at the junctions after closing.
+
+**π conduction of the PAFs** (liminal, calibrated: `docs/conduction.md`):
+
+| Recipe | π sites | sp³ bridges | Conjugated domains (largest) | Gap eV | Resistor network, g0: mean (weakest axis) | By tunnelling | Coherent T, log10, 300 K: mean (weakest) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `paf1_large` | 3,660 | 441 | 305 (12 sites) | 4.21 | 0: no framework spans the cell | – | – |
+| `paf_adamantane_large` | 3,996 | 552 | 333 (12 sites) | 3.80 | 0.0056 (0.0026) | 100% | −19.4 (−21.7) |
 
 Notes:
 - **PAF-1 hardly closes:** one ring in the closing phase. Its free ends are mostly on the
@@ -74,9 +86,10 @@ Notes:
 - **PAF-1's density and surface:** the amorphous build is denser than crystalline PAF-1's
   diamond net (about 0.32 g/cm³), with shorter, tangled strands filling the cell. Its surface
   area of 4,587 m²/g is below PAF-1's reported BET of about 5,600.
-- **The adamantane PAF closes into one framework spanning the cell.** Its conductance is all
-  tunnelling, seven times weaker than `tpm_phenylene_large`'s: each hop crosses a chain of
-  three sp³ atoms (ring–C–CH₂–C–ring) instead of one.
+- **The adamantane PAF closes into one framework spanning the cell.** Its conduction is all
+  tunnelling, and weaker than `tpm_phenylene_large`'s (0.0056 against 0.019 g0; −19.4
+  against −18.0 coherently). Each hop crosses a chain of three sp³ atoms
+  (ring–C–CH₂–C–ring) instead of one.
   - Its larger node didn't give larger pores. It fitted more blocks into the cell (213
     nodes, 333 biphenyls), so the result is denser, with narrower pores.
 - **One run each:** these are single builds, not averages; a sweep over seeds gives the

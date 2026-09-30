@@ -53,6 +53,14 @@ class ConductionStage(unittest.TestCase):
         self.assertTrue({"conduction", "conduction_structure", "conduction_topology"} <= kinds)
         metrics = conduction.metrics(data)
         self.assertEqual((metrics["el_gap"], metrics["el_conductance"]), (2.0, 0.01))
+        self.assertEqual((metrics["el_log_transmission"], metrics["el_log_transmission_min"]), (-17.5, -18.2))
+        self.assertEqual(data["coherent_axes"], {"x": 3e-18, "y": 0.0, "z": 6e-19})
+
+    def testUnsetSettingsAreLeftToLiminal(self):
+        """Without settings, Ambuild passes none, so liminal's calibrated defaults apply"""
+        ab_recipe.run(recipe(), self.rundir, baseDir="/", liminalExe=FAKE)
+        with open(os.path.join(self.rundir, "conduction_1", "conduct.json")) as f:
+            self.assertEqual(json.load(f)["flags"], ["--out"])
 
     def testAFailureStopsTheRecipe(self):
         with self.assertRaisesRegex(RuntimeError, "liminal conduct failed .exit code 4."):

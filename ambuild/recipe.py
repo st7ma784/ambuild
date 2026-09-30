@@ -210,10 +210,14 @@ OPERATIONS = {
         "help": "The π network's conjugated domains, Hückel gap and conductance, with tunnelling through sp3 "
                 "atoms, from liminal (LIMINAL_EXE); recorded with the run (docs/conduction.md).",
         "args": [
-            _arg("t_sp3", "number", 0.3, "coupling through one sp3 atom (eV)", "t_sp3", minimum=0),
-            _arg("sp3_decay", "number", 0.455, "decay of that coupling per extra sp3 atom", "sp3_decay", minimum=0),
-            _arg("max_bridge", "integer", 3, "longest chain of sp3 atoms followed", "max_bridge", minimum=1),
-            _arg("max_dense", "integer", 8000, "largest conjugated domain diagonalised (π sites)", "max_dense",
+            _arg("t_sp3", "number", None, "coupling through one sp3 carbon (eV; default: liminal's calibrated value)",
+                 "t_sp3", minimum=0),
+            _arg("sp3_decay", "number", None, "decay of that coupling per extra sp3 atom (default: liminal's)",
+                 "sp3_decay", minimum=0),
+            _arg("max_bridge", "integer", None, "longest chain of sp3 atoms followed (default: liminal's, 3)",
+                 "max_bridge", minimum=1),
+            _arg("max_dense", "integer", None, "largest conjugated domain diagonalised (π sites; default 8000)",
+                 "max_dense",
                  minimum=1),
         ],
     },

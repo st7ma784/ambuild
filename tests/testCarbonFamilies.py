@@ -36,6 +36,8 @@ def scaledDown(name, optimise):
     for s in body["stages"]:
         if s.get("op") in ("poreblazer", "conduction"):
             continue
+        if not optimise and "repeat" in s and not any(x["op"] == "grow" for x in s["stages"]):
+            continue  # the closing phase means nothing without its all-atom optimisation
         s = copy.deepcopy(s)
         if s.get("op") == "seed":
             s["count"] = 2

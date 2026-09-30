@@ -223,15 +223,17 @@ class Block(object):
         angles = sorted(list(uniqueAngles))
 
         uniquePropers = set()
+        # (in a three-membered ring an angle's end atoms are bonded to each other: extending
+        # one by the other would give a-b-c-a, no dihedral, and one HOOMD-blue refuses)
         for angle in angles:
             for atom in self._bondedToAtom[angle[0]]:
-                if atom != angle[1]:
+                if atom != angle[1] and atom != angle[2]:
                     if atom < angle[2]:
                         uniquePropers.add((atom, angle[0], angle[1], angle[2]))
                     else:
                         uniquePropers.add((angle[2], angle[1], angle[0], atom))
             for atom in self._bondedToAtom[angle[2]]:
-                if atom != angle[1]:
+                if atom != angle[1] and atom != angle[0]:
                     if atom > angle[0]:
                         uniquePropers.add((angle[0], angle[1], angle[2], atom))
                     else:
@@ -520,9 +522,8 @@ class Block(object):
                 continue
             atom1Bonded[a1] = []
             for a2 in self.atomBonded1(a1):
-                if a2 == atom1Idx:
+                if a2 == atom1Idx or a2 == atom2Idx:  # atom2: a three-membered ring
                     continue
-                assert not a2 == atom2Idx, "Dihedral atom loops back onto bond!"
                 atom1Bonded[a1].append(a2)
 
         # Create list of what's bonded to atom2 - we exclude anything that loops back on itself
@@ -532,9 +533,8 @@ class Block(object):
                 continue
             atom2Bonded[a1] = []
             for a2 in self.atomBonded1(a1):
-                if a2 == atom2Idx:
+                if a2 == atom2Idx or a2 == atom1Idx:  # atom1: a three-membered ring
                     continue
-                assert not a2 == atom1Idx, "Dihedral atom loops back onto bond!"
                 atom2Bonded[a1].append(a2)
 
         dindices = []
@@ -554,7 +554,9 @@ class Block(object):
             for a2 in atom2Bonded:
                 dindices.append((a1, atom1Idx, atom2Idx, a2))
 
-        return dindices
+        # In a three-membered ring the two ends are the same atom: a-b-c-a is no dihedral
+        # (its torsion is fixed by the ring), and HOOMD-blue refuses one
+        return [d for d in dindices if len(set(d)) == 4]
 
     def flip(self, fvector):
         """Rotate perpendicular to fvector so we  facing the opposite way along the fvector

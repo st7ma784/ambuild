@@ -237,7 +237,8 @@ def test_conduction_gives_metrics_and_a_table(client, recorded):
     assert other["el_gap"] is None
     html = client.get("/runs/" + recorded["a"]).text
     assert "π conduction" in html and "Tier: C0: test" in html and "conduction_2/conduct.json" in html
-    assert "75%" in html
+    assert "75%" in html and "-17.5 (-18.2)" in html
+    assert summary["el_log_transmission"] == -17.5
 
 
 def test_conduction_metrics_can_be_plotted_and_aimed_at():

@@ -1,7 +1,7 @@
 {
   "recipe_version": 1,
   "name": "Carbon network of rings, alkynes and sp2 nodes",
-  "description": "Benzene rings (C6, linked 1,3,5), acetylene linkers (C2) and trigonal sp2 carbon nodes (one carbon, linked three ways), each able to join itself and the others: ring-ring (biaryl), ring-alkyne, alkyne-alkyne (polyyne: a single bond, 1.369 A), node-node (graphitic, 1.398 A), and node to ring or alkyne. Alkynes are typed cg#ch (GAFF's conjugated sp carbons), and an alkyne joins another only like end to like end, so every alkyne-alkyne link is the single bond. GAFF 1.81 parameters (params/gaff_carbon), a rigid-body optimisation with dihedrals after each pass, then Poreblazer. See docs/carbon-linkers.md.",
+  "description": "Benzene rings (C6, linked 1,3,5), acetylene linkers (C2) and trigonal sp2 carbon nodes (one carbon, linked three ways), each able to join itself and the others: ring-ring (biaryl), ring-alkyne, alkyne-alkyne (polyyne: a single bond, 1.369 A), node-node (graphitic, 1.398 A), and node to ring or alkyne. Alkynes are typed cg#ch (GAFF's conjugated sp carbons), and an alkyne joins another only like end to like end, so every alkyne-alkyne link is the single bond. GAFF 1.81 parameters (params/gaff_carbon), a rigid-body optimisation with dihedrals after each pass; then a closing phase: three rounds of a wide zip (3.0 A, 110 degrees, clash-checked) and an all-atom (flexible) optimisation, which closes rings, including across the periodic boundary so the framework spans the cell, and lets the blocks flex (docs/closing.md); then Poreblazer. See docs/carbon-linkers.md.",
   "cell": {
     "box": [
       30,
@@ -78,6 +78,23 @@
           "op": "optimise",
           "cycles": 20000,
           "rigid_body": true,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "stages": [
+        {
+          "op": "zip",
+          "bond_margin": 3.0,
+          "bond_angle_margin": 110,
+          "clash_check": true
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": false,
           "do_dihedral": true
         }
       ]
