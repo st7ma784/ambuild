@@ -31,6 +31,7 @@ def conduct(args):
             "axes": {"x": {"conductance": 0.03}, "y": {"conductance": 0.0}, "z": {"conductance": 0.0}},
             "conductance": 0.01, "conductance_min": 0.0, "conjugated_conductance": 0.0025, "tunnelling_share": 0.75,
             "log10_transmission": -17.5, "log10_transmission_min": -18.2,
+            "log10_hopping": -24.4, "log10_hopping_min": -26.7, "hopping_carrier": "holes",
             "coherent": {"axes": {"x": {"thermal": 3e-18}, "y": {"thermal": 0.0}, "z": {"thermal": 6e-19}}},
             "bridge_couplings": {"C": args.t_sp3}, "uncoupled_bridge_atoms": {},
             "flags": [a for a in sys.argv[3:] if a.startswith("--")]}
@@ -50,6 +51,7 @@ def main():
         parser.add_argument("--sp3-decay", type=float, default=0.455)
         parser.add_argument("--max-bridge", type=int, default=3)
         parser.add_argument("--max-dense", type=int, default=8000)
+        parser.add_argument("--through-space", action="store_true")
         return conduct(parser.parse_args())
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["map"])

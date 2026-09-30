@@ -203,18 +203,20 @@
         <th scope="col" class="num">Conductance x / y / z<br><span class="unit">g0</span></th>
         <th scope="col" class="num">By tunnelling</th>
         <th scope="col" class="num">Coherent T, 300 K<br><span class="unit">log10, mean (weakest)</span></th>
+        <th scope="col" class="num">Hopping, 300 K<br><span class="unit">log10, mean (weakest)</span></th>
         <th scope="col">Files</th></tr></thead>
       <tbody>
         {% for c in r.conduction %}
         <tr><td class="num">{{ c.step if c.step is not none else "–" }}</td>
-          {% if c.returncode %}<td colspan="10"><span class="status state-fail">liminal exit {{ c.returncode }}</span>{% if c.log %} <a href="/runs/{{ r.summary.run_id }}/files/{{ c.log }}?inline=1">log</a>{% endif %}</td>
+          {% if c.returncode %}<td colspan="11"><span class="status state-fail">liminal exit {{ c.returncode }}</span>{% if c.log %} <a href="/runs/{{ r.summary.run_id }}/files/{{ c.log }}?inline=1">log</a>{% endif %}</td>
           {% else %}<td class="num">{{ c.sites }}</td><td class="num">{{ c.domains }}</td>
           <td class="num">{{ c.largest_domain_fraction | number(2) }}</td><td>{{ (c.percolates or []) | join(", ") or "–" }}</td>
           <td class="num">{{ c.sp3_bridges }}</td><td class="num">{{ c.radical_domains }}</td>
           <td class="num">{{ c.gap | number(2) }}</td>
           <td class="num">{% for a in "xyz" %}{{ (c.axes or {}).get(a) | number(4) }}{% if not loop.last %} / {% endif %}{% endfor %}</td>
           <td class="num">{% if c.tunnelling_share is not none %}{{ (100 * c.tunnelling_share) | round(0) | int }}%{% else %}–{% endif %}</td>
-          <td class="num">{% if c.log_transmission is not none %}{{ c.log_transmission | number(1) }} ({{ c.log_transmission_min | number(1) if c.log_transmission_min is not none else "–" }}){% else %}–{% endif %}</td>{% endif %}
+          <td class="num">{% if c.log_transmission is not none %}{{ c.log_transmission | number(1) }} ({{ c.log_transmission_min | number(1) if c.log_transmission_min is not none else "–" }}){% else %}–{% endif %}</td>
+          <td class="num">{% if c.log_hopping is not none %}{{ c.log_hopping | number(1) }} ({{ c.log_hopping_min | number(1) if c.log_hopping_min is not none else "–" }}){% if c.hopping_carrier %} <span class="note">{{ c.hopping_carrier }}</span>{% endif %}{% else %}–{% endif %}</td>{% endif %}
           <td>{% if c.results %}<a href="/runs/{{ r.summary.run_id }}/files/{{ c.results }}?inline=1">conduct.json</a>{% endif %}</td></tr>
         {% endfor %}
       </tbody>

@@ -16,6 +16,14 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- **Si-noded frameworks:**
+  - **A `tetraphenylsilane` block:** Si(C₆H₄)₄, Si–C 1.87 Å. It's made by the new `scripts/make_tetraphenyl.py`, which also reproduces the tetraphenylmethane block byte for byte.
+  - **A `gaff_si` parameter set:** Si bonds (measured r0, UFF force constants) and Lennard-Jones terms from UFF; angles and dihedrals as GAFF `c3` (its README gives every source).
+  - **A recipe, `tps_phenylene_large`:** the Si twin of `tpm_phenylene_large`, in the sp3–sp2 gallery family.
+  - **Its full build** spans the cell in one framework, conducting 0.0019 g0 (its carbon twin 0.019) and transmitting coherently at 10⁻²⁰·⁴ (10⁻¹⁸·⁰).
+- **`scripts/gaff_params.py --bond` and `--lj`:** set a bond's or a type's Lennard-Jones terms outright, for elements GAFF lacks. The existing sets still reproduce byte for byte.
+- **The `conduction` stage's `through_space` setting:** couplings between stacked rings (liminal's, fitted to DFT on benzene dimers within 1%). It's on in every recipe with a conduction stage. On the builds it raises the resistor conductance 3–6-fold, and coherent transmission by up to 19 orders of magnitude.
+- **Hopping metrics:** `el_log_hopping` and `el_log_hopping_min` (liminal C3), for hopping between conjugated domains with the gap as thermal activation, shown on the run page. It sees orbital symmetry that the resistor network doesn't.
 - **The closing phase in every large carbon recipe:** `ctf1_large`, `ctf_alkyne_large`, `ctf_mixed_large`, `graphyne_large`, `graphdiyne_large`, `carbon_nodes_network` and `carbon_all_linkers`.
   - Each 60 Å build now closes into one framework spanning the cell. The alkyne CTF and graphyne span along two axes, the others along three.
   - The 30 Å linker networks are too small to close into one.

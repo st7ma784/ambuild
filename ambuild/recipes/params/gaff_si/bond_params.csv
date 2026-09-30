@@ -1,0 +1,10 @@
+A,B,k,r0,comments
+si,si,276.1,2.35,"set by --bond (see the README)"
+si,ca,451.1,1.87,"set by --bond (see the README)"
+si,cp,451.1,1.87,"set by --bond (see the README)"
+si,ha,338.9,1.48,"set by --bond (see the README)"
+ca,ca,922.2,1.3984,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) ca-ca"
+ca,cp,900.4,1.4058,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) ca-cp"
+ca,ha,691.6,1.086,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) ca-ha"
+cp,cp,702.8,1.4854,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) cp-cp"
+cp,ha,691.6,1.086,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) ca-ha (cp as ca)"

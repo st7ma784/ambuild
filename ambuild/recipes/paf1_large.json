@@ -1,7 +1,7 @@
 {
   "recipe_version": 1,
   "name": "PAF-1: tetrahedral carbon and biphenyl, large",
-  "description": "A porous aromatic framework of the PAF-1 kind: tetrahedral sp3 carbon nodes (tetraphenylmethane-style) linked through biphenyl struts, strictly (node to biphenyl only): C-(C6H4)2-C, a diamond-like topology made amorphous. Built large: a 60 A cell with 8 seeds, then ten passes, each growing 60 blocks, joining clusters twice (so the seeds' clusters become one or two large frameworks), zipping and a rigid-body optimisation with dihedrals (GAFF 1.81, params/gaff_paf). Then a closing phase: three rounds of a wide zip (3.0 A, 110 degrees, clash-checked) and an all-atom (flexible) optimisation, which closes rings, including across the periodic boundary so the framework spans the cell, and lets the blocks flex (docs/closing.md). Then Poreblazer on a 0.3 A grid, and liminal's pi-conduction analysis (conjugation broken at every sp3 node, so conduction is by tunnelling; needs liminal) (about 340 MB). Sized for a Slurm node (resources); sweep the cell size or grow counts to go larger. See docs/carbon-families.md.",
+  "description": "A porous aromatic framework of the PAF-1 kind: tetrahedral sp3 carbon nodes (tetraphenylmethane-style) linked through biphenyl struts, strictly (node to biphenyl only): C-(C6H4)2-C, a diamond-like topology made amorphous. Built large: a 60 A cell with 8 seeds, then ten passes, each growing 60 blocks, joining clusters twice (so the seeds' clusters become one or two large frameworks), zipping and a rigid-body optimisation with dihedrals (GAFF 1.81, params/gaff_paf). Then a closing phase: three rounds of a wide zip (3.0 A, 110 degrees, clash-checked) and an all-atom (flexible) optimisation, which closes rings, including across the periodic boundary so the framework spans the cell, and lets the blocks flex (docs/closing.md). Then Poreblazer on a 0.3 A grid, and liminal's pi-conduction analysis, with through-space couplings between stacked rings (conjugation broken at every sp3 node, so conduction is by tunnelling; needs liminal) (about 340 MB). Sized for a Slurm node (resources); sweep the cell size or grow counts to go larger. See docs/carbon-families.md.",
   "cell": {
     "box": [
       60,
@@ -93,7 +93,8 @@
       }
     },
     {
-      "op": "conduction"
+      "op": "conduction",
+      "through_space": true
     }
   ],
   "seed": 31,

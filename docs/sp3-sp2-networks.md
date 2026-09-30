@@ -28,6 +28,15 @@ still a phenyl ring.
 | --- | --- | --- | --- |
 | `tpm_phenylene_large` | tetraphenylmethane, 1,4-phenylene | node arm–phenylene only (`cp–cp`, 1.485 Å): struts C–(C₆H₄)₃–C | `gaff_paf` |
 | `tpm_sp2_network_large` | tetraphenylmethane, 1,4-phenylene, 1,3,5-benzene, trigonal sp² carbon (`carbon_node`) | node arms to all of them and to each other, and every sp²–sp² join among them (ten kinds) | `gaff_carbon` |
+| `tps_phenylene_large` | tetraphenylsilane, 1,4-phenylene | as `tpm_phenylene_large`: struts Si–(C₆H₄)₃–Si | `gaff_si` |
+
+**The Si node,** `tetraphenylsilane`, is Si(C₆H₄)₄, made by the same generator as
+tetraphenylmethane (`scripts/make_tetraphenyl.py`).
+- Si–C(ipso) is 1.87 Å, as measured in tetraphenylsilane's crystal.
+- The longer arms let the propeller relax: the best twist is 35.5°, with ortho H···H 2.80 Å
+  apart (2.44 Å at carbon).
+- GAFF has no silicon, so `params/gaff_si` takes Si's bonds and Lennard-Jones terms from UFF,
+  and its angles and dihedrals as GAFF's tetrahedral carbon (its README gives the sources).
 
 Neither allows an sp³–sp³ join: the only sp³ atoms are the node centres, inside their
 blocks.
@@ -70,6 +79,7 @@ calibrated model (tiers C1 and C2, `docs/conduction.md`).
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `tpm_phenylene_large` | 22.7 min | 9,714 | 1 | 8 | x, y, z | 0.559 | 6.1 | 13.6 | 1 direction | 2,567 | 1.18 | 0.025 | 6.5° |
 | `tpm_sp2_network_large` | 25.4 min | 7,951 | 1 | 83 | x, y, z | 0.463 | 6.9 | 15.0 | 1 direction | 3,867 | 1.61 | 0.051 (node–node) | 12.6° (trigonal carbon) |
+| `tps_phenylene_large` | 25.5 min | 8,238 | 1 | 5 | x, y, z | 0.489 | 6.9 | 13.7 | 1 direction | 3,484 | 1.47 | 0.022 | 4.4° |
 
 **π conduction:**
 
@@ -77,7 +87,26 @@ calibrated model (tiers C1 and C2, `docs/conduction.md`).
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `tpm_phenylene_large` | 5,574 | 876 | 431 (18 sites) | 0 | 3.58 | 0.019 (0.0060) | 100% | −18.0 (−19.2) |
 | `tpm_sp2_network_large` | 4,639 | 642 | 241 (355 sites) | 50 (41 open shell) | 0 | 0.096 (0.087) | 100% | −6.7 (−16.8) |
-| the same `tpm_phenylene_large` structure with Si nodes | 5,574 | 876 | 431 (18 sites) | 0 | 3.58 | 0.0085 (0.0026) | 100% | −20.6 (−22.0) |
+| `tps_phenylene_large` (built with Si nodes) | 4,728 | 732 | 362 (18 sites) | 0 | 3.38 | 0.0019 (0.0017) | 100% | −20.4 (−20.9) |
+| the `tpm_phenylene_large` structure with its nodes turned to Si | 5,574 | 876 | 431 (18 sites) | 0 | 3.58 | 0.0085 (0.0026) | 100% | −20.6 (−22.0) |
+
+(These are bonded couplings only. The recipes now also turn on through-space couplings
+between stacked rings; see below.)
+
+**With through-space couplings** (stacked rings within 5 Å, calibrated to DFT):
+
+| Recipe | π–π contacts | Resistor network, g0: mean (weakest axis) | By node tunnelling | Coherent T, log10 |
+| --- | --- | --- | --- | --- |
+| `tpm_phenylene_large` (C nodes) | 24,775 | 0.121 (0.109), up from 0.019 | 81% | −18.0 (−19.1), unchanged |
+| `tps_phenylene_large` (Si nodes) | 15,621 | 0.059 (0.055), up from 0.0019 | 89% | −20.4 (−20.7), unchanged |
+
+- **Stacked rings bypass the Si nodes.** Bonded only, the Si network conducts a tenth as
+  well as the carbon one. With ring contacts, it's within a factor of 2.
+- **So packing may decide conduction more than the nodes do.** Whether a Si-noded framework
+  conducts may turn on how densely its rings stack. That fits most Si-noded frameworks not
+  conducting while a few do. It's a hypothesis to test against measurements (`TODO.md`).
+- **Coherent transmission barely changes:** its paths are set by the para strands and the
+  nodes.
 
 What these show:
 - **Both conduct only by tunnelling through the sp³ nodes.** No conjugated domain spans
@@ -91,6 +120,10 @@ What these show:
   (0.33 eV against carbon's 0.60) halves the resistor-network conductance and cuts coherent
   transmission about 400-fold. Tunnelling multiplies across the roughly five nodes on each
   path through the cell.
+  - **The built Si network is further apart still** (0.0019 g0). Its longer arms give fewer
+    nodes, fewer rings closed (5 against 8) and a lower density. It spans all three axes as a
+    resistor network, but doesn't hop along y: some bridges meet ring sites where the
+    frontier orbital has a node.
 - **The sp² network's high coherent average is an artefact of its radicals.** It has 50
   radical domains, trigonal carbons with three aryl arms. Their non-bonding levels sit
   exactly at the Fermi level and act as resonant channels in a Hückel model; real radical
@@ -121,8 +154,9 @@ is 5.7 eV. Use it to compare structures, not as a band gap to hit.
 ## Tests
 
 `tests/testSp3Sp2.py` covers:
-- **The node:** its composition, the tetrahedral centre, regular rings, links at the para
-  carbons, and ortho H···H of at least 2.4 Å.
+- **The nodes:** tetraphenylmethane's composition, tetrahedral centre, regular rings, links
+  at the para carbons, and ortho H···H of at least 2.4 Å. Tetraphenylsilane's Si–C of
+  1.87 Å, and the `gaff_si` terms, which come from UFF, not carbon.
 - **The recipes:** their topology and stages; every angle and dihedral their joins can make
   has parameters; the example campaign fits the network recipe.
 - **Scaled-down builds:** only the intended joins, none at an sp³ carbon, each sp³ carbon

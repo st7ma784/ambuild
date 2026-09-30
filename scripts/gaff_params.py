@@ -14,6 +14,10 @@ gaff-1.81.dat).
     its type would give a ring's 120.
 --dihedral=PATTERN:A-B-C-D: the same for missing dihedrals, using GAFF's torsion A-B-C-D
     (X for any, as GAFF writes them), e.g. *-ca-cu-*:X-cp-cp-X.
+--bond=A-B:K:R0: set a bond's terms outright (K in kcal/mol/A^2, R0 in A), for an element
+    GAFF lacks (e.g. Si from UFF: the set's README gives the source); noted in the row.
+--lj=T:EPSILON:SIGMA: set a type's Lennard-Jones terms outright (kcal/mol, A); its pairs
+    with the other types follow Lorentz-Berthelot as usual.
 
 Ambuild's units and forms (ambuild/hoomd4.py) and the conversions from OpenMM's:
     bonds      V = k/2 (r - r0)^2          k [kcal/mol/A^2] = k_openmm [kJ/mol/nm^2] / 418.4,
@@ -66,13 +70,15 @@ def _matches(pattern, q):
     return len(pattern) == len(q) and all(p in ("*", t) for p, t in zip(pattern, q))
 
 
-def main(xmlPath, outDir, types, aliases=None, angleRules=None, dihedralRules=None):
+def main(xmlPath, outDir, types, aliases=None, angleRules=None, dihedralRules=None, bondSet=None, ljSet=None):
     """aliases: {type: stand-in} for terms GAFF lacks, e.g. {"cp": "ca"}: GAFF's cp (an
     aromatic carbon bonded to another ring) has no terms with hydrogen or an alkyne, where it
     behaves as ca. angleRules: [(pattern, GAFF angle)] for missing angles, tried in order
     before the aliases. The exact types are always tried first; a stand-in is noted in the
     row."""
     aliases = aliases or {}
+    bondSet = bondSet or {}  # {(a, b): (k, r0)} in Ambuild's units
+    ljSet = ljSet or {}  # {type: (epsilon kcal/mol, sigma A)}
     angleRules = angleRules or []
     dihedralRules = dihedralRules or []
     info, bonds, angles, propers, lj = load(xmlPath)
@@ -113,6 +119,12 @@ def main(xmlPath, outDir, types, aliases=None, angleRules=None, dihedralRules=No
 
     rows = []
     for q in itertools.combinations_with_replacement(types, 2):
+        given = bondSet.get(q, bondSet.get(q[::-1]))
+        if given is not None:
+            rows.append([q[0], q[1], fmt(given[0]), fmt(given[1]), '"set by --bond (see the README)"'])
+            continue
+        if any(t in ljSet for t in q):
+            continue  # a type set outright has only the bonds given for it
         el, used = lookup(q, findBond)
         if el is not None:
             rows.append([q[0], q[1], fmt(float(el.get("k")) / (100 * KJ)), fmt(10 * float(el.get("length"))),
@@ -172,10 +184,14 @@ def main(xmlPath, outDir, types, aliases=None, angleRules=None, dihedralRules=No
 
     rows = []
     for a, b in itertools.combinations_with_replacement(types, 2):
-        pa, pb = lj.get(a, lj.get(aliases.get(a))), lj.get(b, lj.get(aliases.get(b)))
-        eps = math.sqrt(float(pa.get("epsilon")) * float(pb.get("epsilon"))) / KJ
-        sigma = 10 * (float(pa.get("sigma")) + float(pb.get("sigma"))) / 2
-        rows.append([a, b, fmt(eps), fmt(sigma), '"{0}; Lorentz-Berthelot"'.format(note)])
+        def terms(t):  # (epsilon kcal/mol, sigma A)
+            if t in ljSet:
+                return ljSet[t]
+            el = lj.get(t, lj.get(aliases.get(t)))
+            return float(el.get("epsilon")) / KJ, 10 * float(el.get("sigma"))
+        (ea, sa), (eb, sb) = terms(a), terms(b)
+        source = note if not (a in ljSet or b in ljSet) else note + " and --lj (see the README)"
+        rows.append([a, b, fmt(math.sqrt(ea * eb)), fmt((sa + sb) / 2), '"{0}; Lorentz-Berthelot"'.format(source)])
     write(os.path.join(outDir, "pair_params.csv"), "atom1,atom2,epsilon,sigma,comments", rows)
     print("wrote", outDir, "for", ", ".join(types), "with stand-ins" if aliases else "", aliases or "")
 
@@ -189,6 +205,14 @@ if __name__ == "__main__":
             if a.startswith(flag):
                 pattern, _, source = a[len(flag):].partition(":")
                 rules.append((tuple(pattern.split("-")), tuple(source.split("-"))))
+    bondSet, ljSet = {}, {}
+    for a in sys.argv[1:]:
+        if a.startswith("--bond="):
+            pair, k, r0 = a[len("--bond="):].split(":")
+            bondSet[tuple(pair.split("-"))] = (float(k), float(r0))
+        elif a.startswith("--lj="):
+            t, eps, sigma = a[len("--lj="):].split(":")
+            ljSet[t] = (float(eps), float(sigma))
     if len(args) < 3:
         raise SystemExit(__doc__)
-    main(args[0], args[1], args[2:], aliases, angleRules, dihedralRules)
+    main(args[0], args[1], args[2:], aliases, angleRules, dihedralRules, bondSet, ljSet)

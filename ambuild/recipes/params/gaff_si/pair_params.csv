@@ -1,0 +1,11 @@
+atom1,atom2,epsilon,sigma,comments
+si,si,0.402,3.826,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) and --lj (see the README); Lorentz-Berthelot"
+si,ca,0.185935,3.61283,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) and --lj (see the README); Lorentz-Berthelot"
+si,cp,0.185935,3.61283,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) and --lj (see the README); Lorentz-Berthelot"
+si,ha,0.0776531,3.21282,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8) and --lj (see the README); Lorentz-Berthelot"
+ca,ca,0.086,3.39967,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8); Lorentz-Berthelot"
+ca,cp,0.086,3.39967,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8); Lorentz-Berthelot"
+ca,ha,0.0359166,2.99966,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8); Lorentz-Berthelot"
+cp,cp,0.086,3.39967,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8); Lorentz-Berthelot"
+cp,ha,0.0359166,2.99966,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8); Lorentz-Berthelot"
+ha,ha,0.015,2.59964,"GAFF 1.81, from gaff-1.81.dat (AmberTools 24.8); Lorentz-Berthelot"

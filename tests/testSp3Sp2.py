@@ -24,7 +24,7 @@ import testCarbonFamilies as families
 import testCarbonLinkers as linkers
 from testIonMap import REAL
 
-RECIPES = ("tpm_phenylene_large", "tpm_sp2_network_large")
+RECIPES = ("tpm_phenylene_large", "tpm_sp2_network_large", "tps_phenylene_large")
 SP2 = {"P", "R", "N"}  # phenylene, 1,3,5-benzene, trigonal carbon
 
 
@@ -60,10 +60,33 @@ class Node(unittest.TestCase):
         self.assertGreater(closest, 2.4)  # the propeller twist keeps ortho H apart (vdW contact 2.4 A)
 
 
+class SiliconNode(unittest.TestCase):
+    def testTetraphenylsilane(self):
+        f, c = families.fragment("tetraphenylsilane", families.paramsDir(
+            ab_recipe.example("tps_phenylene_large", blocksDir=BLOCKS_DIR)))
+        types = [f.type(i) for i in range(len(c))]
+        self.assertEqual(collections.Counter(types), {"si": 1, "cp": 8, "ca": 16, "ha": 20})
+        for i in [1 + 6 * k for k in range(4)]:
+            self.assertAlmostEqual(np.linalg.norm(c[i] - c[0]), 1.87, places=4)  # Si-C(aryl)
+        self.assertEqual(sorted(e.fragmentEndGroupIdx for e in f.endGroups()), [4, 10, 16, 22])
+        hydrogens = c[25:]
+        closest = min(np.linalg.norm(hydrogens[i] - hydrogens[j]) for i in range(20) for j in range(20) if i // 5 != j // 5)
+        self.assertGreater(closest, 2.7)  # longer bonds: less crowded than tetraphenylmethane (2.44)
+
+    def testTheSiParametersComeFromUffNotCarbon(self):
+        params = families.paramsDir(ab_recipe.example("tps_phenylene_large", blocksDir=BLOCKS_DIR))
+        lengths = xyz_util.BondLength(os.path.join(params, "bond_params.csv"), typed=True)
+        self.assertAlmostEqual(lengths.bondLength("si", "cp"), 1.87)
+        with open(os.path.join(params, "pair_params.csv")) as f:
+            si = next(line for line in f if line.startswith("si,si,"))
+        self.assertEqual(si.split(",")[2:4], ["0.402", "3.826"])
+
+
 class Recipes(unittest.TestCase):
     def testTopologies(self):
         expected = {
             "tpm_phenylene_large": ["T:t-P:a"],
+            "tps_phenylene_large": ["T:t-P:a"],
             "tpm_sp2_network_large": ["T:t-T:t", "T:t-P:a", "T:t-R:a", "T:t-N:a", "P:a-P:a", "P:a-R:a", "P:a-N:a",
                                       "R:a-R:a", "R:a-N:a", "N:a-N:a"],
         }
@@ -73,6 +96,7 @@ class Recipes(unittest.TestCase):
             self.assertEqual(body["bond_types"], expected[name])
             self.assertEqual(body["cell"]["box"], [60, 60, 60])
             self.assertEqual([s.get("op") for s in body["stages"]][-2:], ["poreblazer", "conduction"])
+            self.assertIs(body["stages"][-1].get("through_space"), True, name)  # stacked rings conduct (docs/conduction.md)
             seeds = [s for s in body["stages"] if s.get("op") == "seed"]
             self.assertEqual(seeds[0]["fragment_type"], "T")
 
@@ -125,18 +149,19 @@ class Builds(unittest.TestCase):
             self.assertTrue(found, name)
             for k in found:
                 self.assertNotIn(":c3", k[0] + k[1], (name, k))  # every join is between sp2 carbons
+                self.assertNotIn(":si", k[0] + k[1], (name, k))
                 frags = {k[0].split(":")[0], k[1].split(":")[0]}
-                if name == "tpm_phenylene_large":
+                if name in ("tpm_phenylene_large", "tps_phenylene_large"):
                     self.assertEqual(frags, {"T", "P"}, k)  # strictly node arm to phenylene
                 else:
                     self.assertLessEqual(frags, SP2 | {"T"}, k)
             for k, ds in found.items():
                 r0 = lengths.bondLength(k[0].split(":")[1], k[1].split(":")[1])
                 self.assertGreater(sum(abs(d - r0) < 0.005 for d in ds), 0.8 * len(ds), (name, k))
-            # every sp3 carbon keeps four sp2 neighbours: its arms are part of its block
+            # every sp3 node (carbon or silicon) keeps four sp2 neighbours: its arms are part of its block
             for block in cell.blocks.values():
                 for atom in range(block.numAtoms()):
-                    if block.type(atom) == "c3":
+                    if block.type(atom) in ("c3", "si"):
                         self.assertEqual(sorted(block.type(n) for n in block.atomBonded1(atom)), ["cp"] * 4)
 
     @unittest.skipUnless(ab_util.HOOMDVERSION, "Needs HOOMD-blue")

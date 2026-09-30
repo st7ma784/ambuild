@@ -62,6 +62,7 @@ def conductionResult(step, gap, conductance, directory="conduction_2"):
             "conductance": conductance, "conductance_min": 0.0, "conjugated_conductance": conductance / 4,
             "tunnelling_share": 0.75, "axes": {"x": 3 * conductance, "y": 0.0, "z": 0.0},
             "log_transmission": -17.5, "log_transmission_min": -18.25,
+            "log_hopping": -24.4, "log_hopping_min": -26.7, "hopping_carrier": "holes",
             "results": directory + "/conduct.json", "directory": "/x/" + directory, "log": directory + "/liminal.log"}
     files = {data["results"]: json.dumps({"format": "liminal-conduction", "version": 1, "gap": gap}).encode()}
     return {"step": step, "data": data, "files": files}
