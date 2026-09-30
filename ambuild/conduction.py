@@ -38,6 +38,8 @@ FIELDS = {
     "radical_domains": "radical π domains",
     "log_transmission": "coherent π transmission, log10 (300 K, mean of axes)",
     "log_transmission_min": "coherent π transmission, log10 (300 K, weakest axis)",
+    "log_hopping": "hopping between π domains, log10 (300 K, mean of axes, better carrier)",
+    "log_hopping_min": "hopping between π domains, log10 (300 K, weakest axis, better carrier)",
 }
 PREFIX = "el"
 METRICS = ["{0}_{1}".format(PREFIX, f) for f in FIELDS]
@@ -69,7 +71,7 @@ def summarise(data):
             "largest_domain_fraction", "percolating_domains", "percolates", "open_shell_domains", "radical_domains",
             "homo", "lumo", "gap", "median_domain_gap", "conductance", "conductance_min", "conjugated_conductance",
             "tunnelling_share", "log10_transmission", "log10_transmission_min", "bridge_couplings",
-            "uncoupled_bridge_atoms")
+            "uncoupled_bridge_atoms", "through_space_couplings", "hopping_carrier")
     out = {k: data.get(k) for k in keys}
     coherent = (data.get("coherent") or {}).get("axes") or {}
     out.update({"tier": data.get("tier"), "liminal_version": data.get("liminal_version"),
@@ -77,11 +79,12 @@ def summarise(data):
                 "axes": {a: (axes.get(a) or {}).get("conductance") for a in "xyz"},
                 "coherent_axes": {a: (coherent.get(a) or {}).get("thermal") for a in "xyz"} if coherent else None,
                 "log_transmission": data.get("log10_transmission"),
-                "log_transmission_min": data.get("log10_transmission_min")})
+                "log_transmission_min": data.get("log10_transmission_min"),
+                "log_hopping": data.get("log10_hopping"), "log_hopping_min": data.get("log10_hopping_min")})
     return out
 
 
-def runLiminal(command, structure, out, tSp3, sp3Decay, maxBridge, maxDense, log):
+def runLiminal(command, structure, out, tSp3, sp3Decay, maxBridge, maxDense, log, throughSpace=False):
     """Run `liminal conduct`; returns its exit code. Settings left as None are not passed, so
     liminal uses its own (calibrated) defaults"""
     args = command + ["conduct", structure, "--out", out]
@@ -89,6 +92,8 @@ def runLiminal(command, structure, out, tSp3, sp3Decay, maxBridge, maxDense, log
                         ("--max-dense", maxDense)):
         if value is not None:
             args += [flag, str(value)]
+    if throughSpace:
+        args.append("--through-space")
     logger.info("Running liminal: %s", " ".join(shlex.quote(a) for a in args))
     with open(log, "w") as f:
         return subprocess.run(args, stdout=f, stderr=subprocess.STDOUT).returncode

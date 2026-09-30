@@ -238,7 +238,8 @@ def test_conduction_gives_metrics_and_a_table(client, recorded):
     html = client.get("/runs/" + recorded["a"]).text
     assert "π conduction" in html and "Tier: C0: test" in html and "conduction_2/conduct.json" in html
     assert "75%" in html and "-17.5 (-18.2)" in html
-    assert summary["el_log_transmission"] == -17.5
+    assert summary["el_log_transmission"] == -17.5 and summary["el_log_hopping"] == -24.4
+    assert "-24.4 (-26.7)" in html
 
 
 def test_conduction_metrics_can_be_plotted_and_aimed_at():

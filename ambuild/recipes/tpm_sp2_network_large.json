@@ -1,7 +1,7 @@
 {
   "recipe_version": 1,
   "name": "sp3-sp2: tetraphenylmethane nodes in an sp2 carbon network, large",
-  "description": "An sp3-sp2 network in which every sp3 carbon is a pre-built tetraphenylmethane node (four phenyl arms), and the arms join an sp2 network of 1,4-phenylene, 1,3,5-benzene and trigonal sp2 carbon nodes that also join each other: conjugated sp2 domains of varying size and branching, separated only by the sp3 centres. No sp3-sp3 joins (GAFF 1.81, params/gaff_carbon). Built large: a 60 A cell with 8 tetraphenylmethane seeds, then ten passes, each growing 60 blocks, joining clusters twice, zipping and a rigid-body optimisation with dihedrals. Then a closing phase: three rounds of a wide zip (3.0 A, 110 degrees, clash-checked) and an all-atom (flexible) optimisation, which closes rings, including across the periodic boundary so the framework spans the cell, and lets the blocks flex (docs/closing.md). Then Poreblazer on a 0.3 A grid, and liminal's pi-conduction analysis (conjugated domains, Hückel gap, conductance with and without tunnelling through the sp3 nodes; needs liminal). Sized for a Slurm node (resources). See docs/sp3-sp2-networks.md.",
+  "description": "An sp3-sp2 network in which every sp3 carbon is a pre-built tetraphenylmethane node (four phenyl arms), and the arms join an sp2 network of 1,4-phenylene, 1,3,5-benzene and trigonal sp2 carbon nodes that also join each other: conjugated sp2 domains of varying size and branching, separated only by the sp3 centres. No sp3-sp3 joins (GAFF 1.81, params/gaff_carbon). Built large: a 60 A cell with 8 tetraphenylmethane seeds, then ten passes, each growing 60 blocks, joining clusters twice, zipping and a rigid-body optimisation with dihedrals. Then a closing phase: three rounds of a wide zip (3.0 A, 110 degrees, clash-checked) and an all-atom (flexible) optimisation, which closes rings, including across the periodic boundary so the framework spans the cell, and lets the blocks flex (docs/closing.md). Then Poreblazer on a 0.3 A grid, and liminal's pi-conduction analysis, with through-space couplings between stacked rings (conjugated domains, Hückel gap, conductance with and without tunnelling through the sp3 nodes; needs liminal). Sized for a Slurm node (resources). See docs/sp3-sp2-networks.md.",
   "cell": {
     "box": [
       60,
@@ -114,7 +114,8 @@
       }
     },
     {
-      "op": "conduction"
+      "op": "conduction",
+      "through_space": true
     }
   ],
   "seed": 41,

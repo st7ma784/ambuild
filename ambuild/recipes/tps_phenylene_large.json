@@ -1,0 +1,106 @@
+{
+  "recipe_version": 1,
+  "name": "sp3-sp2 with Si nodes: tetraphenylsilane and phenylene struts, large",
+  "description": "An sp3-sp2 network in which every node is a pre-built tetraphenylsilane Si(C6H4)4 (Si-C 1.87 A), so it always carries four phenyl (sp2) arms, joined strictly through 1,4-phenylene (node arm to phenylene only, cp-cp 1.485 A): struts Si-(C6H4)3-Si, a diamond-like topology made amorphous, with the Si centres the only breaks in conjugation; the Si twin of tpm_phenylene_large, to compare how Si and C nodes interrupt conduction (GAFF 1.81 with UFF Si bonds and Lennard-Jones, params/gaff_si). Built large: a 60 A cell with 8 tetraphenylsilane seeds, then ten passes, each growing 60 blocks, joining clusters twice, zipping and a rigid-body optimisation with dihedrals. Then a closing phase: three rounds of a wide zip (3.0 A, 110 degrees, clash-checked) and an all-atom (flexible) optimisation, which closes rings, including across the periodic boundary so the framework spans the cell, and lets the blocks flex (docs/closing.md). Then Poreblazer on a 0.3 A grid, and liminal's pi-conduction analysis, with through-space couplings between stacked rings (conjugated domains, Hückel gap, conductance with and without tunnelling through the sp3 nodes; needs liminal). Sized for a Slurm node (resources). See docs/sp3-sp2-networks.md.",
+  "cell": {
+    "box": [
+      60,
+      60,
+      60
+    ],
+    "bond_margin": 0.5,
+    "bond_angle_margin": 15,
+    "typed_bond_lengths": true
+  },
+  "fragments": [
+    {
+      "type": "T",
+      "car": "tetraphenylsilane.car",
+      "csv": "tetraphenylsilane.csv",
+      "name": "tetraphenylsilane"
+    },
+    {
+      "type": "P",
+      "car": "benzene_14.car",
+      "csv": "benzene_14.csv",
+      "name": "benzene_14"
+    }
+  ],
+  "params": {
+    "angle_params.csv": "params/gaff_si/angle_params.csv",
+    "bond_params.csv": "params/gaff_si/bond_params.csv",
+    "dihedral_params.csv": "params/gaff_si/dihedral_params.csv",
+    "improper_params.csv": "params/gaff_si/improper_params.csv",
+    "pair_params.csv": "params/gaff_si/pair_params.csv"
+  },
+  "bond_types": [
+    "T:t-P:a"
+  ],
+  "stages": [
+    {
+      "op": "seed",
+      "count": 8,
+      "fragment_type": "T"
+    },
+    {
+      "repeat": 10,
+      "stages": [
+        {
+          "op": "grow",
+          "count": 60,
+          "max_tries": 50
+        },
+        {
+          "op": "join",
+          "count": 2,
+          "max_tries": 100
+        },
+        {
+          "op": "zip",
+          "bond_margin": 1.0,
+          "bond_angle_margin": 30
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": true,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "stages": [
+        {
+          "op": "zip",
+          "bond_margin": 3.0,
+          "bond_angle_margin": 110,
+          "clash_check": true
+        },
+        {
+          "op": "optimise",
+          "cycles": 20000,
+          "rigid_body": false,
+          "do_dihedral": true
+        }
+      ]
+    },
+    {
+      "op": "poreblazer",
+      "threads": 8,
+      "settings": {
+        "cubelet_size": 0.3
+      }
+    },
+    {
+      "op": "conduction",
+      "through_space": true
+    }
+  ],
+  "seed": 43,
+  "resources": {
+    "cpus": 8,
+    "memory_mb": 8000,
+    "time": "08:00:00"
+  }
+}

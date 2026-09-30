@@ -2531,7 +2531,8 @@ class Cell:
             results.append(result)
         return results
 
-    def conduction(self, liminal_exe=None, t_sp3=None, sp3_decay=None, max_bridge=None, max_dense=None):
+    def conduction(self, liminal_exe=None, t_sp3=None, sp3_decay=None, max_bridge=None, max_dense=None,
+                   through_space=False):
         """The π network's conjugated domains, Hückel gap and conductance, with tunnelling
         through sp3 atoms, from liminal (ambuild.conduction, docs/conduction.md).
 
@@ -2541,7 +2542,8 @@ class Cell:
         coupling through one sp3 carbon (eV); sp3_decay: its decay per extra sp3 atom;
         max_bridge: the longest sp3 chain followed; max_dense: the largest domain diagonalised
         (π sites). Each left as None uses liminal's own default: its calibrated couplings
-        (docs/conduction.md).
+        (docs/conduction.md). through_space: also couple π sites that aren't bonded (stacked
+        rings), with liminal's calibrated through-space terms; slower.
 
         The summary (ambuild.conduction.summarise, plus the file, directory and exit code)
         is recorded as a conduction_result event and the file as an artifact. Returns the
@@ -2560,7 +2562,8 @@ class Cell:
         self.writeTopology(os.path.join(directory, "structure.topology.json"), structure, kind="conduction_topology")
         out = os.path.join(directory, conduction.RESULTS)
         log = os.path.join(directory, "liminal.log")
-        code = conduction.runLiminal(command, structure, out, t_sp3, sp3_decay, max_bridge, max_dense, log)
+        code = conduction.runLiminal(command, structure, out, t_sp3, sp3_decay, max_bridge, max_dense, log,
+                                     throughSpace=through_space)
         result = {"returncode": code, "directory": directory, "log": self._relativeOutputPath(log)}
         if code == 0 and os.path.isfile(out):
             result.update(conduction.summarise(conduction.readResults(out)))

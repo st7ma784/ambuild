@@ -431,11 +431,17 @@ In order:
 - [ ] Conductivity estimates (liminal C3): thermally activated carriers and hopping between
   domains, checked against measured materials, including Si-noded frameworks that do and
   don't conduct. Until then conduction figures rank structures; they are not S/m.
-- [ ] Through-space π-π couplings in liminal (stacked rings in interpenetrated frameworks),
-  and the orientation dependence of node couplings (DFT: 0.18-0.78 eV for carbon), which the
-  model leaves out.
-- [ ] Si-noded frameworks in Ambuild: a tetraphenylsilane block needs Si force-field terms,
-  which GAFF 1.81 lacks (UFF, or GAFF2 if it covers them); liminal already treats Si nodes.
+- [x] Through-space π-π couplings in liminal, fitted to DFT on benzene dimers, and hopping
+  between domains (C3, first version); `through_space` on in the conduction recipes.
+- [x] Si-noded frameworks in Ambuild: a tetraphenylsilane block, `gaff_si` (UFF Si), and
+  `tps_phenylene_large`.
+- [ ] Calibrate hopping's reorganisation energy (DFT, four-point method on the domains' radical
+  cations) and check the three conduction views against measured conductivities, including
+  Si-noded frameworks that do and don't conduct.
+- [ ] The orientation dependence of node couplings (DFT: 0.18-0.78 eV for carbon), which the
+  model leaves out; through-space terms for T-shaped and edge-on contacts.
+- [ ] Faster coherent transmission with through-space couplings (recursive Green's functions
+  along the transport axis): about 15 minutes for a 5,500-site network now.
 - [x] Let trigonal sp2 carbons and the adamantane PAF's blocks flex, and close rings: the
   closing phase (`docs/closing.md`), a wide zip plus an all-atom optimisation, in the
   sp3-node recipes. It also found that the large builds had been trees whose frameworks

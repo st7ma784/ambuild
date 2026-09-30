@@ -216,6 +216,8 @@ OPERATIONS = {
                  "sp3_decay", minimum=0),
             _arg("max_bridge", "integer", None, "longest chain of sp3 atoms followed (default: liminal's, 3)",
                  "max_bridge", minimum=1),
+            _arg("through_space", "boolean", False, "add through-space couplings between non-bonded π sites "
+                 "(stacked rings; slower)", "through_space"),
             _arg("max_dense", "integer", None, "largest conjugated domain diagonalised (π sites; default 8000)",
                  "max_dense",
                  minimum=1),

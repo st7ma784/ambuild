@@ -54,7 +54,14 @@ class ConductionStage(unittest.TestCase):
         metrics = conduction.metrics(data)
         self.assertEqual((metrics["el_gap"], metrics["el_conductance"]), (2.0, 0.01))
         self.assertEqual((metrics["el_log_transmission"], metrics["el_log_transmission_min"]), (-17.5, -18.2))
+        self.assertEqual((metrics["el_log_hopping"], metrics["el_log_hopping_min"]), (-24.4, -26.7))
+        self.assertEqual(data["hopping_carrier"], "holes")
         self.assertEqual(data["coherent_axes"], {"x": 3e-18, "y": 0.0, "z": 6e-19})
+
+    def testThroughSpaceIsPassedOn(self):
+        ab_recipe.run(recipe(through_space=True), self.rundir, baseDir="/", liminalExe=FAKE)
+        with open(os.path.join(self.rundir, "conduction_1", "conduct.json")) as f:
+            self.assertEqual(json.load(f)["flags"], ["--out", "--through-space"])
 
     def testUnsetSettingsAreLeftToLiminal(self):
         """Without settings, Ambuild passes none, so liminal's calibrated defaults apply"""
