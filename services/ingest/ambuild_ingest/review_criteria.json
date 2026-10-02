@@ -1,6 +1,6 @@
 {
   "_doc": "What ambuild-review looks for (docs/mlflow.md, Review). Metrics are MLflow metric names; 'direction' is which way is better. Edit, or pass --criteria FILE.",
-  "strata": ["experiment", "params.cell/box"],
+  "strata": ["experiment", "params.cell/box:bin=10"],
   "min_stratum_size": 3,
   "gates": {
     "_doc": "a run must pass all of these (where it has the metric) to be picked as one of the best",
@@ -25,8 +25,9 @@
   },
   "top_k": 3,
   "outliers": {
-    "_doc": "robust z-score (median and MAD within the stratum) beyond this, on any of these metrics",
+    "_doc": "beyond both the robust z-score (median and MAD within the stratum) and Tukey's far-out fences (iqr_k x IQR beyond the quartiles), on any of these metrics",
     "z": 3.5,
+    "iqr_k": 3.0,
     "min_stratum_size": 8,
     "metrics": ["surface_area_m2_g", "pore_limiting_diameter_a", "void_fraction", "final_density",
                 "final_num_blocks", "el_log_transmission", "el_log_hopping", "el_conductance",
@@ -34,13 +35,13 @@
   },
   "stratified_quantiles": [0.1, 0.5, 0.9],
   "edge_cases": {
-    "_doc": "rules: each a list of conditions that must all hold; a metric missing fails its condition",
+    "_doc": "rules: each a list of conditions that must all hold; a metric missing fails its condition; stratum_quantile_min: at or above that quantile within the run's stratum (strata of at least outliers.min_stratum_size runs)",
     "porous_but_closed": [{"metric": "surface_area_m2_g", "min": 1000}, {"metric": "percolated_dimensions", "max": 0}],
-    "fragmented": [{"metric": "final_num_blocks", "min": 5}],
+    "fragmented": [{"metric": "final_num_blocks", "min": 5, "stratum_quantile_min": 0.95}],
     "spans_without_coherent_path": [{"metric": "el_conductance_min", "min": 1e-9}, {"metric": "el_log_transmission", "max": -40}],
     "conducts_through_radicals": [{"metric": "el_radical_domains", "min": 1}, {"metric": "el_conductance", "min": 1e-9}],
     "narrow_window_large_cage": [{"metric": "pore_window_ratio", "max": 0.3}, {"metric": "maximum_pore_diameter_a", "min": 10}],
-    "unfinished_network": [{"metric": "free_end_groups_per_1000_atoms", "min": 150}],
+    "unfinished_network": [{"metric": "free_end_groups_per_1000_atoms", "min": 150, "stratum_quantile_min": 0.95}],
     "failed": [{"status": "FAILED"}]
   }
 }

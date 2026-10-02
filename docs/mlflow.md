@@ -109,8 +109,9 @@ in production. It runs automatically:
 There is no timer. You can also run it by hand: `ambuild-review [--criteria FILE]
 [--report report.md]`.
 
-**Strata:** runs are compared only within their stratum, by default recipe × cell size, so
-a 30 Å test build is never ranked against a 60 Å production one.
+**Strata:** runs are compared only within their stratum, by default recipe × cell size in
+10 Å bins (`params.cell/box:bin=10`), so a 30 Å test build is never ranked against a 60 Å
+production one. Binning matters because sweeps and campaigns vary the cell continuously.
 
 **Scores:** within each stratum, each run's *porosity* and *conductance* scores (0–1) are
 the weighted mean of its percentile ranks on these metrics, each in its better direction:
@@ -130,7 +131,7 @@ A metric a recipe doesn't measure isn't a failure.
 | --- | --- |
 | `top_porosity`, `top_conductance`, `top_both` | the best 3 gated runs per stratum on each score, and on their mean |
 | `pareto` | gated runs that no other run beats on both porosity and conductance (across strata, as the scores are percentiles within them): the trade-off front |
-| `outlier` | in a stratum of at least 8, a robust z-score (median and MAD) of at least 3.5 on any of surface area, PLD, void fraction, density, blocks, transmission, hopping, conductance, build time or free end groups; `review.outliers` says which metrics, and which way |
+| `outlier` | in a stratum of at least 8, both a robust z-score (median and MAD) of at least 3.5 and outside Tukey's far-out fences (3 × IQR beyond the quartiles), on any of surface area, PLD, void fraction, density, blocks, transmission, hopping, conductance, build time or free end groups. Needing both keeps a second mode, such as a campaign's other regime, from counting as outliers. `review.outliers` says which metrics, and which way |
 | `good_outlier` | an outlier in the better direction of a scored metric that also passes the gates: an unusually good build, worth reproducing |
 | `stratified` | per stratum, the runs nearest the 10th, 50th and 90th percentiles of each score: a small reference set spanning the range, for regression and comparison tests |
 | `edge_case` | named rules (the `review.edge_cases` tag), listed below |
@@ -140,11 +141,11 @@ A metric a recipe doesn't measure isn't a failure.
 | Edge case | What it flags |
 | --- | --- |
 | `porous_but_closed` | surface area over 1,000 m²/g but no percolating pore |
-| `fragmented` | 5 or more separate frameworks |
+| `fragmented` | 5 or more separate frameworks, and more than 95% of its stratum |
 | `spans_without_coherent_path` | the resistor network spans every axis, but coherent transmission is below 10⁻⁴⁰ (interference or gaps) |
 | `conducts_through_radicals` | conducts, with radical π domains, whose levels inflate transmission |
 | `narrow_window_large_cage` | pore window ratio under 0.3 with a cage over 10 Å |
-| `unfinished_network` | over 150 free end groups per 1000 atoms |
+| `unfinished_network` | over 150 free end groups per 1000 atoms, and more than 95% of its stratum |
 | `failed` | the build failed |
 
 **Where to find the results:**
@@ -164,3 +165,12 @@ it, and point `AMBUILD_REVIEW_CRITERIA` (for the automatic reviews) or `--criter
 copy. You can change the gates, the score metrics and weights, the strata, the outlier
 threshold, the quantiles and the edge-case rules. `AMBUILD_REVIEW=0` turns the automatic
 reviews off.
+
+**On the first server data** (386 runs, 36 strata), the review picked:
+- **9 good outliers:** Li-ion carbon networks with pore limiting diameters of 7–12 Å, void
+  fractions of 0.75–0.89 and up to 11,700 m²/g, in a stratum where most are far less open;
+- **14** best for porosity, and **12** in the stratified reference set;
+- **30 edge cases:** 17 failed builds and 13 unusually unfinished ones.
+
+There was no conductance ranking or Pareto front yet, as none of those runs had a conduction
+stage.

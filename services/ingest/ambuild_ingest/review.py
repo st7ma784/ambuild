@@ -13,9 +13,9 @@ never ranked against a 60 Å production one. The criteria (review_criteria.json,
   - **top_porosity, top_conductance, top_both:** the best k gated runs per stratum;
   - **pareto:** gated runs no other run beats on both scores (across strata, as the scores
     are percentiles within them);
-  - **outlier:** robust z-scores (median and MAD within the stratum) beyond a threshold, on
-    any listed metric; good_outlier when the unusual direction is the better one of a scored
-    metric;
+  - **outlier:** beyond both a robust z-score threshold (median and MAD within the stratum)
+    and Tukey's far-out fences (iqr_k x IQR beyond the quartiles), on any listed metric;
+    good_outlier when the unusual direction is the better one of a scored metric;
   - **stratified:** per stratum, the runs nearest fixed quantiles of each score, a small
     reference set spanning the range, for regression tests;
   - **edge cases:** named rules (porous but closed, fragmented, spans without a coherent
@@ -67,18 +67,58 @@ def stratum(rec, criteria):
             parts.append(rec["experiment"][len(EXPERIMENT_PREFIX):] if rec["experiment"].startswith(EXPERIMENT_PREFIX)
                          else rec["experiment"])
         elif key.startswith("params."):
-            value = rec["params"].get(key[len("params."):])
-            parts.append("{0}={1}".format(key[len("params."):], value if value is not None else "?"))
+            name, _, binning = key[len("params."):].partition(":bin=")
+            value = rec["params"].get(name)
+            if value is not None and binning:  # numeric: its first number, into bins this wide
+                try:
+                    width = float(binning)
+                    low = width * int(float(str(value).split(",")[0]) // width)
+                    value = "{0:g}-{1:g}".format(low, low + width)
+                except ValueError:
+                    pass
+            parts.append("{0}={1}".format(name, value if value is not None else "?"))
     return " | ".join(parts)
 
 
-def _condition(rec, cond):
+def _condition(rec, cond, quantiles=None):
+    """Whether rec meets cond: a status, or a metric's min / max, or "stratum_quantile_min"
+    (strictly above that quantile of the metric within the run's stratum: unusual for its kind,
+    so a stratum where every run is alike flags none)"""
     if "status" in cond:
         return rec["status"] == cond["status"]
     v = rec["metrics"].get(cond["metric"])
     if v is None or (isinstance(v, float) and math.isnan(v)):
         return False
+    if "stratum_quantile_min" in cond:
+        q = (quantiles or {}).get((cond["metric"], cond["stratum_quantile_min"]))
+        if q is None or v <= q:
+            return False
     return ("min" not in cond or v >= cond["min"]) and ("max" not in cond or v <= cond["max"])
+
+
+def _quantile(values, q):
+    values = sorted(values)
+    pos = q * (len(values) - 1)
+    lo = int(math.floor(pos))
+    hi = min(lo + 1, len(values) - 1)
+    return values[lo] + (values[hi] - values[lo]) * (pos - lo)
+
+
+def stratumQuantiles(recs, rules, minSize):
+    """{(metric, q): value} for the stratum quantiles the edge-case rules use; none for a
+    stratum smaller than minSize (too few to say what's unusual)"""
+    out = {}
+    if len(recs) < minSize:
+        return out
+    for conds in rules.values():
+        if not isinstance(conds, list):
+            continue
+        for c in conds:
+            if "stratum_quantile_min" in c:
+                values = [r["metrics"][c["metric"]] for r in recs if isinstance(r["metrics"].get(c["metric"]), (int, float))]
+                if len(values) >= minSize:
+                    out[(c["metric"], c["stratum_quantile_min"])] = _quantile(values, c["stratum_quantile_min"])
+    return out
 
 
 def gateFailures(rec, gates):
@@ -188,8 +228,13 @@ def review(records, criteria):
                           if isinstance(r["metrics"].get(metric), (int, float)) and not math.isnan(r["metrics"][metric])}
                 if len(values) < oc.get("min_stratum_size", 8):
                     continue
+                q1, q3 = _quantile(list(values.values()), 0.25), _quantile(list(values.values()), 0.75)
+                fence = oc.get("iqr_k", 3.0)
+                low, high = q1 - fence * (q3 - q1), q3 + fence * (q3 - q1)
                 for rid, z in robustZ(values).items():
-                    if abs(z) >= oc.get("z", 3.5):
+                    # both robust z and Tukey's far-out fences: a second mode (a quarter of a
+                    # campaign in another regime) passes z alone but sits inside the fences
+                    if abs(z) >= oc.get("z", 3.5) and not (low <= values[rid] <= high):
                         side = "high" if z > 0 else "low"
                         out[rid]["outliers"].append("{0}_{1}".format(metric, side))
                         out[rid]["picks"].add("outlier")
@@ -206,11 +251,15 @@ def review(records, criteria):
               if not o["gates"] and o["porosity"] is not None and o["conductance"] is not None}
     for rid in pareto(points):
         out[rid]["picks"].add("pareto")
-    for r in records:
-        for name, conds in criteria.get("edge_cases", {}).items():
-            if not name.startswith("_") and all(_condition(r, c) for c in conds):
-                out[r["id"]]["edge_cases"].append(name)
-                out[r["id"]]["picks"].add("edge_case")
+    rules = criteria.get("edge_cases", {})
+    minSize = criteria.get("outliers", {}).get("min_stratum_size", 8)
+    for name, recs in strata.items():
+        quantiles = stratumQuantiles(recs, rules, minSize)
+        for r in recs:
+            for rule, conds in rules.items():
+                if not rule.startswith("_") and all(_condition(r, c, quantiles) for c in conds):
+                    out[r["id"]]["edge_cases"].append(rule)
+                    out[r["id"]]["picks"].add("edge_case")
     return out, strata
 
 
