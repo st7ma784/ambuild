@@ -146,7 +146,34 @@ def finalMetrics(events):
             v = conduction[-1].get(f)
             if isinstance(v, (int, float)) and not isinstance(v, bool):
                 metrics["el_" + f] = v
+    metrics.update(derivedMetrics(metrics))
     return metrics, history
+
+
+def derivedMetrics(m):
+    """Metrics computed from the others, for comparing runs of different sizes and shapes:
+    void_fraction (helium-accessible volume over the cell's), pore_window_ratio (pore limiting
+    over largest pore diameter: 1 is a uniform channel, near 0 cages behind narrow windows),
+    single_framework (one block: 1), el_spans_all (conducts along all three axes: 1),
+    free_end_groups_per_1000_atoms (how unfinished the network is), build_ms_per_atom"""
+    out = {}
+
+    def has(*keys):
+        return all(isinstance(m.get(k), (int, float)) for k in keys)
+
+    if has("helium_volume_a3", "system_volume_a3") and m["system_volume_a3"] > 0:
+        out["void_fraction"] = m["helium_volume_a3"] / m["system_volume_a3"]
+    if has("pore_limiting_diameter_a", "maximum_pore_diameter_a") and m["maximum_pore_diameter_a"] > 0:
+        out["pore_window_ratio"] = m["pore_limiting_diameter_a"] / m["maximum_pore_diameter_a"]
+    if has("final_num_blocks"):
+        out["single_framework"] = 1.0 if m["final_num_blocks"] == 1 else 0.0
+    if has("el_conductance_min"):
+        out["el_spans_all"] = 1.0 if m["el_conductance_min"] > 0 else 0.0
+    if has("final_num_free_endgroups", "final_num_particles") and m["final_num_particles"] > 0:
+        out["free_end_groups_per_1000_atoms"] = 1000.0 * m["final_num_free_endgroups"] / m["final_num_particles"]
+    if has("final_build_seconds", "final_num_particles") and m["final_num_particles"] > 0:
+        out["build_ms_per_atom"] = 1000.0 * m["final_build_seconds"] / m["final_num_particles"]
+    return out
 
 
 def _millis(text):
