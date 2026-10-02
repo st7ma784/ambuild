@@ -19,7 +19,7 @@ x-ingest-env: &ingest-env
   AWS_DEFAULT_REGION: us-east-1
   # Finished runs are logged to MLflow too (docs/mlflow.md); unreachable: a warning, no failure
   MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
-  AMBUILD_WEB_URL: ${AMBUILD_WEB_URL:-}
+  AMBUILD_PUBLIC_URL: ${AMBUILD_PUBLIC_URL:-}
   AMBUILD_MLFLOW_URL: ${AMBUILD_MLFLOW_URL:-http://127.0.0.1:5050}
 
 services:

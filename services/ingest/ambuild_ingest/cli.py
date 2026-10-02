@@ -14,7 +14,7 @@ Examples:
 Configuration comes from the environment: DATABASE_URL (a libpq connection string),
 AMBUILD_S3_BUCKET, AMBUILD_S3_PREFIX, S3_ENDPOINT_URL, AWS_ACCESS_KEY_ID and
 AWS_SECRET_ACCESS_KEY. With MLFLOW_TRACKING_URI set, finished runs are also logged to MLflow
-(ambuild_ingest.mlflow_log; AMBUILD_WEB_URL adds a link back to each run's page).
+(ambuild_ingest.mlflow_log; AMBUILD_PUBLIC_URL adds a link back to each run's page).
 """
 import argparse
 import logging

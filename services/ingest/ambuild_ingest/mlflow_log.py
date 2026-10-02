@@ -14,7 +14,7 @@ logged.
   ion (li_, na_, k_), the latest conduction result (el_); and the build's history per step
   (step/density, step/num_particles, step/num_blocks).
 
-Configuration: MLFLOW_TRACKING_URI (none: nothing is logged) and AMBUILD_WEB_URL (optional:
+Configuration: MLFLOW_TRACKING_URI (none: nothing is logged) and AMBUILD_PUBLIC_URL (optional:
 a link back to each run's page). MLflow being down never fails an upload: a warning is
 logged instead. Needs mlflow-skinny (pip install "ambuild-ingest[mlflow]").
 """
@@ -165,7 +165,7 @@ class Logger:
 
     def __init__(self, uri=None, webUrl=None, client=None):
         self.uri = uri or trackingUri()
-        self.webUrl = (webUrl if webUrl is not None else os.environ.get("AMBUILD_WEB_URL", "")).rstrip("/")
+        self.webUrl = (webUrl if webUrl is not None else os.environ.get("AMBUILD_PUBLIC_URL", "")).rstrip("/")
         if client is None:
             os.environ.setdefault("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "2")
             os.environ.setdefault("MLFLOW_HTTP_REQUEST_TIMEOUT", "20")

@@ -40,7 +40,7 @@ uploader's scans.
 | Variable | Default (compose) | |
 | --- | --- | --- |
 | `MLFLOW_TRACKING_URI` | `http://mlflow:5000` | the tracking server; unset: nothing is logged |
-| `AMBUILD_WEB_URL` | empty | the web GUI's address, for `ambuild.url` links |
+| `AMBUILD_PUBLIC_URL` | empty | the web GUI's address as people reach it (e.g. `http://scc-hdd-01:8080`), for `ambuild.url` links |
 | `AMBUILD_MLFLOW_URL` | `http://127.0.0.1:5050` | the MLflow UI's address, for the web GUI's **MLflow** link |
 
 The uploader needs `mlflow-skinny`: `pip install "ambuild-ingest[mlflow]"`. The published
@@ -68,7 +68,7 @@ docker compose -f deploy/docker-compose.yml --profile web up -d    # includes ML
 ```
 
 **Slurm and slurmrestd jobs** upload from the cluster, so set `MLFLOW_TRACKING_URI` (and
-`AMBUILD_WEB_URL`) in their environment too, as for `DATABASE_URL`
+`AMBUILD_PUBLIC_URL`) in their environment too, as for `DATABASE_URL`
 ([deployment.md](deployment.md)), with an address the compute nodes can reach.
 
 **Using it from Python:** point MLflow's client at the server; MLflow ≥ 2.17 works. For
