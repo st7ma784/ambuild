@@ -30,7 +30,7 @@ def test_the_best_are_picked_within_their_stratum_and_gated(criteria):
     runs.append(rec(10, surface_area_m2_g=9999.0, el_log_transmission=0.0, percolated_dimensions=0))  # fails a gate
     runs += [rec(20 + i, box="30,30,30", surface_area_m2_g=50.0 + i) for i in range(4)]  # another stratum, worse values
     results, strata = review.review(runs, criteria)
-    assert set(strata) == {"graphyne | cell/box=60,60,60", "graphyne | cell/box=30,30,30"}
+    assert set(strata) == {"graphyne | cell/box=60-70", "graphyne | cell/box=30-40"}
     top = {rid for rid, o in results.items() if "top_porosity" in o["picks"]}
     assert {"r9", "r8", "r7"} <= top  # the best of the 60 A stratum
     assert "r10" not in top and results["r10"]["gates"] == ["percolated_dimensions"]
@@ -56,16 +56,45 @@ def test_outliers_and_good_outliers(criteria):
     assert not any(o["outliers"] for o in review.review(small, criteria)[0].values())  # too few to judge
 
 
+def test_a_second_mode_is_not_outliers(criteria):
+    """A quarter of the stratum in another regime: not outliers, though their robust z is huge"""
+    runs = [rec(i, pore_limiting_diameter_a=8.0 + 0.1 * (i % 5)) for i in range(30)]
+    runs += [rec(100 + i, pore_limiting_diameter_a=12.0 + 0.1 * (i % 5)) for i in range(10)]
+    results, _ = review.review(runs, criteria)
+    assert not any("pore_limiting_diameter_a_high" in o["outliers"] for o in results.values())
+    runs.append(rec(200, pore_limiting_diameter_a=40.0))  # far beyond both modes
+    out = review.review(runs, criteria)[0]["r200"]
+    assert "pore_limiting_diameter_a_high" in out["outliers"] and "good_outlier" in out["picks"]
+
+
 def test_edge_cases(criteria):
-    runs = [rec(1, surface_area_m2_g=3000.0, percolated_dimensions=0), rec(2, final_num_blocks=6),
+    runs = [rec(1, surface_area_m2_g=3000.0, percolated_dimensions=0), rec(2, final_num_blocks=6, box="40,40,40"),
             rec(3, el_radical_domains=4, el_conductance=0.05), rec(4, status="FAILED"),
             rec(5, el_conductance_min=0.01, el_log_transmission=-80.0)]
     results, _ = review.review(runs, criteria)
     assert results["r1"]["edge_cases"] == ["porous_but_closed"]
-    assert "fragmented" in results["r2"]["edge_cases"]
+    assert "fragmented" not in results["r2"]["edge_cases"]  # alone in its stratum: nothing to be unusual against
     assert "conducts_through_radicals" in results["r3"]["edge_cases"] and results["r3"]["gates"] == ["el_radical_domains"]
     assert "failed" in results["r4"]["edge_cases"] and "status" in results["r4"]["gates"]
     assert "spans_without_coherent_path" in results["r5"]["edge_cases"]
+
+
+def test_fragmented_and_unfinished_are_relative_to_the_stratum(criteria):
+    """Small campaign builds are all in pieces; only the unusual ones among them are flagged"""
+    runs = [rec(i, final_num_blocks=6, free_end_groups_per_1000_atoms=200.0) for i in range(12)]
+    runs.append(rec(40, final_num_blocks=40, free_end_groups_per_1000_atoms=400.0))
+    results, _ = review.review(runs, criteria)
+    flagged = {rid for rid, o in results.items() if o["edge_cases"]}
+    assert flagged == {"r40"} and set(results["r40"]["edge_cases"]) == {"fragmented", "unfinished_network"}
+    alike = [rec(i, final_num_blocks=6, free_end_groups_per_1000_atoms=200.0) for i in range(12)]
+    assert not any(o["edge_cases"] for o in review.review(alike, criteria)[0].values())
+
+
+def test_cell_sizes_are_binned(criteria):
+    a, b, c = rec(1, box="21.76,21.76,21.76"), rec(2, box="28.2,28.2,28.2"), rec(3, box="30,30,30")
+    s = [review.stratum(r, criteria) for r in (a, b, c)]
+    assert s[0] == s[1] == "graphyne | cell/box=20-30" and s[2] == "graphyne | cell/box=30-40"
+    assert review.stratum(dict(rec(4), params={}), criteria) == "graphyne | cell/box=?"
 
 
 def test_the_stratified_set_spans_each_score(criteria):
