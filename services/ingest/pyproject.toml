@@ -17,9 +17,10 @@ mlflow = ["mlflow-skinny>=2.17"]
 
 [project.scripts]
 ambuild-upload = "ambuild_ingest.cli:main"
+ambuild-review = "ambuild_ingest.review:main"
 
 [tool.setuptools]
 packages = ["ambuild_ingest"]
 
 [tool.setuptools.package-data]
-ambuild_ingest = ["schema.sql"]
+ambuild_ingest = ["schema.sql", "review_criteria.json"]

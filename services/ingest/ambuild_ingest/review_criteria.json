@@ -1,0 +1,46 @@
+{
+  "_doc": "What ambuild-review looks for (docs/mlflow.md, Review). Metrics are MLflow metric names; 'direction' is which way is better. Edit, or pass --criteria FILE.",
+  "strata": ["experiment", "params.cell/box"],
+  "min_stratum_size": 3,
+  "gates": {
+    "_doc": "a run must pass all of these (where it has the metric) to be picked as one of the best",
+    "status": "FINISHED",
+    "percolated_dimensions": {"min": 1},
+    "pore_limiting_diameter_a": {"min": 1.52},
+    "el_radical_domains": {"max": 0}
+  },
+  "scores": {
+    "porosity": {
+      "surface_area_m2_g": {"direction": "max", "weight": 1.0},
+      "pore_limiting_diameter_a": {"direction": "max", "weight": 1.0},
+      "void_fraction": {"direction": "max", "weight": 0.5},
+      "percolated_dimensions": {"direction": "max", "weight": 0.5}
+    },
+    "conductance": {
+      "el_log_transmission": {"direction": "max", "weight": 1.0},
+      "el_log_hopping": {"direction": "max", "weight": 1.0},
+      "el_conductance_min": {"direction": "max", "weight": 0.5},
+      "el_spans_all": {"direction": "max", "weight": 0.5}
+    }
+  },
+  "top_k": 3,
+  "outliers": {
+    "_doc": "robust z-score (median and MAD within the stratum) beyond this, on any of these metrics",
+    "z": 3.5,
+    "min_stratum_size": 8,
+    "metrics": ["surface_area_m2_g", "pore_limiting_diameter_a", "void_fraction", "final_density",
+                "final_num_blocks", "el_log_transmission", "el_log_hopping", "el_conductance",
+                "final_build_seconds", "free_end_groups_per_1000_atoms"]
+  },
+  "stratified_quantiles": [0.1, 0.5, 0.9],
+  "edge_cases": {
+    "_doc": "rules: each a list of conditions that must all hold; a metric missing fails its condition",
+    "porous_but_closed": [{"metric": "surface_area_m2_g", "min": 1000}, {"metric": "percolated_dimensions", "max": 0}],
+    "fragmented": [{"metric": "final_num_blocks", "min": 5}],
+    "spans_without_coherent_path": [{"metric": "el_conductance_min", "min": 1e-9}, {"metric": "el_log_transmission", "max": -40}],
+    "conducts_through_radicals": [{"metric": "el_radical_domains", "min": 1}, {"metric": "el_conductance", "min": 1e-9}],
+    "narrow_window_large_cage": [{"metric": "pore_window_ratio", "max": 0.3}, {"metric": "maximum_pore_diameter_a", "min": 10}],
+    "unfinished_network": [{"metric": "free_end_groups_per_1000_atoms", "min": 150}],
+    "failed": [{"status": "FAILED"}]
+  }
+}

@@ -16,6 +16,13 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- **MLflow review** (`ambuild-review`; `docs/mlflow.md`, Review): it picks the runs worth looking at in production, from everything in MLflow, comparing runs within strata (recipe × cell size).
+  - **Scores:** porosity and conductance, as within-stratum percentiles.
+  - **Gates:** finished, percolating, PLD at least 1.52 Å, no radical domains.
+  - **Picks:** the best per stratum; the Pareto front across both scores; robust outliers, with good ones flagged separately; a stratified reference set at the 10th, 50th and 90th percentiles; named edge cases.
+  - **Results:** tags on every run, and a review run per pass with `report.md`, `picks.csv` and the criteria; the latest report is the review experiment's description.
+  - **When it runs:** after uploads that log runs, and at stack start-up, never on a timer. The criteria are a JSON file.
+- **Derived metrics logged per run:** `void_fraction`, `pore_window_ratio`, `single_framework`, `el_spans_all`, `free_end_groups_per_1000_atoms`, `build_ms_per_atom`.
 - **MLflow** (`docs/mlflow.md`): every finished run is logged to an MLflow tracking server by `ambuild-upload`, so it covers runs from the agent, Slurm and slurmrestd alike.
   - **What's logged:** the recipe flattened by the JSON-pointer paths sweeps vary, plus the seed, as parameters; the final build, Poreblazer, ion-map and conduction results as metrics, with the density, atoms and blocks per step; `recipe.json` and `run.json` as artifacts; tags linking back to the run's page.
   - **Repeatable:** runs are found again by their `ambuild.run_id` tag, so uploading again changes nothing. MLflow being down never fails an upload.

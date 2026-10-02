@@ -57,8 +57,10 @@ class FakeClient:
     def set_tag(self, rid, k, v):
         self.runs[rid]["tags"][k] = v
 
-    def log_batch(self, rid, metrics=(), params=()):
-        assert len(params) <= 100 and len(metrics) <= 1000
+    def log_batch(self, rid, metrics=(), params=(), tags=()):
+        assert len(params) <= 100 and len(metrics) <= 1000 and len(tags) <= 100
+        for t in tags:
+            self.runs[rid]["tags"][t.key] = t.value
         for p in params:
             old = self.runs[rid]["params"].get(p.key)
             assert old in (None, p.value), "MLflow refuses to change a logged parameter"
@@ -69,7 +71,7 @@ class FakeClient:
         with open(path) as f:
             self.runs[rid]["artifacts"].append((os.path.basename(path), json.load(f)))
 
-    def set_terminated(self, rid, status, end_time=None):
+    def set_terminated(self, rid, status="FINISHED", end_time=None):
         self.runs[rid]["status"], self.runs[rid]["end"] = status, end_time
 
 

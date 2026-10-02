@@ -14,7 +14,9 @@ Examples:
 Configuration comes from the environment: DATABASE_URL (a libpq connection string),
 AMBUILD_S3_BUCKET, AMBUILD_S3_PREFIX, S3_ENDPOINT_URL, AWS_ACCESS_KEY_ID and
 AWS_SECRET_ACCESS_KEY. With MLFLOW_TRACKING_URI set, finished runs are also logged to MLflow
-(ambuild_ingest.mlflow_log; AMBUILD_PUBLIC_URL adds a link back to each run's page).
+(ambuild_ingest.mlflow_log; AMBUILD_PUBLIC_URL adds a link back to each run's page), and
+whenever any were logged, ambuild-review picks the runs worth looking at (AMBUILD_REVIEW=0:
+don't; AMBUILD_REVIEW_CRITERIA: a criteria file).
 """
 import argparse
 import logging
@@ -151,9 +153,11 @@ def main(argv=None):
 
             logged, skipped, failed = backfill(conn, store, tracker)
             print("mlflow: logged {0}, already logged {1}, failed {2}".format(logged, skipped, failed))
+            reviewAfter(tracker)
             if not (args.rundirs or args.scan):
                 return 1 if failed else 0
         failures = 0
+        loggedAny = False
         for rundir, finalise in selectRuns(args):
             try:
                 summary = uploadRun(rundir, store, conn, finalise=finalise)
@@ -170,11 +174,30 @@ def main(argv=None):
 
                     run = dict(rundir.run, status=summary["status"])
                     try:
-                        tracker.log(run, rundir.events(), readRecipe(rundir))
+                        loggedAny = tracker.log(run, rundir.events(), readRecipe(rundir)) is not None or loggedAny
                     except Exception:
                         logger.exception("Uploaded %s, but could not log it to MLflow", rundir.path)
             print("{run_id} {status} events={events} files={files} uploaded={uploaded}".format(**summary))
+        if loggedAny:
+            reviewAfter(tracker)
     return 1 if failures else 0
+
+
+def reviewAfter(tracker):
+    """Refresh the MLflow review (ambuild_ingest.review) after logging; never fails the upload"""
+    if tracker is None or os.environ.get("AMBUILD_REVIEW", "1") == "0":
+        return
+    import contextlib
+    import io
+
+    from ambuild_ingest import review
+
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            review.run(tracker.client, review.loadCriteria(os.environ.get("AMBUILD_REVIEW_CRITERIA") or None),
+                       os.environ.get("AMBUILD_MLFLOW_URL", ""))
+    except Exception:
+        logger.exception("Could not refresh the MLflow review")
 
 
 if __name__ == "__main__":
