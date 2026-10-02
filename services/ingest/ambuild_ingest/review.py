@@ -47,6 +47,7 @@ from ambuild_ingest.mlflow_log import EXPERIMENT_PREFIX, RUN_TAG, derivedMetrics
 logger = logging.getLogger(__name__)
 
 REVIEW_EXPERIMENT = "ambuild/review"
+NOTE_LIMIT = 5000  # characters: MLflow's limit on a tag, the experiment's description included
 CRITERIA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "review_criteria.json")
 TAGS = ("review.picks", "review.edge_cases", "review.outliers", "review.porosity_score", "review.conductance_score",
         "review.stratum", "review.gates")
@@ -366,10 +367,19 @@ def run(client, criteria=None, mlflowUrl="", log=logger.info):
                 f.write(text)
             client.log_artifact(rv.info.run_id, path)
     client.set_terminated(rv.info.run_id)
-    client.set_experiment_tag(experimentId, "mlflow.note.content", markdown[:60000])
+    client.set_experiment_tag(experimentId, "mlflow.note.content", note(markdown, rv.info.run_id))
     summary = dict(runs=len(records), strata=len(strata), tagged=changed, review_run=rv.info.run_id, **counts)
     log("review: {0}".format(summary))
     return summary
+
+
+def note(markdown, reviewRunId, limit=NOTE_LIMIT):
+    """The report cut to fit MLflow's tag limit at a line break, pointing at the full one"""
+    tail = "\n\n… cut to fit; the full report is report.md in review run {0}.\n".format(reviewRunId)
+    if len(markdown) <= limit:
+        return markdown
+    cut = markdown[:limit - len(tail)]
+    return cut[:cut.rfind("\n")] + tail
 
 
 def main(argv=None):

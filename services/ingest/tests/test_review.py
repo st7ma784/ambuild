@@ -140,3 +140,10 @@ def test_a_review_against_a_stand_in_client(criteria):
     best = next(r for r in client.runs.values() if r["tags"].get("ambuild.run_id") == "run-4")
     assert "top_porosity" in best["tags"]["review.picks"]
     assert review.run(client, criteria)["tagged"] == 0  # nothing changed: no tag writes
+
+
+def test_the_description_fits_mlflows_limit():
+    long = "# Ambuild run review\n" + "\n".join("| row {0} | x |".format(i) for i in range(2000))
+    cut = review.note(long, "abc")
+    assert len(cut) <= review.NOTE_LIMIT and cut.endswith("review run abc.\n") and "| row 0 |" in cut
+    assert review.note("short", "abc") == "short"
