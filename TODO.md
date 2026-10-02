@@ -428,6 +428,8 @@ In order:
 - [x] Calibrate conduction (liminal C1) and add coherent transmission (C2): node couplings
   from PBE0/def2-SVP splittings (C 0.60 eV, Si 0.33 eV), Landauer transmission with
   interference, as `el_log_transmission` metrics (`docs/conduction.md`).
+- [x] MLflow: the uploader logs every finished run's recipe settings, seed and final
+  properties to a tracking server in the stack (`docs/mlflow.md`).
 - [ ] Conductivity estimates (liminal C3): thermally activated carriers and hopping between
   domains, checked against measured materials, including Si-noded frameworks that do and
   don't conduct. Until then conduction figures rank structures; they are not S/m.

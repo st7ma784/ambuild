@@ -13,6 +13,7 @@ dependencies = ["psycopg[binary]>=3.1", "boto3>=1.28"]
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+mlflow = ["mlflow-skinny>=2.17"]
 
 [project.scripts]
 ambuild-upload = "ambuild_ingest.cli:main"

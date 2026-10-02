@@ -23,6 +23,7 @@
       <a href="/submit" {% if path.startswith('/submit') %}aria-current="page"{% endif %}>New run</a>
       <a href="/status" {% if path.startswith('/status') %}aria-current="page"{% endif %}>Status</a>
       <a href="/api/docs">API</a>
+      {% if mlflow_url %}<a href="{{ mlflow_url }}" title="every finished run's recipe settings and results, in MLflow">MLflow</a>{% endif %}
     </nav>
     <form class="owner" method="post" action="/owner">
       <label for="owner-name">{% if owner %}You are{% else %}Your name{% endif %}</label>

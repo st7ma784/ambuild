@@ -72,7 +72,7 @@ FROM with-poreblazer AS ambuild-agent
 USER root
 COPY services/ingest /tmp/ingest
 COPY services/agent /tmp/agent
-RUN pip install --no-cache-dir /tmp/ingest /tmp/agent \
+RUN pip install --no-cache-dir "/tmp/ingest[mlflow]" /tmp/agent \
  && rm -rf /tmp/ingest /tmp/agent \
  && find /opt/env -name "__pycache__" -prune -exec rm -rf {} +
 COPY deploy/slurm/*.sh deploy/slurm/*.sbatch /opt/ambuild-slurm/

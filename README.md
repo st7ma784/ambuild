@@ -272,6 +272,7 @@ through Docker Compose ([deploy/README.md](deploy/README.md)).
 | [docs/ctf-networks.md](docs/ctf-networks.md) | large covalent triazine frameworks: triazines, benzenes and alkynes in 60 Å cells |
 | [docs/carbon-families.md](docs/carbon-families.md) | porous aromatic frameworks (PAF-1, adamantane), graphyne and graphdiyne; the recipe gallery |
 | [docs/sp3-sp2-networks.md](docs/sp3-sp2-networks.md) | tetraphenylmethane nodes (four sp² arms per sp³ carbon) in phenylene or sp² networks |
+| [docs/mlflow.md](docs/mlflow.md) | MLflow: every finished run's recipe settings, seed and final properties, logged by the uploader; the tracking server in the compose stack |
 | [docs/conduction.md](docs/conduction.md) | the `conduction` stage: π domains, Hückel gap and conductance with sp³ tunnelling (liminal), as campaign metrics |
 | [docs/benchmarks.md](docs/benchmarks.md) | HOOMD-blue and Poreblazer performance |
 | [docs/install.md](docs/install.md) | Docker and NVIDIA set-up on a Linux host |

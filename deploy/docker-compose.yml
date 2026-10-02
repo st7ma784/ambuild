@@ -5,6 +5,7 @@
 #   docker compose -f deploy/docker-compose.yml run --rm uploader --scan /runs
 #   docker compose -f deploy/docker-compose.yml --profile test run --rm ingest-test
 #   docker compose -f deploy/docker-compose.yml --profile web up     # web GUI demo on http://127.0.0.1:8080
+#                                                                    # and MLflow on http://127.0.0.1:5050
 #   docker compose -f deploy/docker-compose.yml --profile web-test run --rm --build web-test
 #   docker compose -f deploy/docker-compose.yml --profile agent-test run --rm --build agent-test
 name: ambuild
@@ -16,6 +17,10 @@ x-ingest-env: &ingest-env
   AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-ambuild}
   AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-ambuild-dev-secret}
   AWS_DEFAULT_REGION: us-east-1
+  # Finished runs are logged to MLflow too (docs/mlflow.md); unreachable: a warning, no failure
+  MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+  AMBUILD_WEB_URL: ${AMBUILD_WEB_URL:-}
+  AMBUILD_MLFLOW_URL: ${AMBUILD_MLFLOW_URL:-http://127.0.0.1:5050}
 
 services:
   postgres:
@@ -75,6 +80,35 @@ services:
       postgres: {condition: service_healthy}
       init: {condition: service_completed_successfully}
     profiles: ["test"]
+
+  mlflow:
+    # The MLflow tracking server (docs/mlflow.md): runs in PostgreSQL's "mlflow" database,
+    # artifacts in the S3 store under s3://ambuild-mlflow
+    build: {context: mlflow}
+    image: ambuild-mlflow
+    environment:
+      MLFLOW_DATABASE_URL: postgresql://ambuild:${POSTGRES_PASSWORD:-ambuild-dev}@postgres:5432/mlflow
+      MLFLOW_ARTIFACTS_DESTINATION: s3://${AMBUILD_MLFLOW_BUCKET:-ambuild-mlflow}
+      MLFLOW_S3_ENDPOINT_URL: http://seaweedfs:8333
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-ambuild}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-ambuild-dev-secret}
+      AWS_DEFAULT_REGION: us-east-1
+    ports: ["127.0.0.1:${AMBUILD_MLFLOW_PORT:-5050}:5000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      seaweedfs: {condition: service_healthy}
+    profiles: ["web", "mlflow"]
+
+  mlflow-backfill:
+    # Logs the runs already in the database to MLflow (those not yet logged); safe to rerun
+    build: {context: .., dockerfile: services/ingest/Dockerfile, target: uploader}
+    image: ambuild-ingest
+    environment: *ingest-env
+    command: ["--mlflow-backfill"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+      mlflow: {condition: service_healthy}
+    profiles: ["web", "mlflow"]
 
   web:
     # The web GUI (services/web; docs/web-gui.md)
