@@ -11,6 +11,7 @@ class Settings:
     s3_prefix: str = ""
     s3_endpoint_url: str = ""  # empty: AWS itself
     title: str = "Ambuild"
+    mlflow_url: str = ""  # the MLflow UI for these runs (docs/mlflow.md); empty: no link
     check_timeout: float = 3.0  # seconds, per dependency check
 
     @classmethod
@@ -21,6 +22,7 @@ class Settings:
             s3_prefix=os.environ.get("AMBUILD_S3_PREFIX", ""),
             s3_endpoint_url=os.environ.get("S3_ENDPOINT_URL", ""),
             title=os.environ.get("AMBUILD_WEB_TITLE", "Ambuild"),
+            mlflow_url=os.environ.get("AMBUILD_MLFLOW_URL", ""),
             check_timeout=float(os.environ.get("AMBUILD_WEB_CHECK_TIMEOUT", "3")),
         )
 

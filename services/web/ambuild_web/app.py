@@ -24,7 +24,7 @@ def createApp(settings=None):
     formatting.install(templates.env)
 
     def page(request, template, **context):
-        context.update(request=request, title=settings.title, owner=identity.currentUser(request),
+        context.update(request=request, title=settings.title, mlflow_url=settings.mlflow_url, owner=identity.currentUser(request),
                        version=__version__, path=request.url.path)
         return templates.TemplateResponse(request, template, context)
 

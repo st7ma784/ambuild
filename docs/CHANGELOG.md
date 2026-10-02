@@ -16,6 +16,12 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- **MLflow** (`docs/mlflow.md`): every finished run is logged to an MLflow tracking server by `ambuild-upload`, so it covers runs from the agent, Slurm and slurmrestd alike.
+  - **What's logged:** the recipe flattened by the JSON-pointer paths sweeps vary, plus the seed, as parameters; the final build, Poreblazer, ion-map and conduction results as metrics, with the density, atoms and blocks per step; `recipe.json` and `run.json` as artifacts; tags linking back to the run's page.
+  - **Repeatable:** runs are found again by their `ambuild.run_id` tag, so uploading again changes nothing. MLflow being down never fails an upload.
+  - **Backfill:** `ambuild-upload --mlflow-backfill` logs the runs already in the database.
+  - **The server:** an `mlflow` service in the compose stack (`deploy/mlflow`; MLflow 2.22). Runs go in PostgreSQL's `mlflow` database and artifacts in the S3 store; it's on port 5050, and an `mlflow-backfill` service runs at start-up.
+  - **The web GUI** links to it (`AMBUILD_MLFLOW_URL`).
 - **Si-noded frameworks:**
   - **A `tetraphenylsilane` block:** Si(C₆H₄)₄, Si–C 1.87 Å. It's made by the new `scripts/make_tetraphenyl.py`, which also reproduces the tetraphenylmethane block byte for byte.
   - **A `gaff_si` parameter set:** Si bonds (measured r0, UFF force constants) and Lennard-Jones terms from UFF; angles and dihedrals as GAFF `c3` (its README gives every source).

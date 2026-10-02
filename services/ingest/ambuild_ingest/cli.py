@@ -8,9 +8,13 @@ Examples:
     # changed for a day (its job presumably died), and was not uploaded since
     ambuild-upload --scan /runs --stale-after 86400
 
+    # Log every run already in the database to MLflow (those not yet logged)
+    ambuild-upload --mlflow-backfill
+
 Configuration comes from the environment: DATABASE_URL (a libpq connection string),
 AMBUILD_S3_BUCKET, AMBUILD_S3_PREFIX, S3_ENDPOINT_URL, AWS_ACCESS_KEY_ID and
-AWS_SECRET_ACCESS_KEY.
+AWS_SECRET_ACCESS_KEY. With MLFLOW_TRACKING_URI set, finished runs are also logged to MLflow
+(ambuild_ingest.mlflow_log; AMBUILD_PUBLIC_URL adds a link back to each run's page).
 """
 import argparse
 import logging
@@ -69,10 +73,14 @@ def parseArgs(argv):
     parser.add_argument(
         "--init", action="store_true", help="create the database tables and the bucket, and exit"
     )
+    parser.add_argument(
+        "--mlflow-backfill", action="store_true",
+        help="log every run in the database to MLflow (MLFLOW_TRACKING_URI) that isn't logged yet",
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
-    if not (args.rundirs or args.scan or args.init):
-        parser.error("give RUNDIR arguments, --scan DIR or --init")
+    if not (args.rundirs or args.scan or args.init or args.mlflow_backfill):
+        parser.error("give RUNDIR arguments, --scan DIR, --init or --mlflow-backfill")
     if args.stale_after is not None and not args.scan:
         parser.error("--stale-after needs --scan")
     return args
@@ -99,6 +107,25 @@ def selectRuns(args):
     return selected
 
 
+def mlflowLogger():
+    """An MLflow logger, or None: without MLFLOW_TRACKING_URI, or with the server unreachable
+    (a warning: uploads go on without it)"""
+    from ambuild_ingest import mlflow_log
+
+    uri = mlflow_log.trackingUri()
+    if not uri:
+        return None
+    if not mlflow_log.reachable(uri):
+        logger.warning("MLflow at %s is not reachable: runs are not logged there this time", uri)
+        return None
+    try:
+        return mlflow_log.Logger(uri)
+    except ImportError:
+        logger.warning("MLFLOW_TRACKING_URI is set but mlflow-skinny is not installed: "
+                       "pip install 'ambuild-ingest[mlflow]'")
+        return None
+
+
 def main(argv=None):
     args = parseArgs(sys.argv[1:] if argv is None else argv)
     logging.basicConfig(
@@ -116,6 +143,16 @@ def main(argv=None):
         if args.init:
             store.ensureBucket()
             return 0
+        tracker = mlflowLogger()
+        if args.mlflow_backfill:
+            if tracker is None:
+                raise SystemExit("--mlflow-backfill needs MLFLOW_TRACKING_URI and a reachable MLflow server")
+            from ambuild_ingest.mlflow_log import backfill
+
+            logged, skipped, failed = backfill(conn, store, tracker)
+            print("mlflow: logged {0}, already logged {1}, failed {2}".format(logged, skipped, failed))
+            if not (args.rundirs or args.scan):
+                return 1 if failed else 0
         failures = 0
         for rundir, finalise in selectRuns(args):
             try:
@@ -128,6 +165,14 @@ def main(argv=None):
             if summary["status"] != "running":
                 with open(os.path.join(rundir.path, MARKER_FILE), "w") as f:
                     f.write(summary["status"] + "\n")
+                if tracker is not None:
+                    from ambuild_ingest.mlflow_log import readRecipe
+
+                    run = dict(rundir.run, status=summary["status"])
+                    try:
+                        tracker.log(run, rundir.events(), readRecipe(rundir))
+                    except Exception:
+                        logger.exception("Uploaded %s, but could not log it to MLflow", rundir.path)
             print("{run_id} {status} events={events} files={files} uploaded={uploaded}".format(**summary))
     return 1 if failures else 0
 
