@@ -1,6 +1,7 @@
 # AmPorSandbox: models that predict a build's results from its recipe
 
-Status: specification, not yet built.
+Status: specification, not yet built. Its sibling models for lab data are Stacey
+(`docs/stacey-spec.md`) and MUM (`docs/mum-spec.md`); all three are to live in this repository.
 
 **AmPorSandbox** (Amps + Pore + sandbox) trains models that predict, from a recipe alone,
 what a build will produce:
