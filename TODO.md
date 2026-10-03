@@ -432,6 +432,13 @@ In order:
   build time and failure from a recipe, trained on runs in MLflow and logged back there; a
   spin-out submodule with a config-driven template; the Models page, predictions on the New
   run page, and surrogate campaigns. Milestones A1-A8; data generation (A3) first in practice.
+- [ ] Stacey (`docs/stacey-spec.md`): from real cells (recipe, manufacturing parameters,
+  charging curves, post-mortem), propose the next batch of recipes by Bayesian optimisation
+  with Gaussian processes (not a genetic algorithm: too few, too expensive evaluations),
+  simulation as a cheap fidelity. Needs lab data tables first (S1).
+- [ ] MUM (`docs/mum-spec.md`): performance and failure modes from micrographs, by frozen
+  pretrained embeddings of scale-normalised tiles, GP and multiple-instance heads; its
+  embeddings feed Stacey.
 - [x] MLflow: the uploader logs every finished run's recipe settings, seed and final
   properties to a tracking server in the stack (`docs/mlflow.md`).
 - [ ] Conductivity estimates (liminal C3): thermally activated carriers and hopping between
