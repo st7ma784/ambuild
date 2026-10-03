@@ -428,6 +428,10 @@ In order:
 - [x] Calibrate conduction (liminal C1) and add coherent transmission (C2): node couplings
   from PBE0/def2-SVP splittings (C 0.60 eV, Si 0.33 eV), Landauer transmission with
   interference, as `el_log_transmission` metrics (`docs/conduction.md`).
+- [ ] AmPorSandbox (`docs/amporsandbox-spec.md`): models that predict porosity, conductance,
+  build time and failure from a recipe, trained on runs in MLflow and logged back there; a
+  spin-out submodule with a config-driven template; the Models page, predictions on the New
+  run page, and surrogate campaigns. Milestones A1-A8; data generation (A3) first in practice.
 - [x] MLflow: the uploader logs every finished run's recipe settings, seed and final
   properties to a tracking server in the stack (`docs/mlflow.md`).
 - [ ] Conductivity estimates (liminal C3): thermally activated carriers and hopping between
