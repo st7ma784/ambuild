@@ -338,6 +338,52 @@ the known site percolation threshold (0.3116), while upstream's moves away from 
 It also shows spanning against probe radius on real cells: upstream's answer is not
 monotonic, which misleads the limiting-diameter bisection.
 
+## xTB checks: cost, and tblite against CP2K
+
+The `xtb` stage's worker (`docs/xtb-spec.md`) on `li_ion_carbon` built without its
+optimisation stages (472 atoms, C and H, a 30 Å cell) and its 2×1×1 and 2×2×1 supercells.
+A different machine from the rest of this page: an Intel Core i7-1365U laptop, Docker
+limited to 8 threads and 4 GB, conda-forge's `tblite` 0.7.0 and `xtb` 6.7.1. One run
+each. Results are in `benchmarks/results/xtb_cp2k.json`.
+
+One single point, wall time and peak memory:
+
+| Method | 472 atoms | 944 atoms | 1,888 atoms |
+| --- | --- | --- | --- |
+| GFN1-xTB (`tblite`) | 19 s, 0.54 GB | 109 s, 1.9 GB | killed: out of memory at 3.4 GB |
+| GFN2-xTB (`tblite`) | 28 s, 0.58 GB | 122 s, 2.1 GB | not run |
+| GFN-FF (`xtb`) | 14 s, 0.49 GB | 71 s, 1.4 GB | killed: out of memory at 3.3 GB |
+
+- **Doubling the atoms costs 5 to 6 times the time and 3 to 4 times the memory,** for the
+  force field as for tight binding.
+- **A relaxation step costs about a single point:** 15 LBFGS steps of GFN1-xTB on the
+  472-atom cell took 201 s.
+- **`ambuild.xtb.memoryEstimateMb`** is 150 MB + 550 MB × (atoms / 472)^1.85. It bounds
+  the two sizes measured and is extrapolated above 944 atoms: about 7 GB at 1,900 and
+  8 GB at 2,000, the stage's default limit.
+- **Supercells agree with the cell** to 4 or more figures in the energy per atom, the
+  largest force and the gap.
+
+The same GFN1-xTB single point from `tblite` and from CP2K 2024.3, which implements the
+method independently (`benchmarks/compare_xtb_cp2k.py`):
+
+| Cell | Atoms | Largest force, `tblite` | CP2K | Largest difference on any atom | Energy difference | Time, `tblite` | CP2K |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| benzene, one C–H pushed out 0.2 Å, 10 Å cell | 12 | 6.5878 eV/Å | 6.5880 eV/Å | 0.0006 eV/Å | 0.12 meV per atom | under 1 s | 2 s |
+| `li_ion_carbon`, unoptimised, 30 Å cell | 472 | 5.3055 eV/Å | 5.3047 eV/Å | 0.0025 eV/Å | 0.38 meV per atom | 19 s | 396 s |
+
+- **The two programs agree on the forces to 0.05%,** and on which atom is most strained.
+- **The energies differ slightly,** as CP2K runs at zero electronic temperature and
+  `tblite` at 300 K.
+- **The `xtb` binary's periodic GFN1 does not agree:** it gave −729.16 Eh for the
+  472-atom cell, against −735.99 Eh from both of these. The stage never uses it for
+  tight binding.
+- **CP2K's time is with untuned settings** (orbital transformation, full single inverse
+  preconditioner), so it is an upper bound.
+
+What optimising the build is worth, by the same measure: the recipe as shipped has a
+largest force of 1.64 eV/Å, against 5.31 eV/Å without its optimisation stages.
+
 ## Reproducing
 
 From the repository root, on a machine with Docker:
@@ -394,3 +440,14 @@ docker run --rm --cpus=8 -v "$PWD/cases":/cases -v "$PWD/benchmarks/results":/re
 
 The `--user 0:0` and `OMPI_ALLOW_RUN_AS_ROOT*` settings are for rootless Docker,
 where the container's root user is the host user.
+
+tblite against CP2K, for an exported structure `cell/structure.xyz` (`docs/export.md`):
+
+```sh
+docker build -f tests/docker/xtb.Dockerfile -t ambuild-xtb tests/docker
+run="docker run --rm -v $PWD:/ambuild -v $PWD/cell:/cell -e PYTHONPATH=/ambuild -w /cell"
+$run ambuild-xtb python -m ambuild.xtb_worker structure.xyz --out xtb.json --forces
+$run ambuild-xtb python /ambuild/benchmarks/compare_xtb_cp2k.py input structure.xyz cell.inp
+$run --entrypoint cp2k cp2k/cp2k:2024.3_openmpi_generic_psmp -i cell.inp -o cp2k.out
+$run ambuild-xtb python /ambuild/benchmarks/compare_xtb_cp2k.py compare xtb.json cp2k.out forces.xyz
+```

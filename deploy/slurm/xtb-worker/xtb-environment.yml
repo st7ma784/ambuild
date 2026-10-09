@@ -1,0 +1,8 @@
+# The xtb binary, for GFN-FF, in an environment of its own: installed beside
+# tblite-python, conda-forge resolves it to a 2022 version that fails on periodic cells
+# (docs/xtb-spec.md). Made by install.sh.
+name: ambuild-xtb-binary
+channels:
+  - conda-forge
+dependencies:
+  - xtb=6.7.1

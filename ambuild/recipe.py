@@ -223,6 +223,30 @@ OPERATIONS = {
                  minimum=1),
         ],
     },
+    "xtb": {
+        "method": "xtb",
+        "help": "Check the cell with xTB: the forces a semi-empirical method puts on the atoms as built, and "
+                "optionally how far a relaxation moves them (XTB_WORKER); recorded with the run "
+                "(docs/xtb-spec.md).",
+        "args": [
+            _arg("method", "string", "gfn1", "gfnff (GFN-FF), gfn1 (GFN1-xTB) or gfn2 (GFN2-xTB)", "method",
+                 choices=["gfnff", "gfn1", "gfn2"]),
+            _arg("mode", "string", "single_point", "single_point, or relax: also a fixed-cell relaxation",
+                 "mode", choices=["single_point", "relax"]),
+            _arg("max_steps", "integer", 50, "relax: the most optimiser steps", "max_steps", minimum=1),
+            _arg("fmax", "number", 0.05, "relax: stop when the largest force is below this (eV/Å)", "fmax",
+                 minimum=0),
+            _arg("max_atoms", "integer", None, "refuse a larger cell (default: 2000)", "max_atoms", minimum=1),
+            _arg("threads", "integer", None, "OpenMP threads (default: all CPUs)", "threads", minimum=1),
+            _arg("memory_limit_mb", "integer", None, "refuse to start above this memory estimate",
+                 "memory_limit_mb", minimum=1),
+            _arg("charge", "integer", None, "the cell's charge (e; default: the atoms' charges, which must sum "
+                 "to zero)", "charge"),
+            _arg("poreblazer", "boolean", False, "relax: run Poreblazer (POREBLAZER_EXE) on the built and the "
+                 "relaxed cell, with the settings of the recipe's last poreblazer stage, and record the change",
+                 "poreblazer"),
+        ],
+    },
 }
 
 _FRAGMENT_KEYS = {"type", "car", "csv", "ambody", "name", "solvent", "catalyst", "mark_bonded"}
@@ -617,12 +641,13 @@ def _kwargs(spec, stage, staging, resolver, index):
 
 
 class _Runner:
-    def __init__(self, cell, staging, resolver, poreblazerExe, liminalExe=None):
+    def __init__(self, cell, staging, resolver, poreblazerExe, liminalExe=None, xtbWorker=None):
         self.cell = cell
         self.staging = staging
         self.resolver = resolver
         self.poreblazerExe = poreblazerExe
         self.liminalExe = liminalExe
+        self.xtbWorker = xtbWorker
         self.count = 0
 
     def stages(self, stages, top):
@@ -662,6 +687,12 @@ class _Runner:
                 raise RuntimeError("liminal conduct failed (exit code {0}); see {1}".format(
                     result["returncode"], result["log"] or result["directory"]))
             return result
+        if stage["op"] == "xtb":
+            result = method(self.xtbWorker, poreblazer_exe=self.poreblazerExe, **kwargs)
+            if result["returncode"] != 0:  # a calculation that ran but didn't converge is recorded, and carries on
+                raise RuntimeError("The xTB worker failed (exit code {0}); see {1}".format(
+                    result["returncode"], result["log"] or result["directory"]))
+            return result
         return method(**kwargs)
 
 
@@ -670,13 +701,14 @@ def _raiseCancelled(signum, frame):
 
 
 def run(recipe, outputDir, blobDirs=(), baseDir=None, runId=None, parentRunId=None, seed=None,
-        poreblazerExe=None, liminalExe=None):
+        poreblazerExe=None, liminalExe=None, xtbWorker=None):
     """Build the recipe as a recorded run in outputDir; returns the run id.
 
     blobDirs: directories holding referenced files named by sha256; baseDir: the directory
     file paths are relative to (None: paths not allowed); seed overrides the recipe's.
     poreblazerExe: default POREBLAZER_EXE; liminalExe: default LIMINAL_EXE, else liminal on
-    the PATH (for ion_map and conduction stages). A failed build raises, with the run recorded as failed.
+    the PATH (for ion_map and conduction stages); xtbWorker: default XTB_WORKER, else this
+    interpreter (for xtb stages). A failed build raises, with the run recorded as failed.
     """
     errors = validate(recipe, allowPaths=baseDir is not None)
     if errors:
@@ -694,6 +726,24 @@ def run(recipe, outputDir, blobDirs=(), baseDir=None, runId=None, parentRunId=No
         if ionmap.executable(liminalExe) is None:
             raise RuntimeError("The recipe runs liminal (ion maps or conduction): set LIMINAL_EXE, or put liminal "
                                "on the PATH")
+    xtbStages = [s for s in _allStages(recipe["stages"]) if s.get("op") == "xtb"]
+    if xtbStages:
+        from ambuild import xtb
+
+        for stage in xtbStages:
+            method = stage.get("method", "gfn1")
+            try:
+                xtb.checkSettings(method, stage.get("mode", "single_point"))
+            except ValueError as e:
+                raise RecipeError([str(e)])
+            if stage.get("poreblazer"):
+                if stage.get("mode", "single_point") != "relax":
+                    raise RecipeError(["xtb: poreblazer compares the relaxed cell with the built one, so it needs "
+                                       "mode relax"])
+                if not poreblazerExe:
+                    raise RuntimeError("The recipe's xtb stage runs Poreblazer: set POREBLAZER_EXE")
+            if xtb.workerCommand(method, xtbWorker) is None:
+                raise RuntimeError(xtb.missing(method))
     outputDir = os.path.abspath(outputDir)
     ab_run.checkRunDirectory(outputDir)
     resolver = Resolver(blobDirs, baseDir)
@@ -738,7 +788,7 @@ def run(recipe, outputDir, blobDirs=(), baseDir=None, runId=None, parentRunId=No
                 cell.addBondType(bt)
             for bt, count in sorted(recipe.get("max_bonds", {}).items()):
                 cell.setMaxBond(bt, count)
-            _Runner(cell, staging, resolver, poreblazerExe, liminalExe).stages(recipe["stages"], top=True)
+            _Runner(cell, staging, resolver, poreblazerExe, liminalExe, xtbWorker).stages(recipe["stages"], top=True)
         return cell.runId
     finally:
         shutil.rmtree(staging, ignore_errors=True)

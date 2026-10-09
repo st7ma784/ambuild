@@ -506,6 +506,7 @@ and results browser early; 3–4 are the submission path; 5–9 build on it: 6 (
 
 - **Slurm backend** (`services/agent`, `AMBUILD_AGENT_BACKEND=slurm`), run from a login node:
   - It stages each recipe and its inputs on the shared filesystem (`$AMBUILD_RUNS_ROOT/.ambuild-work`, `.ambuild-blobs`).
+  - With `AMBUILD_AGENT_XTB=1` it adds `--xtb`: each build's last checkpoint is checked with xTB afterwards, as a child run (`docs/xtb-spec.md`).
   - It submits with `submit_build.sh --recipe`, which now accepts a recipe and the agent's run id. The recipe's `resources` become `--cpus-per-task`, `--gpus`, `--mem` and `--time`; `AMBUILD_SLURM_PARTITION` and `AMBUILD_SLURM_OPTIONS` add more.
   - A submission is `submitted` while its build job is pending and `running` while it runs. It ends when the upload job has uploaded it, with the state taken from the run's `run.json` and the Slurm state.
   - Job states come from `squeue`, then `scontrol` (recently ended jobs), then `sacct`, so clusters without accounting work.

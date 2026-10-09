@@ -5,6 +5,10 @@
 // "frames": [{"step": 3, "url": "...", "ion_maps": [{"ion": "Li+", "map": "...", "cube": "...",
 // "escape_energy": -0.3, "tier": "..."}]}]}</script>. A frame's ion maps (liminal's map.json
 // and energy.cube) are drawn over it: an energy surface, the sites and the crossing paths.
+// A frame's xTB checks ("xtb": [{"label", "atoms", "fmax", "worst_atoms": [[atom, force]],
+// "worst_bonds": [[i, j, before, after]], "relaxed": url or null}], docs/xtb-spec.md) mark
+// the atoms under the largest forces and the bonds that moved most on relaxing, and can
+// swap the atoms for the relaxed positions.
 (function () {
   "use strict";
   var root = document.getElementById("structure-viewer");
@@ -36,6 +40,14 @@
   var ionPaths = root.querySelector("#ion-paths");
   var ionTier = root.querySelector(".ion-tier");
   var maps = {}; // map url -> {map, cube} once loaded, or "loading"
+  // xTB checks, per frame
+  var xtbBox = root.querySelector(".viewer-xtb");
+  var xtbSelect = root.querySelector("#xtb-check");
+  var xtbAtoms = root.querySelector("#xtb-atoms");
+  var xtbBonds = root.querySelector("#xtb-bonds");
+  var xtbRelaxed = root.querySelector("#xtb-relaxed");
+  var xtbNote = root.querySelector(".xtb-note");
+  var relaxedCache = {}; // relaxed.xyz url -> parsed frame once loaded, or "loading"
 
   function cssVar(name, fallback) {
     var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -237,10 +249,107 @@
     }
   }
 
+  function selectedXtb() {
+    if (!current || !xtbBox) return null;
+    return (frames[current.index].xtb || [])[parseInt(xtbSelect.value, 10)] || null;
+  }
+
+  function updateXtb(i) {
+    if (!xtbBox) return;
+    var entries = frames[i].xtb || [];
+    xtbBox.hidden = !entries.length;
+    var labels = entries.map(function (e) { return e.label; });
+    var existing = Array.prototype.slice.call(xtbSelect.options, 1).map(function (o) { return o.text; });
+    if (labels.join("|") !== existing.join("|")) {
+      xtbSelect.length = 1;
+      labels.forEach(function (label, n) { xtbSelect.add(new Option(label, String(n))); });
+      xtbSelect.value = labels.length ? String(labels.length - 1) : ""; // the latest check
+    }
+    var entry = entries[parseInt(xtbSelect.value, 10)];
+    xtbBonds.disabled = !(entry && entry.worst_bonds.length);
+    xtbRelaxed.disabled = !(entry && entry.relaxed);
+  }
+
+  // The relaxed structure, fetched once; draw() runs again when it arrives
+  function loadedRelaxed(entry) {
+    var cached = relaxedCache[entry.relaxed];
+    if (cached && cached !== "loading") return cached;
+    if (!cached) {
+      relaxedCache[entry.relaxed] = "loading";
+      fetch(entry.relaxed).then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.text();
+      }).then(function (text) {
+        relaxedCache[entry.relaxed] = parse(text);
+        draw();
+      }).catch(function (err) {
+        delete relaxedCache[entry.relaxed];
+        xtbRelaxed.checked = false;
+        status.textContent = "Could not load the relaxed structure: " + err.message;
+      });
+    }
+    return null;
+  }
+
+  // The atoms under the largest forces as translucent spheres, the larger the force; the
+  // bonds that moved most as thick cylinders, each drawn from its first atom to the nearest
+  // image of its second
+  function drawXtb(entry, atoms, dims) {
+    var strained = cssVar("--fail", "#c62828"), moved = cssVar("--series2", "#e07b39");
+    if (xtbAtoms.checked) {
+      entry.worst_atoms.forEach(function (w) {
+        var a = atoms[w[0]];
+        if (!a) return;
+        viewer.addSphere({center: {x: a.x, y: a.y, z: a.z}, radius: 0.45 + 0.55 * (entry.fmax ? w[1] / entry.fmax : 0),
+                          color: strained, opacity: 0.55});
+      });
+    }
+    if (xtbBonds.checked) {
+      entry.worst_bonds.forEach(function (b) {
+        var a = atoms[b[0]], c = atoms[b[1]];
+        if (!a || !c) return;
+        var end = {};
+        ["x", "y", "z"].forEach(function (k, n) {
+          var d = c[k] - a[k];
+          if (dims) d -= dims[n] * Math.round(d / dims[n]);
+          end[k] = a[k] + d;
+        });
+        viewer.addCylinder({start: {x: a.x, y: a.y, z: a.z}, end: end, radius: 0.2, color: moved, opacity: 0.8,
+                            fromCap: 1, toCap: 1});
+      });
+    }
+  }
+
   function draw() {
     if (!current) return;
     var frame = current.frame;
-    var shown = frame.atoms.filter(function (a) { return !hidden[a.fragment]; });
+    var dims = frame.lattice || spec.box;
+    var atoms = frame.atoms;
+    var check = selectedXtb();
+    var checkNote = "";
+    if (xtbNote) xtbNote.textContent = "";
+    if (check && check.atoms !== frame.atoms.length) {
+      // the check was made of a later structure than this frame's
+      if (xtbNote) xtbNote.textContent = "This check's structure has " + check.atoms + " atoms, not this frame's.";
+      check = null;
+    }
+    if (check) {
+      checkNote = " · " + check.label + ": largest force " + check.fmax.toFixed(2) + " eV/Å";
+      if (xtbRelaxed.checked && check.relaxed) {
+        var relaxed = loadedRelaxed(check);
+        if (relaxed && relaxed.atoms.length === frame.atoms.length) {
+          // relaxed.xyz isn't wrapped: bring its atoms into the cell to draw them
+          atoms = relaxed.atoms.map(function (a) {
+            var w = dims ? wrap([a.x, a.y, a.z], dims) : a;
+            return {elem: a.elem, x: w.x, y: w.y, z: w.z, fragment: a.fragment, block: a.block};
+          });
+          checkNote += " · relaxed positions";
+        } else {
+          checkNote += " · loading the relaxed structure…";
+        }
+      }
+    }
+    var shown = atoms.filter(function (a) { return !hidden[a.fragment]; });
     var view = firstDraw ? null : viewer.getView();
     viewer.clear();
     if (shown.length) {
@@ -266,8 +375,8 @@
       if (style === "sphere") styleSpec.sphere = Object.assign({scale: 0.8}, extra);
       model.setStyle({}, styleSpec);
     }
-    var dims = frame.lattice || spec.box;
     if (boxCheck.checked && dims) drawCell(dims);
+    if (check) drawXtb(check, atoms, dims);
     var ionEntry = selectedIonMap();
     var ionNote = "";
     if (ionEntry) {
@@ -283,7 +392,7 @@
     viewer.render();
     status.textContent = shown.length.toLocaleString() + " atoms shown of " + frame.atoms.length.toLocaleString() +
       (current.step !== null && current.step !== undefined ? " · step " + current.step : "") +
-      " · " + frames[current.index].path + ionNote;
+      " · " + frames[current.index].path + ionNote + checkNote;
   }
 
   function show(i) {
@@ -293,6 +402,7 @@
       current = {index: i, step: frames[i].step, frame: frame};
       updateFragments(frame);
       updateIons(i);
+      updateXtb(i);
       draw();
     }).catch(function (err) {
       status.textContent = "Could not load " + frames[i].path + ": " + err.message;
@@ -323,6 +433,12 @@
   if (ionsBox) {
     ionSelect.addEventListener("change", function () { ionChanged(); draw(); });
     [ionSurface, ionLevel, ionSites, ionPaths].forEach(function (el) { el.addEventListener("change", draw); });
+  }
+
+  if (xtbBox) {
+    xtbSelect.addEventListener("change", function () { if (current) updateXtb(current.index); draw(); });
+    [xtbAtoms, xtbBonds, xtbRelaxed].forEach(function (el) { el.addEventListener("change", draw); });
+    if (params.get("xtb") === "relaxed") xtbRelaxed.checked = true; // ?xtb=relaxed
   }
 
   root.querySelector("#viewer-fullscreen").addEventListener("click", function () {

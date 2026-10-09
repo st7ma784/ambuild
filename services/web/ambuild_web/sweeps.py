@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from ambuild import conduction as ab_conduction
 from ambuild import ionmap as ab_ionmap
 from ambuild import sweep as ab_sweep
+from ambuild import xtb as ab_xtb
 from ambuild_web import db, queue
 from ambuild_web.submissions import _connect, _int, _owner, checkRecipe, recipeText
 
@@ -27,6 +28,7 @@ METRICS = [
     ("num_blocks", "blocks"),
 ] + [(m, ab_ionmap.metricLabel(m)) for m in ab_ionmap.METRICS]  # from ion_map stages (liminal)
 METRICS += [(m, ab_conduction.metricLabel(m)) for m in ab_conduction.METRICS]  # from conduction stages (liminal)
+METRICS += [(m, ab_xtb.metricLabel(m)) for m in ab_xtb.METRICS]  # from xtb stages and xTB fan-outs
 PREVIEW_ROWS = 50
 DEFAULT_PARAMETERS = [{"name": "box", "path": "/cell/box", "all": True, "values": [25, 30, 35]}]
 

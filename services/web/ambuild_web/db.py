@@ -9,6 +9,7 @@ from psycopg.rows import dict_row
 
 from ambuild import conduction as ab_conduction
 from ambuild import ionmap as ab_ionmap
+from ambuild import xtb as ab_xtb
 
 PAGE_SIZE = 50
 
@@ -81,7 +82,12 @@ def _summarySql():
                     ORDER BY e.data->>'ion', e.step DESC NULLS LAST, e.seq DESC) latest) AS ion_maps,
                (SELECT e.data FROM events e
                     WHERE e.run_id = r.run_id AND e.type = 'conduction_result' AND e.data->>'sites' IS NOT NULL
-                    ORDER BY e.step DESC NULLS LAST, e.seq DESC LIMIT 1) AS conduction
+                    ORDER BY e.step DESC NULLS LAST, e.seq DESC LIMIT 1) AS conduction,
+               (SELECT e.data FROM events e
+                    WHERE e.type = 'xtb_result' AND e.data->>'fmax_eV_A' IS NOT NULL
+                      AND e.run_id IN (SELECT r.run_id UNION ALL
+                                       SELECT c.run_id FROM runs c WHERE c.parent_run_id = r.run_id)
+                    ORDER BY e.step DESC NULLS LAST, e.timestamp DESC NULLS LAST, e.seq DESC LIMIT 1) AS xtb
         FROM runs r
         LEFT JOIN LATERAL (
             SELECT step, num_particles, num_blocks, density FROM steps
@@ -152,6 +158,7 @@ def getRun(conn, runId):
         "pore_results": poreResults(conn, runId),
         "ion_maps": ionMaps(conn, runId),
         "conduction": conductionResults(conn, runId),
+        "xtb": xtbResults(conn, runId),
         "files": files(conn, runId),
         "structures": structures(conn, runId),
         "event_counts": dict(
@@ -179,6 +186,18 @@ def conductionResults(conn, runId):
         "SELECT step, data FROM events WHERE run_id = %s AND type = 'conduction_result' ORDER BY step, seq",
         (runId,)).fetchall()
     return [dict(r["data"], step=r["step"]) for r in rows]
+
+
+def xtbResults(conn, runId):
+    """The xTB checks of the run and of its child runs (xtb_result events: ambuild.xtb; a
+    Slurm fan-out records one child run per checkpoint checked), by step. Each names the
+    run that holds its files"""
+    rows = conn.execute(
+        "SELECT e.run_id, e.step, e.data, (e.run_id <> %s) AS from_child FROM events e "
+        "WHERE e.type = 'xtb_result' AND e.run_id IN "
+        "(SELECT %s::uuid UNION ALL SELECT run_id FROM runs WHERE parent_run_id = %s) "
+        "ORDER BY e.step NULLS LAST, e.timestamp NULLS LAST, e.seq", (runId, runId, runId)).fetchall()
+    return [dict(r["data"], step=r["step"], run_id=str(r["run_id"]), from_child=r["from_child"]) for r in rows]
 
 
 def poreResults(conn, runId, withChildren=True):
@@ -234,6 +253,7 @@ def _label(row):
         row["pore_run_id"] = str(row["pore_run_id"])
     row.update(ab_ionmap.metrics(row.get("ion_maps")))  # li_escape_barrier etc., from the latest map of each ion
     row.update(ab_conduction.metrics(row.get("conduction")))  # el_gap etc., from the latest conduction result
+    row.update(ab_xtb.metrics(row.get("xtb")))  # xtb_fmax etc., from the latest xTB check, its own or a child run's
     command = row.get("command") or []
     script = row.get("script")
     if script:

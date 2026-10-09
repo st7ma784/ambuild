@@ -1,0 +1,11 @@
+# The xTB worker's Python environment (docs/xtb-spec.md): tblite for GFN1-xTB and
+# GFN2-xTB, and ASE to relax with. Made by install.sh; the versions are those the scaling
+# figures in docs/benchmarks.md were measured with.
+name: ambuild-xtb-worker
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - tblite-python=0.7.0
+  - ase

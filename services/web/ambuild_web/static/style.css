@@ -148,17 +148,17 @@ pre.json { background: var(--panel); border: 1px solid var(--rule); border-radiu
 /* --- structure viewer */
 h3 { font-size: 15px; margin: 18px 0 6px; font-weight: 600; }
 .viewer { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; }
-.viewer-controls, .viewer-fragments, .viewer-ions { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 13px; }
+.viewer-controls, .viewer-fragments, .viewer-ions, .viewer-xtb { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 13px; }
 .viewer-controls label:not(.check) { color: var(--muted); font-size: 12px; }
 .viewer-controls select { font: inherit; padding: 3px 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--bg); color: var(--ink); }
 .viewer-controls input[type=range] { width: min(260px, 60vw); }
 .viewer-fragments { margin-top: 6px; }
 .viewer-fragments .check { display: flex; gap: 4px; align-items: center; }
-.viewer-ions { margin-top: 6px; }
-.viewer-ions[hidden] { display: none; }
-.viewer-ions label:not(.check) { color: var(--muted); font-size: 12px; }
-.viewer-ions .check { display: flex; gap: 4px; align-items: center; }
-.viewer-ions select, .viewer-ions input[type=number] { font: inherit; padding: 3px 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--bg); color: var(--ink); }
+.viewer-ions, .viewer-xtb { margin-top: 6px; }
+.viewer-ions[hidden], .viewer-xtb[hidden] { display: none; }
+.viewer-ions label:not(.check), .viewer-xtb label:not(.check) { color: var(--muted); font-size: 12px; }
+.viewer-ions .check, .viewer-xtb .check { display: flex; gap: 4px; align-items: center; }
+.viewer-ions select, .viewer-xtb select, .viewer-ions input[type=number] { font: inherit; padding: 3px 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--bg); color: var(--ink); }
 .viewer-ions input[type=number] { width: 6em; }
 .viewer-canvas { position: relative; width: 100%; height: 480px; margin-top: 8px; border-radius: 4px; overflow: hidden; }
 .viewer-status { margin: 6px 0 0; }

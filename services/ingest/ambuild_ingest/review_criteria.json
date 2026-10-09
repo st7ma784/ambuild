@@ -31,7 +31,7 @@
     "min_stratum_size": 8,
     "metrics": ["surface_area_m2_g", "pore_limiting_diameter_a", "void_fraction", "final_density",
                 "final_num_blocks", "el_log_transmission", "el_log_hopping", "el_conductance",
-                "final_build_seconds", "free_end_groups_per_1000_atoms"]
+                "final_build_seconds", "free_end_groups_per_1000_atoms", "xtb_fmax"]
   },
   "stratified_quantiles": [0.1, 0.5, 0.9],
   "edge_cases": {
@@ -42,6 +42,8 @@
     "conducts_through_radicals": [{"metric": "el_radical_domains", "min": 1}, {"metric": "el_conductance", "min": 1e-9}],
     "narrow_window_large_cage": [{"metric": "pore_window_ratio", "max": 0.3}, {"metric": "maximum_pore_diameter_a", "min": 10}],
     "unfinished_network": [{"metric": "free_end_groups_per_1000_atoms", "min": 150, "stratum_quantile_min": 0.95}],
+    "strained_at_xtb": [{"metric": "xtb_fmax", "stratum_quantile_min": 0.95}],
+    "moves_on_relaxing": [{"metric": "xtb_relax_max_bond_change", "stratum_quantile_min": 0.95}],
     "failed": [{"status": "FAILED"}]
   }
 }

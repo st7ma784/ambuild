@@ -242,6 +242,57 @@ def test_conduction_gives_metrics_and_a_table(client, recorded):
     assert "-24.4 (-26.7)" in html
 
 
+# --- xTB checks (xtb stages and Slurm fan-outs: docs/xtb-spec.md)
+
+def test_xtb_checks_give_metrics_and_a_table_with_child_runs(client, recorded):
+    summary = client.get("/api/runs/" + recorded["a"]).json()["summary"]
+    # the latest check is the child run's, of step 3
+    assert (summary["xtb_fmax"], summary["xtb_frms"], summary["xtb_gap"]) == (2.5, 0.5, 1.75)
+    assert (summary["xtb_energy_per_atom"], summary["xtb_relax_rmsd"]) == (-40.0, 0.125)
+    assert summary["xtb_relax_max_bond_change"] == 0.0625 and summary["xtb_relax_reached_fmax"] == 0
+    assert abs(summary["xtb_relax_energy_drop"] - 0.1) < 1e-9
+    assert client.get("/api/runs/" + recorded["c"]).json()["summary"]["xtb_fmax"] is None
+    html = client.get("/runs/" + recorded["a"]).text
+    assert "xTB check" in html and "GFN1-xTB" in html
+    # its own check's files, and the child's under the child's run
+    assert "/runs/{0}/files/xtb_2/xtb.json".format(recorded["a"]) in html
+    assert "/runs/{0}/files/xtb_3/relaxed.xyz".format(recorded["child"]) in html
+    assert "4.500" in html and "2.500" in html and "0.1000" in html and ">cap<" in html
+    assert "xTB check" not in client.get("/runs/" + recorded["c"]).text
+    # the child run's own page shows its check
+    assert "xtb_3/xtb.json" in client.get("/runs/" + recorded["child"]).text
+
+
+def test_the_viewer_gets_the_xtb_checks_and_the_page_the_pore_comparison(client, recorded):
+    spec = client.get("/api/runs/{0}/structures".format(recorded["a"])).json()
+    byStep = {f["step"]: f["xtb"] for f in spec["frames"]}
+    assert byStep[1] == [] and [x["label"] for x in byStep[2]] == ["GFN1-xTB, step 2"]
+    own, (child,) = byStep[2][0], byStep[3]
+    assert own["worst_atoms"] == [[4, 4.5]] and own["relaxed"] is None and own["worst_bonds"] == []
+    assert child["worst_bonds"] == [[0, 1, 1.5, 1.4375]] and (child["fmax"], child["atoms"]) == (2.5, 90)
+    # the relaxed structure is the child run's file
+    assert child["relaxed"] == "/runs/{0}/files/xtb_3/relaxed.xyz?inline=1".format(recorded["child"])
+    assert client.get(child["relaxed"]).text.splitlines()[1] == "relaxed"
+    html = client.get("/runs/" + recorded["a"]).text
+    assert 'id="xtb-check"' in html and 'id="xtb-relaxed"' in html
+    assert "Pores before and after relaxing" in html
+    assert "1,500.0" in html and "1,380.0" in html and "-120.0" in html and "-0.25" in html
+    summary = client.get("/api/runs/" + recorded["a"]).json()["summary"]
+    assert (summary["xtb_d_surface_area"], summary["xtb_d_pld"]) == (-120.0, -0.25)
+    # older runs' plain XYZ frames don't take checks: their atoms aren't in the export's order
+    assert all("xtb" in f and f["xtb"] == [] for f in
+               client.get("/api/runs/{0}/structures".format(recorded["b"])).json()["frames"])
+
+
+def test_xtb_metrics_can_be_plotted_and_aimed_at():
+    from ambuild import campaign as ab_campaign
+    from ambuild_web import campaigns, sweeps
+
+    assert ("xtb_fmax", "largest force at the built geometry (eV/Å, xTB)") in sweeps.METRICS
+    assert campaigns.LABELS["xtb_relax_rmsd"] == "RMS displacement on relaxing (Å, xTB)"
+    assert "xtb_fmax" in ab_campaign.METRICS
+
+
 def test_conduction_metrics_can_be_plotted_and_aimed_at():
     from ambuild import campaign as ab_campaign
     from ambuild_web import campaigns, sweeps

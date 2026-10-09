@@ -60,6 +60,14 @@
       <label class="check"><input type="checkbox" id="ion-paths" checked> paths</label>
       <span class="note ion-tier"></span>
     </div>
+    <div class="viewer-xtb" hidden>
+      <label for="xtb-check">xTB check</label>
+      <select id="xtb-check"><option value="">none</option></select>
+      <label class="check"><input type="checkbox" id="xtb-atoms" checked> most strained atoms</label>
+      <label class="check"><input type="checkbox" id="xtb-bonds" checked> bonds that moved most</label>
+      <label class="check"><input type="checkbox" id="xtb-relaxed"> relaxed positions</label>
+      <span class="note xtb-note"></span>
+    </div>
     <div class="viewer-canvas" role="img" aria-label="3D view of the structure"></div>
     <p class="viewer-status note" aria-live="polite">Loading…</p>
   </div>
@@ -222,6 +230,84 @@
       </tbody>
     </table>
   </div>
+</section>
+{% endif %}
+
+{% if r.xtb %}
+<section id="run-xtb">
+  <h2>xTB check</h2>
+  <p class="note">The forces a semi-empirical method puts on the atoms as built, and how far a fixed-cell
+    relaxation moves them (an <code>xtb</code> stage, or a Slurm fan-out's child runs). Large forces mean
+    strained bonds, usually at junctions. A relaxation that stopped at its step cap gives lower bounds on the
+    figures after it. For checking a build, not for energies to compare between methods. The viewer above
+    marks the atoms under the largest forces and the bonds that moved most, and can show the relaxed positions.</p>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col" class="num">Step</th><th scope="col">Method</th>
+        <th scope="col" class="num">Atoms</th>
+        <th scope="col" class="num">Largest force<br><span class="unit">eV/Å</span></th>
+        <th scope="col" class="num">RMS force<br><span class="unit">eV/Å</span></th>
+        <th scope="col" class="num">Energy<br><span class="unit">eV per atom</span></th>
+        <th scope="col" class="num">Gap<br><span class="unit">eV</span></th>
+        <th scope="col" class="num">Relaxation<br><span class="unit">steps</span></th>
+        <th scope="col" class="num">Force after<br><span class="unit">eV/Å</span></th>
+        <th scope="col" class="num">RMSD<br><span class="unit">Å</span></th>
+        <th scope="col" class="num">Largest bond change<br><span class="unit">Å</span></th>
+        <th scope="col" class="num">Energy released<br><span class="unit">eV per atom</span></th>
+        <th scope="col">Files</th></tr></thead>
+      <tbody>
+        {% for x in r.xtb %}
+        {% set base = "/runs/" ~ x.run_id ~ "/files/" %}
+        <tr><td class="num">{{ x.step if x.step is not none else "–" }}</td>
+          <td>{{ x.method or "–" }}{% if x.from_child %}<br><span class="note">from <a href="/runs/{{ x.run_id }}">{{ x.run_id[:8] }}</a></span>{% endif %}</td>
+          {% if x.returncode %}<td colspan="10"><span class="status state-fail">worker exit {{ x.returncode }}</span></td>
+          {% elif x.fmax_eV_A is none %}<td class="num">{{ x.atoms }}</td><td colspan="9"><span class="status state-fail">not converged</span> {{ x.error or "" }}</td>
+          {% else %}<td class="num">{{ x.atoms }}</td>
+          <td class="num">{{ x.fmax_eV_A | number(3) }}</td><td class="num">{{ x.frms_eV_A | number(3) }}</td>
+          <td class="num">{{ x.energy_per_atom_eV | number(4) }}</td><td class="num">{{ x.gap_eV | number(2) }}</td>
+          {% if x.relax and x.relax.rmsd_A is not none %}
+          <td class="num">{{ x.relax.steps }}{% if not x.relax.reached_fmax %} <span class="note">cap</span>{% endif %}</td>
+          <td class="num">{{ x.relax.fmax_eV_A | number(3) }}</td><td class="num">{{ x.relax.rmsd_A | number(3) }}</td>
+          <td class="num">{{ x.relax.max_bond_change_A | number(3) }}</td>
+          <td class="num">{% if x.atoms and x.relax.energy_eV is not none %}{{ ((x.energy_eV - x.relax.energy_eV) / x.atoms) | number(4) }}{% else %}–{% endif %}</td>
+          {% elif x.converged is false %}<td colspan="5"><span class="status state-fail">relaxation not converged</span> {{ x.error or "" }}</td>
+          {% else %}<td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td>{% endif %}
+          {% endif %}
+          <td>{% if x.results %}<a href="{{ base }}{{ x.results }}?inline=1">xtb.json</a>{% endif %}
+            {% if x.relaxed %} · <a href="{{ base }}{{ x.relaxed }}">relaxed.xyz</a>{% endif %}
+            {% if x.log %} · <a href="{{ base }}{{ x.log }}?inline=1">log</a>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% set compared = r.xtb | selectattr("poreblazer") | list %}
+  {% if compared %}
+  <div class="table-wrap">
+    <table class="data">
+      <caption>Pores before and after relaxing (Poreblazer on both structures, same settings)</caption>
+      <thead><tr><th scope="col" class="num">Step</th><th scope="col">Method</th>
+        <th scope="col" class="num">Surface area, built<br><span class="unit">m²/g</span></th>
+        <th scope="col" class="num">relaxed<br><span class="unit">m²/g</span></th>
+        <th scope="col" class="num">change<br><span class="unit">m²/g</span></th>
+        <th scope="col" class="num">PLD, built<br><span class="unit">Å</span></th>
+        <th scope="col" class="num">relaxed<br><span class="unit">Å</span></th>
+        <th scope="col" class="num">change<br><span class="unit">Å</span></th></tr></thead>
+      <tbody>
+        {% for x in compared %}
+        {% set p = x.poreblazer %}{% set pb = p.built or {} %}{% set pr = p.relaxed or {} %}
+        <tr><td class="num">{{ x.step if x.step is not none else "–" }}</td>
+          <td>{{ x.method or "–" }}{% if x.relax and not x.relax.reached_fmax %} <span class="note">relaxation stopped at its cap</span>{% endif %}</td>
+          {% if pb.returncode or pr.returncode %}<td colspan="6"><span class="status state-fail">Poreblazer failed</span></td>
+          {% else %}
+          <td class="num">{{ pb.surface_area_m2_g | number(1) }}</td><td class="num">{{ pr.surface_area_m2_g | number(1) }}</td>
+          <td class="num">{{ p.d_surface_area_m2_g | number(1) }}</td>
+          <td class="num">{{ pb.pore_limiting_diameter_A | number(2) }}</td><td class="num">{{ pr.pore_limiting_diameter_A | number(2) }}</td>
+          <td class="num">{{ p.d_pore_limiting_diameter_A | number(2) }}</td>{% endif %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
 </section>
 {% endif %}
 

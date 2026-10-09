@@ -91,6 +91,7 @@ class Config:
     slurm_dir: str = ""  # deploy/slurm: the job scripts (slurmrest sends their text)
     partition: str = ""
     sbatch_options: str = ""  # slurm only: more sbatch options
+    xtb: bool = False  # slurm only: check each build with xTB afterwards (submit_build.sh --xtb)
     array_max: int = 50  # slurmrest: most array tasks running at once (slurm: submit_array.sh's)
     # slurmrest backend
     slurmrestd_url: str = ""
@@ -133,6 +134,7 @@ class Config:
             slurm_dir=env.get("AMBUILD_SLURM_DIR", ""),
             partition=env.get("AMBUILD_SLURM_PARTITION", ""),
             sbatch_options=env.get("AMBUILD_SLURM_OPTIONS", ""),
+            xtb=env.get("AMBUILD_AGENT_XTB", "0") in ("1", "true", "yes"),
             array_max=int(env.get("AMBUILD_ARRAY_MAX", "50")),
             slurmrestd_url=env.get("AMBUILD_SLURMRESTD_URL", ""),
             slurm_user=env.get("AMBUILD_SLURM_USER", ""),

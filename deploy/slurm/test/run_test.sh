@@ -20,6 +20,11 @@ cancelled=$("$slurm/submit_build.sh" "$slurm/test/hanging_build.py")
 echo "$cancelled"
 multitask=$("$slurm/submit_build.sh" "$slurm/test/launcher_build.py" --ntasks=2)
 echo "$multitask"
+# xTB checks of every pickle, with a stand-in for the worker (the real one is tested in
+# tests/testXtb.py): the fan-out, the child runs and their upload are what is tested here
+xtb=$(XTB_WORKER="python3 /ambuild/tests/fake_xtb.py" AMBUILD_XTB_STEPS=all AMBUILD_XTB_MODE=relax \
+    AMBUILD_XTB_MAX_STEPS=7 AMBUILD_XTB_CPUS=1 "$slurm/submit_build.sh" --xtb "$slurm/example_build.py")
+echo "$xtb"
 cancelled_dir=$(tail -n 1 <<< "$cancelled")
 for _ in $(seq 120); do [ -f "$cancelled_dir/run.json" ] && break; sleep 1; done
 scancel "$(grep -o 'build job [0-9]*' <<< "$cancelled" | awk '{print $3}')"
@@ -36,7 +41,7 @@ done
 squeue
 echo "--- job outputs"; tail -n 3 /tmp/*.out
 python3 "$slurm/test/check_db.py" "$(run_id_of "$ok")" "$(run_id_of "$failed")" "$(run_id_of "$cancelled")" \
-    "$(run_id_of "$multitask")"
+    "$(run_id_of "$multitask")" "$(run_id_of "$xtb")"
 echo "--- web GUI"
 python3 "$slurm/test/check_web.py" "$(run_id_of "$ok")" "$(run_id_of "$failed")" "$(run_id_of "$cancelled")" \
     "$(run_id_of "$multitask")"

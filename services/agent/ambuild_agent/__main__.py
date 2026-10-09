@@ -35,6 +35,8 @@ Environment:
     AMBUILD_SLURM_PARTITION     partition for jobs (default: the cluster's)
   slurm:
     AMBUILD_SLURM_OPTIONS       more sbatch options for build jobs, e.g. "--account=chem"
+    AMBUILD_AGENT_XTB           1: check each build with xTB afterwards, as a child run
+                                (submit_build.sh --xtb; XTB_WORKER and AMBUILD_XTB_* set it)
   slurmrest:
     AMBUILD_SLURMRESTD_URL      e.g. http://slurm-head:6820
     AMBUILD_SLURM_USER          the cluster user the jobs run as

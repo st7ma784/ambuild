@@ -35,6 +35,9 @@ class FakeClient:
         eid = self.experiments.get(name)
         return types.SimpleNamespace(experiment_id=eid) if eid else None
 
+    def search_experiments(self):
+        return [types.SimpleNamespace(name=n, experiment_id=i) for n, i in self.experiments.items()]
+
     def create_experiment(self, name):
         self.experiments[name] = str(len(self.experiments) + 1)
         return self.experiments[name]
@@ -94,6 +97,13 @@ EVENTS = [
     (4, {"type": "conduction_result", "step": 2, "data": {"sites": 120, "gap": 3.5, "conductance": 0.02,
                                                           "log_transmission": -18.0, "log_hopping": -24.4,
                                                           "tunnelling_share": 1.0, "radical_domains": 0}}),
+    # a check that didn't converge, then one that did: the last with figures counts
+    (5, {"type": "xtb_result", "step": 2, "data": {"atoms": 300, "converged": False, "fmax_eV_A": None}}),
+    (6, {"type": "xtb_result", "step": 2, "data": {
+        "atoms": 300, "converged": True, "energy_eV": -12000.0, "energy_per_atom_eV": -40.0, "fmax_eV_A": 2.5,
+        "frms_eV_A": 0.4, "gap_eV": 1.8,
+        "relax": {"steps": 50, "reached_fmax": False, "energy_eV": -12030.0, "rmsd_A": 0.2,
+                  "max_bond_change_A": 0.1}}}),
 ]
 
 
@@ -115,10 +125,68 @@ def test_a_recipe_run_is_logged_with_its_settings_and_results():
     assert final["surface_area_m2_g"] == PORE_RESULT["surface_area_m2_g"]
     assert final["pore_limiting_diameter_a"] == PORE_RESULT["pore_limiting_diameter_A"]
     assert final["li_escape_barrier"] == 1.5 and final["el_log_transmission"] == -18.0 and final["el_log_hopping"] == -24.4
+    assert (final["xtb_fmax"], final["xtb_gap"], final["xtb_energy_per_atom"]) == (2.5, 1.8, -40.0)
+    assert (final["xtb_relax_rmsd"], final["xtb_relax_reached_fmax"]) == (0.2, 0.0)
+    assert abs(final["xtb_relax_energy_drop"] - 0.1) < 1e-9
     history = [(k, v, s) for k, v, s in r["metrics"] if k == "step/density"]
     assert history == [("step/density", 0.1, 1), ("step/density", 0.2, 2)]
     assert [name for name, _ in r["artifacts"]] == ["run.json", "recipe.json"]
     assert r["status"] == "FINISHED" and r["start"] < r["end"]
+
+
+def test_a_child_runs_xtb_check_is_logged_on_its_parents_run_too():
+    """A Slurm fan-out's check is in a child run, in another experiment (it has no recipe)"""
+    client = FakeClient()
+    logger = mlflow_log.Logger("http://x", webUrl="", client=client)
+    check = EVENTS[6][1]["data"]
+    child = dict(run(recipe=False), run_id="99999999-2222-3333-4444-555555555555", parent_run_id=run()["run_id"])
+    childEvents = [(0, {"type": "xtb_result", "step": 7, "data": dict(check, fmax_eV_A=1.25)})]
+    assert logger.logChildChecks(child, childEvents) is None  # its parent isn't in MLflow yet
+    parent = logger.log(run(), EVENTS[:5], RECIPE)
+    assert not any(k.startswith("xtb_") for k, _, _ in client.runs[parent]["metrics"])
+    logger.log(child, childEvents, None)
+    assert logger.logChildChecks(child, childEvents) == parent
+    logged = {k: (v, s) for k, v, s in client.runs[parent]["metrics"] if k.startswith("xtb_")}
+    assert logged["xtb_fmax"] == (1.25, 7) and logged["xtb_relax_rmsd"] == (0.2, 7)  # at the checkpoint's step
+    assert client.runs[parent]["tags"]["ambuild.xtb_run_id"] == child["run_id"]
+    assert logger.logChildChecks(child, childEvents) is None  # once
+    assert len([k for k, _, _ in client.runs[parent]["metrics"] if k == "xtb_fmax"]) == 1
+    # not for a run without a parent, or a child without a check that gave figures
+    assert logger.logChildChecks(run(), EVENTS) is None
+    assert logger.logChildChecks(child, [EVENTS[5]]) is None
+
+
+class FakeConnection:
+    """The two queries backfill makes: the runs, then one run's events"""
+
+    def __init__(self, runs):
+        self.runs = runs  # [(run.json, [(seq, event)])], oldest first
+
+    def execute(self, sql, args=None):
+        if args is None:
+            rows = [(r["run_id"], r) for r, _ in self.runs]
+        else:
+            events = next(e for r, e in self.runs if r["run_id"] == args[0])
+            rows = [(seq, e["type"], e["step"], e["data"]) for seq, e in events]
+        return types.SimpleNamespace(fetchall=lambda: rows)
+
+
+def test_the_backfill_logs_a_child_runs_xtb_check_on_its_parent_too():
+    client = FakeClient()
+    logger = mlflow_log.Logger("http://x", webUrl="", client=client)
+    child = dict(run(recipe=False), run_id="99999999-2222-3333-4444-555555555555", parent_run_id=run()["run_id"])
+    childEvents = [(0, {"type": "xtb_result", "step": 7, "data": dict(EVENTS[6][1]["data"], fmax_eV_A=1.25)})]
+    conn = FakeConnection([(dict(run(recipe=False)), EVENTS[:5]), (child, childEvents)])
+    assert mlflow_log.backfill(conn, None, logger) == (2, 0, 0)
+    parent = logger.findRun(run()["run_id"]).info.run_id
+    assert ("xtb_fmax", 1.25, 7) in client.runs[parent]["metrics"]
+    assert mlflow_log.backfill(conn, None, logger) == (0, 2, 0)  # and again changes nothing
+    assert len([k for k, _, _ in client.runs[parent]["metrics"] if k == "xtb_fmax"]) == 1
+
+
+def test_the_pore_comparison_of_a_relaxation_gives_metrics():
+    data = {"fmax_eV_A": 1.0, "poreblazer": {"d_surface_area_m2_g": -120.0, "d_pore_limiting_diameter_A": None}}
+    assert mlflow_log.xtbMetrics(data) == {"xtb_fmax": 1.0, "xtb_d_surface_area": -120.0}
 
 
 def test_logging_is_idempotent_and_follows_the_status():

@@ -11,8 +11,11 @@ logged.
   name; and the seed.
 - **Metrics:** final_* from the last build step (density, atoms, blocks, free end groups,
   potential energy, build time), the latest Poreblazer result, the latest ion map of each
-  ion (li_, na_, k_), the latest conduction result (el_); and the build's history per step
-  (step/density, step/num_particles, step/num_blocks).
+  ion (li_, na_, k_), the latest conduction result (el_), the latest xTB check (xtb_); and
+  the build's history per step (step/density, step/num_particles, step/num_blocks).
+- **Child runs' xTB checks** (a Slurm fan-out's) are also logged on their parent's MLflow
+  run, at the step of the checkpoint checked, so the build carries its check
+  (Logger.logChildChecks).
 
 Configuration: MLFLOW_TRACKING_URI (none: nothing is logged) and AMBUILD_PUBLIC_URL (optional:
 a link back to each run's page). MLflow being down never fails an upload: a warning is
@@ -33,6 +36,7 @@ EXPERIMENT_PREFIX = "ambuild/"
 SCRIPTS_EXPERIMENT = "ambuild/scripts"
 RUN_TAG = "ambuild.run_id"
 LOGGED_TAG = "ambuild.mlflow_logged"  # the status the run was logged at
+XTB_RUN_TAG = "ambuild.xtb_run_id"  # on a build: the child run its xTB check came from
 MAX_VALUE = 500  # MLflow's oldest supported parameter value length
 STATUS = {"finished": "FINISHED", "failed": "FAILED"}  # others (incomplete, cancelled): KILLED
 
@@ -146,8 +150,35 @@ def finalMetrics(events):
             v = conduction[-1].get(f)
             if isinstance(v, (int, float)) and not isinstance(v, bool):
                 metrics["el_" + f] = v
+    checks = xtbChecks(events)
+    if checks:
+        metrics.update(xtbMetrics(checks[-1][1]))
     metrics.update(derivedMetrics(metrics))
     return metrics, history
+
+
+def xtbChecks(events):
+    """[(step, data)] of the xTB checks that gave figures"""
+    return [(e.get("step"), e["data"]) for _, e in events
+            if e["type"] == "xtb_result" and e["data"].get("fmax_eV_A") is not None]
+
+
+def xtbMetrics(data):
+    """xtb_* from an xTB check's result, as ambuild.xtb.metrics names them (this package doesn't
+    import ambuild)"""
+    relax = data.get("relax") or {}
+    atoms = data.get("atoms")
+    values = {"fmax": data.get("fmax_eV_A"), "frms": data.get("frms_eV_A"),
+              "energy_per_atom": data.get("energy_per_atom_eV"), "gap": data.get("gap_eV"),
+              "relax_rmsd": relax.get("rmsd_A"), "relax_max_bond_change": relax.get("max_bond_change_A")}
+    if relax.get("reached_fmax") is not None:
+        values["relax_reached_fmax"] = 1.0 if relax["reached_fmax"] else 0.0
+    pores = data.get("poreblazer") or {}  # Poreblazer on the relaxed cell, minus on the built one
+    values["d_surface_area"] = pores.get("d_surface_area_m2_g")
+    values["d_pld"] = pores.get("d_pore_limiting_diameter_A")
+    if atoms and isinstance(data.get("energy_eV"), (int, float)) and isinstance(relax.get("energy_eV"), (int, float)):
+        values["relax_energy_drop"] = (data["energy_eV"] - relax["energy_eV"]) / atoms
+    return {"xtb_" + k: v for k, v in values.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
 
 
 def derivedMetrics(m):
@@ -212,6 +243,36 @@ class Logger:
         runs = self.client.search_runs([experimentId], filter_string="tags.`{0}` = '{1}'".format(RUN_TAG, runId),
                                        max_results=1)
         return runs[0] if runs else None
+
+    def findRun(self, runId):
+        """The MLflow run of an Ambuild run, in whichever of Ambuild's experiments, or None"""
+        ids = [e.experiment_id for e in self.client.search_experiments() if e.name.startswith(EXPERIMENT_PREFIX)]
+        if not ids:
+            return None
+        runs = self.client.search_runs(ids, filter_string="tags.`{0}` = '{1}'".format(RUN_TAG, runId), max_results=1)
+        return runs[0] if runs else None
+
+    def logChildChecks(self, run, events):
+        """Log a child run's latest xTB check on its parent's MLflow run as well, at the step
+        of the checkpoint it checked (so of several children's, the latest checkpoint's is the
+        parent's current value). Returns the parent's MLflow run id, or None: not a child run,
+        no check with figures, a parent that isn't in MLflow, or a check logged there already"""
+        parent = run.get("parent_run_id")
+        checks = xtbChecks(events)
+        if not parent or not checks or run.get("status") == "running":
+            return None
+        with contextlib.redirect_stdout(io.StringIO()):
+            found = self.findRun(parent)
+            if found is None or found.data.tags.get(XTB_RUN_TAG) == run["run_id"]:  # none, or logged already
+                return None
+            from mlflow.entities import Metric
+
+            step, data = checks[-1]
+            stamp = _millis(run.get("finished")) or _millis(run.get("started")) or 0
+            items = [Metric(k, float(v), stamp, int(step or 0)) for k, v in sorted(xtbMetrics(data).items())]
+            self.client.log_batch(found.info.run_id, metrics=items)
+            self.client.set_tag(found.info.run_id, XTB_RUN_TAG, run["run_id"])
+        return found.info.run_id
 
     def log(self, run, events, recipe=None):
         """Log one Ambuild run (its run.json, [(seq, event)] and recipe dict, or None for a
@@ -292,7 +353,8 @@ def readRecipe(rundir):
 
 def backfill(conn, store, mlflowLogger, limit=None):
     """Log every run in the database not yet logged at its status; returns (logged, skipped,
-    failed). Recipes are read back from object storage"""
+    failed). Recipes are read back from object storage. A child run's xTB check goes on its
+    parent's MLflow run too, as at upload (runs are taken oldest first, so the parent is there)"""
     rows = conn.execute(
         "SELECT run_id, run_json FROM runs WHERE status <> 'running' ORDER BY started NULLS LAST"
         + (" LIMIT %s" % int(limit) if limit else "")).fetchall()
@@ -316,4 +378,9 @@ def backfill(conn, store, mlflowLogger, limit=None):
         except Exception:
             logger.exception("Could not log run %s to MLflow", runId)
             failed += 1
+            continue
+        try:  # an xTB fan-out's child run: its check goes on the build's MLflow run too
+            mlflowLogger.logChildChecks(run, events)
+        except Exception:
+            logger.exception("Could not log run %s's xTB check on its parent's MLflow run", runId)
     return logged, skipped, failed

@@ -16,6 +16,21 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- **xTB checks** (`docs/xtb-spec.md`): a recipe's `xtb` stage checks the built cell with a semi-empirical method (GFN-FF, GFN1-xTB or GFN2-xTB), as users have been doing by hand.
+  - **Single point:** the largest and RMS force at the built geometry, the atoms under the largest forces, the energy and the HOMO–LUMO gap.
+  - **Relaxation** (`mode: relax`): a capped fixed-cell relaxation; how far the atoms and the topology's bonds moved, and the relaxed cell as `relaxed.xyz`. GFN1 and GFN2 relax with ASE's LBFGS; GFN-FF with `xtb`'s own optimiser, the cell held with `--nocellopt` (left to itself `xtb` relaxes a periodic cell's lattice too).
+  - **Pores after relaxing** (`poreblazer: true`, with `relax`): Poreblazer runs on the built and on the relaxed structure with the settings of the recipe's last `poreblazer` stage, and the change in surface area and pore limiting diameter is recorded (`xtb_d_surface_area`, `xtb_d_pld`). The two runs belong to the check: the run's own Poreblazer results stay those of the cell as built.
+  - **A separate worker** (`python -m ambuild.xtb_worker`, found through `XTB_WORKER`): it uses `tblite` and ASE, or the `xtb` binary for GFN-FF, so Ambuild itself imports neither. `--forces` also writes every atom's force.
+  - **The worker's environment:** `deploy/slurm/xtb-worker/install.sh PREFIX` makes it on a cluster's shared filesystem as two conda environments, checks it, and prints the `XTB_WORKER` and `XTB_EXE` settings. `tests/docker/xtb.Dockerfile` is the same environment as an image, which CI's `xtb` job tests in.
+  - **On Slurm:** `submit_build.sh --xtb` checks the build's last pickle (or all of them) in array tasks, as child runs, with memory requested from the atom count (`deploy/README.md`). `AMBUILD_XTB_POREBLAZER=1` adds the pores comparison.
+  - **From the web GUI:** a `slurm` agent with `AMBUILD_AGENT_XTB=1` submits every build with `--xtb`. The `slurmrest` agent and sweeps' array jobs don't add it yet; a recipe's own `xtb` stage works everywhere.
+  - **Recorded** as an `xtb_result` event with `xtb_*` metrics, which sweeps can plot and campaigns can aim at or constrain, and which are logged to MLflow.
+  - **Run page:** an xTB check table of the run's checks and its child runs', with links to each one's files, and a table of the pores before and after relaxing.
+  - **Viewer:** a checked frame marks the atoms under the largest forces and the bonds that moved most, and can swap the atoms for the relaxed positions (`?xtb=relaxed`).
+  - **Review:** `ambuild-review` flags the builds most strained for their kind (`strained_at_xtb`, `moves_on_relaxing`), and a fan-out's check is logged on the build's MLflow run as well as its child run's, at upload and by `--mlflow-backfill`. The rules are relative to each stratum; an absolute threshold waits for recorded results.
+  - **Checked against CP2K** (`benchmarks/compare_xtb_cp2k.py`, `docs/benchmarks.md`): `tblite`'s GFN1-xTB forces agree with CP2K 2024.3's to 0.0025 eV/Å on a 472-atom cell, and both name the same atom as most strained. The `xtb` binary's periodic GFN1 does not agree with either, so the stage never uses it for tight binding.
+  - **Cost** (`docs/benchmarks.md`): a single point takes 19 s and 0.5 GB at 472 atoms and 109 s and 1.9 GB at 944, on 8 threads. Cells above 2,000 atoms are refused by default, and the memory estimate above 944 atoms is extrapolated.
+  - **What it shows on the shipped example:** `li_ion_carbon` has a largest force of 1.6 eV/Å as shipped and 5.3 eV/Å without its optimisation stages. Relaxing it for 15 steps of GFN1-xTB moves its surface area by 0.2% (7,202 to 7,217 m²/g) and its pore limiting diameter by 0.01 Å.
 - **MLflow review** (`ambuild-review`; `docs/mlflow.md`, Review): it picks the runs worth looking at in production, from everything in MLflow, comparing runs within strata (recipe × cell size).
   - **Scores:** porosity and conductance, as within-stratum percentiles.
   - **Gates:** finished, percolating, PLD at least 1.52 Å, no radical domains.

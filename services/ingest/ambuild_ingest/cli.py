@@ -177,6 +177,11 @@ def main(argv=None):
                         loggedAny = tracker.log(run, rundir.events(), readRecipe(rundir)) is not None or loggedAny
                     except Exception:
                         logger.exception("Uploaded %s, but could not log it to MLflow", rundir.path)
+                    try:  # an xTB fan-out's child run: its check goes on the build's MLflow run too
+                        loggedAny = tracker.logChildChecks(run, rundir.events()) is not None or loggedAny
+                    except Exception:
+                        logger.exception("Uploaded %s, but could not log its xTB check on its parent's MLflow run",
+                                         rundir.path)
             print("{run_id} {status} events={events} files={files} uploaded={uploaded}".format(**summary))
         if loggedAny:
             reviewAfter(tracker)

@@ -125,6 +125,39 @@ cancelled and timed-out builds are uploaded too (as `failed` or `incomplete`).
 With `--poreblazer`, each pickle the build writes gets its own array task and
 child run, and a second upload follows the array.
 
+With `--xtb`, the build's last pickle is checked with xTB (`docs/xtb-spec.md`) in an
+array task of its own, as a child run in `<run-id>/xtb_runs/`, and an upload follows:
+
+```sh
+AMBUILD_XTB_MODE=relax AMBUILD_XTB_CPUS=8 deploy/slurm/submit_build.sh --xtb my_build.py
+```
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `XTB_WORKER` | the jobs' `python`, if it has `tblite` | the worker's command, e.g. another environment's `python -m ambuild.xtb_worker` |
+| `AMBUILD_XTB_STEPS` | `last` | `all` checks every pickle: for small cells only, as each check takes minutes |
+| `AMBUILD_XTB_METHOD`, `_MODE`, `_MAX_STEPS`, `_FMAX`, `_MAX_ATOMS`, `_CHARGE` | the stage's | the check's settings |
+| `AMBUILD_XTB_POREBLAZER` | off | `1`, with `AMBUILD_XTB_MODE=relax` and `POREBLAZER_EXE`: also compare Poreblazer's figures before and after relaxing |
+| `AMBUILD_XTB_CPUS` | 4 | CPUs (threads) per task |
+| `AMBUILD_XTB_MEM` | estimated from the atom count | memory (MB) per task; `none` for the site's default |
+| `AMBUILD_XTB_TIME` | the site's | time limit per task; a relaxation of a large cell needs hours |
+| `AMBUILD_XTB_ARRAY_MAX` | 20 | array tasks running at once |
+
+The memory estimate is measured up to 944 atoms (about 2.1 GB) and extrapolated beyond: a
+2,000-atom cell asks for about 10 GB. A task refuses a cell that won't fit in its memory
+before starting. `--poreblazer` and `--xtb` can be given together.
+
+The worker needs `tblite` and ASE (and the `xtb` binary for GFN-FF), which Ambuild's own
+environment doesn't have. On a login node, with micromamba, mamba or conda:
+
+```sh
+deploy/slurm/xtb-worker/install.sh /shared/ambuild/xtb-worker
+```
+
+It makes two conda environments under that directory, which the compute nodes must see,
+checks the worker with each method, and prints the `XTB_WORKER` and `XTB_EXE` lines to
+export (or to put in the agent's `agent.env`). `--no-gfnff` leaves out the `xtb` binary.
+
 Ambuild runs as a single process. Submit with `--ntasks=N` to run each HOOMD-blue
 calculation across N MPI tasks (`srun --ntasks=N python -m ambuild.hoomd_worker`);
 this needs an MPI build of HOOMD-blue 4+ (conda-forge has none: build it from source),
@@ -159,6 +192,7 @@ export AMBUILD_API_URL=https://ambuild.lab.internal AMBUILD_AGENT_TOKEN=...
 export AMBUILD_AGENT_BACKEND=slurm AMBUILD_RUNS_ROOT=/shared/ambuild/runs
 export AMBUILD_SLURM_DIR=$PWD/deploy/slurm
 export AMBUILD_SLURM_PARTITION=cpu AMBUILD_SLURM_OPTIONS="--account=chem"   # optional
+export AMBUILD_AGENT_XTB=1   # optional: check each build with xTB afterwards (--xtb, above)
 ambuild-agent          # in tmux, or as a systemd user service
 ```
 

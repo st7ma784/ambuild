@@ -1,27 +1,34 @@
 #!/bin/bash
 # Submit a recorded Ambuild build to Slurm, with its upload and, optionally,
-# a Poreblazer fan-out over the pickles it writes.
+# a Poreblazer fan-out over the pickles it writes and an xTB check of what it built.
 #
-#   submit_build.sh [--poreblazer] BUILD_SCRIPT [extra sbatch options for the build]
-#   submit_build.sh [--poreblazer] --recipe RECIPE.json [extra sbatch options]
+#   submit_build.sh [--poreblazer] [--xtb] BUILD_SCRIPT [extra sbatch options for the build]
+#   submit_build.sh [--poreblazer] [--xtb] --recipe RECIPE.json [extra sbatch options]
 #
 # Environment:
 #   AMBUILD_RUNS_ROOT  shared directory for run directories (required)
 #   POREBLAZER_EXE     needed with --poreblazer, and for recipes that run Poreblazer
+#   XTB_WORKER         with --xtb: the xTB worker's command, if the jobs' python has no
+#                      tblite; AMBUILD_XTB_* set the check (ambuild_xtb_fanout.sbatch)
 #   AMBUILD_RUN_ID     the run id to use (default: a new one); the web GUI's agent sets it
 #   AMBUILD_BLOBS      for recipes: a shared directory of input files named by sha256
 #   AMBUILD_SEED       for recipes: overrides the recipe's seed
 #
 # Jobs:  build ──afterany──> upload
-#          └───afterok───> fanout ──> poreblazer array ──afterany──> upload
+#          ├───afterok───> fanout ──> poreblazer array ──afterany──> upload
+#          └───afterok───> xtb fanout ──> xtb array ──afterany──> upload
 set -euo pipefail
 
-poreblazer=0
-if [ "${1:-}" = "--poreblazer" ]; then
-    poreblazer=1
+poreblazer=0 xtb=0
+while :; do
+    case "${1:-}" in
+        --poreblazer) poreblazer=1 ;;
+        --xtb) xtb=1 ;;
+        *) break ;;
+    esac
     shift
-fi
-usage="usage: submit_build.sh [--poreblazer] (BUILD_SCRIPT | --recipe RECIPE.json) [sbatch options]"
+done
+usage="usage: submit_build.sh [--poreblazer] [--xtb] (BUILD_SCRIPT | --recipe RECIPE.json) [sbatch options]"
 script="" recipe=""
 if [ "${1:-}" = "--recipe" ]; then
     recipe="$(realpath "${2:?$usage}")"
@@ -45,5 +52,9 @@ if [ "$poreblazer" -eq 1 ]; then
     : "${POREBLAZER_EXE:?set POREBLAZER_EXE for --poreblazer}"
     fanout=$(sbatch --parsable --dependency="afterok:$build" --export=ALL "$here/ambuild_fanout.sbatch")
     echo "run $run_id: Poreblazer fan-out job $fanout"
+fi
+if [ "$xtb" -eq 1 ]; then
+    fanout=$(sbatch --parsable --dependency="afterok:$build" --export=ALL "$here/ambuild_xtb_fanout.sbatch")
+    echo "run $run_id: xTB fan-out job $fanout"
 fi
 echo "$run_dir"
