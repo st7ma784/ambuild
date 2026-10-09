@@ -19,7 +19,7 @@ never ranked against a 60 Å production one. The criteria (review_criteria.json,
   - **stratified:** per stratum, the runs nearest fixed quantiles of each score, a small
     reference set spanning the range, for regression tests;
   - **edge cases:** named rules (porous but closed, fragmented, spans without a coherent
-    path, conducts through radicals, ...).
+    path, conducts through radicals, strained at xTB, ...).
 
 Results go back to MLflow: tags on every run (review.picks, review.edge_cases,
 review.outliers, review.porosity_score, review.conductance_score, review.stratum,

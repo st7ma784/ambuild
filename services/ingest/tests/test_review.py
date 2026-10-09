@@ -90,6 +90,21 @@ def test_fragmented_and_unfinished_are_relative_to_the_stratum(criteria):
     assert not any(o["edge_cases"] for o in review.review(alike, criteria)[0].values())
 
 
+def test_xtb_checks_flag_the_builds_strained_for_their_kind(criteria):
+    """No threshold is chosen in advance: a build is flagged against the others of its stratum"""
+    runs = [rec(i, xtb_fmax=0.8 + 0.01 * i, xtb_relax_max_bond_change=0.03) for i in range(12)]
+    runs.append(rec(40, xtb_fmax=6.0, xtb_relax_max_bond_change=0.4))
+    runs.append(rec(41))  # never checked: a missing metric flags nothing
+    results, _ = review.review(runs, criteria)
+    flagged = {rid for rid, o in results.items() if o["edge_cases"]}
+    assert flagged == {"r40"} and set(results["r40"]["edge_cases"]) == {"strained_at_xtb", "moves_on_relaxing"}
+    assert "xtb_fmax" in " ".join(results["r40"]["outliers"])
+    assert results["r40"]["gates"] == []  # a flag to look at, not a gate
+    # too few checked runs to say what's unusual
+    few = [rec(i, xtb_fmax=1.0) for i in range(3)] + [rec(9, xtb_fmax=9.0)]
+    assert not any(o["edge_cases"] for o in review.review(few, criteria)[0].values())
+
+
 def test_cell_sizes_are_binned(criteria):
     a, b, c = rec(1, box="21.76,21.76,21.76"), rec(2, box="28.2,28.2,28.2"), rec(3, box="30,30,30")
     s = [review.stratum(r, criteria) for r in (a, b, c)]

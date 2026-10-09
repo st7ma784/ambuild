@@ -14,7 +14,7 @@ Python scripts go to `ambuild/scripts`.
 | | |
 | --- | --- |
 | **Parameters** | the recipe, flattened by JSON pointer, the same paths sweeps and campaigns vary: `cell/box`, `cell/bond_margin`, `stages/1/repeat`, `stages/1/stages/0/count`, `stages/5/through_space`, …; `blocks`, `fragments/<type>`, `bond_types` and `params` (the parameter set); `recipe_seed`, and `seed`, the seed the run actually used |
-| **Final properties** (metrics) | `final_density`, `final_num_particles`, `final_num_blocks`, `final_num_free_endgroups`, `final_potential_energy` and `final_build_seconds`, from the last build step; the latest Poreblazer result (`surface_area_m2_g`, `pore_limiting_diameter_a`, `helium_volume_cm3_g`, …); the latest ion map of each ion (`li_escape_barrier`, …); the latest conduction result (`el_gap`, `el_conductance`, `el_log_transmission`, `el_log_hopping`, …) |
+| **Final properties** (metrics) | `final_density`, `final_num_particles`, `final_num_blocks`, `final_num_free_endgroups`, `final_potential_energy` and `final_build_seconds`, from the last build step; the latest Poreblazer result (`surface_area_m2_g`, `pore_limiting_diameter_a`, `helium_volume_cm3_g`, …); the latest ion map of each ion (`li_escape_barrier`, …); the latest conduction result (`el_gap`, `el_conductance`, `el_log_transmission`, `el_log_hopping`, …); the latest xTB check (`xtb_fmax`, `xtb_gap`, `xtb_relax_rmsd`, `xtb_d_surface_area`, …; `docs/xtb-spec.md`), the run's own or, from a Slurm fan-out, its child run's, which is logged on the build's run at the step of the checkpoint checked (the tag `ambuild.xtb_run_id` names the child run) |
 | **History** (metrics by step) | `step/density`, `step/num_particles`, `step/num_blocks` |
 | **Artifacts** | `recipe.json` and `run.json` |
 | **Tags** | `ambuild.run_id`, `ambuild.status`, `ambuild.recipe`, `ambuild.recipe_sha256`, `ambuild.version`, `ambuild.git_commit`, `ambuild.parent_run_id`, `ambuild.host`, `ambuild.slurm_job_id`, `ambuild.error` for failed runs, and `ambuild.url`, a link to the run's page in the web GUI |
@@ -47,7 +47,8 @@ The uploader needs `mlflow-skinny`: `pip install "ambuild-ingest[mlflow]"`. The 
 ingest and agent images include it.
 
 **Existing runs:** `ambuild-upload --mlflow-backfill` logs every run in the database not yet
-logged at its current status, reading recipes back from object storage. The compose stack
+logged at its current status, reading recipes back from object storage, and puts a child
+run's xTB check on its build's MLflow run as an upload does. The compose stack
 runs it as the `mlflow-backfill` service each time it starts.
 
 ## The server
@@ -131,7 +132,7 @@ A metric a recipe doesn't measure isn't a failure.
 | --- | --- |
 | `top_porosity`, `top_conductance`, `top_both` | the best 3 gated runs per stratum on each score, and on their mean |
 | `pareto` | gated runs that no other run beats on both porosity and conductance (across strata, as the scores are percentiles within them): the trade-off front |
-| `outlier` | in a stratum of at least 8, both a robust z-score (median and MAD) of at least 3.5 and outside Tukey's far-out fences (3 × IQR beyond the quartiles), on any of surface area, PLD, void fraction, density, blocks, transmission, hopping, conductance, build time or free end groups. Needing both keeps a second mode, such as a campaign's other regime, from counting as outliers. `review.outliers` says which metrics, and which way |
+| `outlier` | in a stratum of at least 8, both a robust z-score (median and MAD) of at least 3.5 and outside Tukey's far-out fences (3 × IQR beyond the quartiles), on any of surface area, PLD, void fraction, density, blocks, transmission, hopping, conductance, build time, free end groups or the largest xTB force. Needing both keeps a second mode, such as a campaign's other regime, from counting as outliers. `review.outliers` says which metrics, and which way |
 | `good_outlier` | an outlier in the better direction of a scored metric that also passes the gates: an unusually good build, worth reproducing |
 | `stratified` | per stratum, the runs nearest the 10th, 50th and 90th percentiles of each score: a small reference set spanning the range, for regression and comparison tests |
 | `edge_case` | named rules (the `review.edge_cases` tag), listed below |
@@ -146,6 +147,8 @@ A metric a recipe doesn't measure isn't a failure.
 | `conducts_through_radicals` | conducts, with radical π domains, whose levels inflate transmission |
 | `narrow_window_large_cage` | pore window ratio under 0.3 with a cage over 10 Å |
 | `unfinished_network` | over 150 free end groups per 1000 atoms, and more than 95% of its stratum |
+| `strained_at_xtb` | the largest force xTB puts on its atoms as built (`xtb_fmax`) is above 95% of its stratum's: the most strained builds of their kind. No force is "too large" in advance |
+| `moves_on_relaxing` | the largest bond-length change on relaxing with xTB is above 95% of its stratum's |
 | `failed` | the build failed |
 
 **Where to find the results:**

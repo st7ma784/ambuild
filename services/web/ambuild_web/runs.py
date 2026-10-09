@@ -108,15 +108,16 @@ def _poreStepCharts(poreRows):
 
 def _structureSpec(run):
     """The viewer's frames: each structure file's step and where to fetch it, with the ion
-    maps (liminal, docs/ion-maps.md) made of it: those at its step, else at the latest
-    step before the next frame"""
+    maps (liminal, docs/ion-maps.md) and the xTB checks (docs/xtb-spec.md; the run's own and
+    its child runs') made of it: those at its step, else at the latest step before the next
+    frame"""
     runId = run["summary"]["run_id"]
 
     def url(path):
         return "/runs/{0}/files/{1}?inline=1".format(runId, quote(path))
 
     frames = [{"step": f["step"], "path": f["path"], "kind": f["kind"], "size": f["size"], "url": url(f["path"]),
-               "ion_maps": []} for f in run["structures"]]
+               "ion_maps": [], "xtb": []} for f in run["structures"]]
     for m in run.get("ion_maps") or []:
         if not m.get("map") or m.get("step") is None:
             continue
@@ -131,6 +132,20 @@ def _structureSpec(run):
             "ion": m["ion"], "step": m["step"], "map": url(m["map"]), "cube": url(m["cube"]) if m.get("cube") else None,
             "site_energy": m.get("site_energy"), "escape_barrier": m.get("escape_barrier"), "escape_energy": escape,
             "tier": m.get("tier")})
+    for x in run.get("xtb") or []:
+        if x.get("step") is None or x.get("fmax_eV_A") is None:
+            continue
+        # the check's atom numbers are the export's (docs/export.md), so only frames in that format
+        stepped = [f for f in frames if f["kind"] == "structure" and f["step"] is not None and f["step"] <= x["step"]]
+        if not stepped:
+            continue
+        relaxed = None
+        if x.get("relaxed"):
+            relaxed = "/runs/{0}/files/{1}?inline=1".format(x["run_id"], quote(x["relaxed"]))
+        stepped[-1]["xtb"].append({
+            "label": "{0}, step {1}".format(x.get("method") or "xTB", x["step"]), "step": x["step"],
+            "atoms": x.get("atoms"), "fmax": x["fmax_eV_A"], "worst_atoms": x.get("worst_atoms") or [],
+            "worst_bonds": (x.get("relax") or {}).get("worst_bonds") or [], "relaxed": relaxed})
     box = (run["run"]["run_json"].get("cell") or {}).get("box_dim")
     return {"box": box, "frames": frames}
 

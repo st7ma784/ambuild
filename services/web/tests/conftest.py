@@ -68,12 +68,34 @@ def conductionResult(step, gap, conductance, directory="conduction_2"):
     return {"step": step, "data": data, "files": files}
 
 
+def xtbResult(step, fmax, directory="xtb_3", relax=True):
+    """An xtb stage's result (ambuild.xtb), and its files"""
+    data = {"returncode": 0, "method": "GFN1-xTB", "program": "test", "program_version": "0", "atoms": 90,
+            "charge": 0, "mode": "relax" if relax else "single_point", "converged": True, "error": None,
+            "seconds": 1.0, "energy_eV": -3600.0, "energy_per_atom_eV": -40.0, "fmax_eV_A": fmax, "frms_eV_A": 0.5,
+            "gap_eV": 1.75, "worst_atoms": [[4, fmax]], "relax": None, "memory_estimate_mb": 180.0, "threads": 2,
+            "results": directory + "/xtb.json", "directory": "/x/" + directory, "log": directory + "/xtb.log"}
+    files = {data["results"]: json.dumps({"format": "ambuild-xtb", "version": 1, "fmax_eV_A": fmax}).encode(),
+             data["log"]: b"xtb log\n"}
+    if relax:
+        data["relax"] = {"steps": 50, "max_steps": 50, "reached_fmax": False, "energy_eV": -3609.0, "fmax_eV_A": 0.3,
+                         "frms_eV_A": 0.1, "rmsd_A": 0.125, "max_displacement_A": 0.5, "bonds": 96,
+                         "max_bond_change_A": 0.0625, "worst_bonds": [[0, 1, 1.5, 1.4375]], "structure": "relaxed.xyz"}
+        data["poreblazer"] = {"settings": {"cubelet_size": 0.2},
+                              "built": {"surface_area_m2_g": 1500.0, "pore_limiting_diameter_A": 7.5, "returncode": 0},
+                              "relaxed": {"surface_area_m2_g": 1380.0, "pore_limiting_diameter_A": 7.25, "returncode": 0},
+                              "d_surface_area_m2_g": -120.0, "d_pore_limiting_diameter_A": -0.25}
+        data["relaxed"] = directory + "/relaxed.xyz"
+        files[data["relaxed"]] = b"1\nrelaxed\nC 0 0 0\n"
+    return {"step": step, "data": data, "files": files}
+
+
 def writeRun(path, name, status="finished", parentRunId=None, seed=None, nsteps=3, pores=(), error=None,
-             extraFiles=None, structures=(), xyzArtifact=False, ionMaps=(), conduction=()):
+             extraFiles=None, structures=(), xyzArtifact=False, ionMaps=(), conduction=(), xtb=()):
     """A run directory in the format of ambuild.ab_run; returns (run id, {relpath: bytes})"""
     runId = str(uuid.uuid4())
     extraFiles = dict(extraFiles or {})
-    for m in list(ionMaps) + list(conduction):
+    for m in list(ionMaps) + list(conduction) + list(xtb):
         extraFiles.update(m["files"])
     script = "inputs/script/webtest-{0}-{1}.py".format(TOKEN, name)
     files = {
@@ -136,6 +158,12 @@ def writeRun(path, name, status="finished", parentRunId=None, seed=None, nsteps=
         events.append({"type": "conduction_result", "step": c["step"], "timestamp": 23.0, "data": c["data"]})
         events.append({"type": "artifact", "step": c["step"], "timestamp": 23.0,
                        "data": {"relpath": c["data"]["results"], "kind": "conduction"}})
+    for x in xtb:
+        events.append({"type": "xtb_result", "step": x["step"], "timestamp": 24.0, "data": x["data"]})
+        for kind, key in (("xtb", "results"), ("xtb_relaxed", "relaxed")):
+            if x["data"].get(key):
+                events.append({"type": "artifact", "step": x["step"], "timestamp": 24.0,
+                               "data": {"relpath": x["data"][key], "kind": kind}})
     if status != "running":
         events.append({"type": "run_finished", "step": nsteps, "timestamp": 30.0,
                        "data": {"status": status, "error": error}})
@@ -164,9 +192,12 @@ def recorded(tmp_path_factory):
                          extraFiles={"notes/odd name & more.txt": b"a file with an awkward name\n"},
                          ionMaps=[ionMap(2, "Li+", -1.0, 9.0, "ion_map_0"), ionMap(3, "Li+", -2.0, 1.5),
                                   ionMap(3, "K+", -4.0, 6.0)],
-                         conduction=[conductionResult(2, 3.1, 0.002, "conduction_1"), conductionResult(3, 2.4, 0.004)])
+                         conduction=[conductionResult(2, 3.1, 0.002, "conduction_1"), conductionResult(3, 2.4, 0.004)],
+                         xtb=[xtbResult(2, 4.5, "xtb_2", relax=False)])
+    # the child also holds an xTB check of a later step, as a Slurm fan-out's child run does
     child, filesChild = writeRun(str(root / "child"), "alpha-child", parentRunId=a, nsteps=0,
-                                 pores=[{"step": 2, "result": pore(2, 1400.0, 7.0, "/runs/child/poreblazer_2")}])
+                                 pores=[{"step": 2, "result": pore(2, 1400.0, 7.0, "/runs/child/poreblazer_2")}],
+                                 xtb=[xtbResult(3, 2.5)])
     b, filesB = writeRun(str(root / "b"), "beta", status="failed", seed=12, nsteps=2, xyzArtifact=True,
                          error="RuntimeError: deliberate failure")
     c, filesC = writeRun(str(root / "c"), "gamma", seed=13, nsteps=4,

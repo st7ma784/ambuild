@@ -231,8 +231,9 @@ class SlurmBackend(SlurmJobs):
         env.pop("AMBUILD_SEED", None)
         if sub.get("seed") is not None:
             env["AMBUILD_SEED"] = str(sub["seed"])
-        result = subprocess.run([self.submitScript, "--recipe", recipeFile] + self.sbatchOptions(sub), cwd=workdir,
-                                env=env, capture_output=True, text=True, timeout=120)
+        flags = ["--xtb"] if self.config.xtb else []  # an xTB check of the last checkpoint, as a child run
+        result = subprocess.run([self.submitScript] + flags + ["--recipe", recipeFile] + self.sbatchOptions(sub),
+                                cwd=workdir, env=env, capture_output=True, text=True, timeout=120)
         match = re.search(r"build job (\d+), upload job (\d+)", result.stdout)
         if result.returncode != 0 or not match:
             raise RuntimeError("submit_build.sh failed: " + (result.stderr or result.stdout).strip()[-1000:])

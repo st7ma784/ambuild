@@ -19,6 +19,19 @@ jobs:
         docker run --rm --user "$(id -u)" -v "$PWD:/ambuild" -w /ambuild/tests \
           -e PYTHONPATH=/ambuild -e PYTHONHASHSEED=0 ambuild-hoomd7 python run_tests.py
 
+  xtb:
+    # The xtb stage against the real programs: tblite, ASE and the xtb binary
+    # (tests/docker/xtb.Dockerfile, docs/xtb-spec.md)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the xTB image
+      run: docker build -f tests/docker/xtb.Dockerfile -t ambuild-xtb tests/docker
+    - name: Run the xTB tests
+      run: |
+        docker run --rm --user "$(id -u)" -v "$PWD:/ambuild" -w /ambuild/tests \
+          -e PYTHONPATH=/ambuild -e PYTHONHASHSEED=0 -e OMP_NUM_THREADS=2 ambuild-xtb python -m unittest -v testXtb
+
   image:
     # The runtime image (root Dockerfile): the full suite against the installed package,
     # with HOOMD-blue 7 and a real Poreblazer

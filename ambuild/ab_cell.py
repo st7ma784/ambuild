@@ -2572,6 +2572,133 @@ class Cell:
         self.analyse.emit(conduction.EVENT, result)
         return result
 
+    def xtb(self, xtb_worker=None, method="gfn1", mode="single_point", max_steps=50, fmax=0.05, max_atoms=None,
+            threads=None, charge=None, memory_limit_mb=None, poreblazer=False, poreblazer_exe=None):
+        """Check the cell with xTB (ambuild.xtb, docs/xtb-spec.md): the forces a
+        semi-empirical method puts on the atoms at this geometry, and optionally how far a
+        relaxation moves them.
+
+        The cell's structure and topology are written to a new xtb_<fileCount> directory in
+        outputDir and the worker is run on them, writing xtb.json. xtb_worker: the command
+        (default XTB_WORKER, else this interpreter if it has what the method needs). method:
+        gfnff, gfn1 or gfn2. mode: single_point, or relax, which adds a fixed-cell
+        relaxation of at most max_steps steps, stopping when the largest force is below fmax
+        (eV/Å), and writes the relaxed structure (relaxed.xyz). max_atoms: a larger cell
+        raises a RuntimeError before anything is run (default ambuild.xtb.MAX_ATOMS, 2000:
+        time and memory grow steeply with the atom count). memory_limit_mb, if given, is the
+        memory available to the worker: a cell whose estimate (ambuild.xtb.memoryEstimateMb)
+        is larger raises a RuntimeError before anything is run. threads sets OMP_NUM_THREADS.
+        charge: the cell's charge (e); by default the sum of the atoms' charges, which must
+        then be zero.
+
+        poreblazer (with mode relax): also run Poreblazer (poreblazer_exe, default
+        POREBLAZER_EXE) on the built and on the relaxed structure, in poreblazer_built and
+        poreblazer_relaxed in the stage's directory, and record both and their difference
+        as the result's "poreblazer". True uses the settings of this cell's last Poreblazer
+        run (else the defaults); a dict gives them. These two runs are not recorded as
+        Poreblazer results of the run.
+
+        The summary (ambuild.xtb.summarise, plus the files, directory and exit code) is
+        recorded as an xtb_result event and the files as artifacts. Returns the summary: with
+        a non-zero returncode it has no figures; with "converged" False the calculation ran
+        but gave no answer.
+        """
+        from ambuild import xtb
+
+        xtb.checkSettings(method, mode)  # Check before creating anything
+        command = xtb.workerCommand(method, xtb_worker)
+        if command is None:
+            raise RuntimeError(xtb.missing(method))
+        pore_settings = None
+        if poreblazer:
+            from ambuild import ab_poreblazer
+
+            if mode != "relax":
+                raise ValueError("xtb: poreblazer compares the relaxed cell with the built one, so it needs mode relax")
+            poreblazer_exe = poreblazer_exe or os.environ.get("POREBLAZER_EXE")
+            if not poreblazer_exe:
+                raise RuntimeError("The xTB stage's Poreblazer comparison needs POREBLAZER_EXE")
+            given = poreblazer if isinstance(poreblazer, dict) else (getattr(self, "_poreblazerSettings", None) or {})
+            pore_settings = ab_poreblazer.settings(**dict(given, visualisation="none"))
+        atoms, _ = self._exportAtoms()
+        if max_atoms is None:
+            max_atoms = xtb.MAX_ATOMS[method]
+        if max_atoms is not None and len(atoms) > max_atoms:
+            raise RuntimeError("The cell has {0} atoms, more than the {1} this xTB stage takes ({2}): raise its "
+                               "max_atoms if there is the time and memory for it".format(len(atoms), max_atoms, xtb.METHODS[method]))
+        memory_mb = xtb.memoryEstimateMb(len(atoms))
+        if memory_limit_mb is not None and memory_mb > memory_limit_mb:
+            raise RuntimeError("xTB would need about {0:.0f} MB for this cell of {1} atoms, more than the {2:.0f} MB "
+                               "available; ask for more memory".format(memory_mb, len(atoms), memory_limit_mb))
+        logger.info("xTB memory estimate: %.0f MB", memory_mb)
+        if charge is None:
+            charge = xtb.netCharge([float(block.charge(i) or 0.0) for block, i, _ in atoms])
+            if charge != 0:
+                raise RuntimeError("The cell's atoms carry a net charge of {0:+d} e: give the xTB stage the cell's "
+                                   "charge to run a charged periodic cell".format(charge))
+        directory = os.path.abspath(self.outputPath("{0}_{1}".format(xtb.NAME_STEM, self._fileCount)))
+        if os.path.isdir(directory):
+            raise RuntimeError("xTB directory already exists: {0}".format(directory))
+        os.makedirs(directory)
+        structure = self.writeStructure(os.path.join(directory, "structure.xyz"), kind="xtb_structure")
+        topology = self.writeTopology(os.path.join(directory, "structure.topology.json"), structure,
+                                      kind="xtb_topology")
+        out = os.path.join(directory, xtb.RESULTS)
+        log = os.path.join(directory, "xtb.log")
+        relaxed = os.path.join(directory, xtb.RELAXED) if mode == "relax" else None
+        code = xtb.runWorker(command, structure, out, log, method, mode=mode,
+                             maxSteps=max_steps if mode == "relax" else None, fmax=fmax if mode == "relax" else None,
+                             charge=charge, topology=topology, relaxed=relaxed, threads=threads)
+        result = {"returncode": code, "directory": directory, "log": self._relativeOutputPath(log),
+                  "memory_estimate_mb": memory_mb, "threads": threads}
+        if code == 0 and os.path.isfile(out):
+            result.update(xtb.summarise(xtb.readResults(out)))
+            result["results"] = self._relativeOutputPath(out)
+            self._recordArtifact(out, "xtb")
+            if relaxed and os.path.isfile(relaxed):
+                result["relaxed"] = self._relativeOutputPath(relaxed)
+                self._recordArtifact(relaxed, "xtb_relaxed")
+                if pore_settings is not None:
+                    result["poreblazer"] = self._xtbPoreblazer(directory, structure, relaxed, poreblazer_exe,
+                                                               pore_settings, threads)
+            logger.info("xTB (%s): largest force %s eV/A, converged %s", result.get("method"),
+                        result.get("fmax_eV_A"), result.get("converged"))
+        self.analyse.emit(xtb.EVENT, result)
+        return result
+
+    def _xtbPoreblazer(self, directory, structure, relaxed, poreblazer_exe, settings, threads):
+        """Poreblazer on the built and on the xTB-relaxed structure (the stage's two files,
+        so the same atoms in the same order), with the same settings and so the same seed:
+        {"settings", "built": {figures, returncode, directory}, "relaxed": {...}, and the
+        relaxed minus the built surface area and pore limiting diameter}. A run that fails
+        leaves its figures None"""
+        from ambuild import ab_poreblazer, xtb
+
+        comparison = {"settings": settings}
+        for name, path in (("built", structure), ("relaxed", relaxed)):
+            rundir = os.path.join(directory, "{0}_{1}".format(ab_poreblazer.NAME_STEM, name))
+            os.mkdir(rundir)
+            data = xtb.readStructure(path)
+            xtb.writePlainXyz(os.path.join(rundir, "ambuild.xyz"), data)
+            A, B, C = data["lattice"]
+            input_dat = ab_poreblazer.write_input_dat("ambuild.xyz", A, B, C, directory=rundir)
+            code = ab_poreblazer.run_poreblazer(poreblazer_exe, input_dat, directory=rundir, settings=settings,
+                                                threads=threads)
+            if code != 0:
+                logger.critical("Error running poreblazer - check files in directory: {}".format(rundir))
+            results = ab_poreblazer.parse_output(rundir)
+            comparison[name] = dict({k: results.get(k) for k in xtb.PORE_KEYS}, returncode=code,
+                                    directory=self._relativeOutputPath(rundir))
+            log = os.path.join(rundir, "poreblazer.log")
+            if os.path.isfile(log):
+                self._recordArtifact(log, "xtb_poreblazer_log")
+        changes = xtb.poreChanges(comparison)
+        comparison["d_surface_area_m2_g"] = changes["d_surface_area"]
+        comparison["d_pore_limiting_diameter_A"] = changes["d_pld"]
+        logger.info("Poreblazer after relaxing: surface area %s m^2/g, pore limiting diameter %s A",
+                    comparison["d_surface_area_m2_g"], comparison["d_pore_limiting_diameter_A"])
+        return comparison
+
     def poreblazer(self, poreblazer_exe, threads=None, memory_limit_mb=None, **settings):
         """Run Poreblazer on the current cell and return its results.
 
@@ -2633,6 +2760,7 @@ class Cell:
                 "Ambuild's Poreblazer fork. Output is in {1}".format(poreblazer_exe, rundir)
             )
         results["settings"] = settings
+        self._poreblazerSettings = dict(settings)  # an xtb stage's comparison uses the same
         results["memory_estimate_mb"] = memory_mb
         results["threads"] = threads
         results["directory"] = rundir

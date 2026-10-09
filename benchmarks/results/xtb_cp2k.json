@@ -1,0 +1,41 @@
+{
+ "about": "GFN1-xTB single points from tblite (the xtb stage's worker) and CP2K on the same periodic cells: benchmarks/compare_xtb_cp2k.py, docs/benchmarks.md",
+ "date": "2026-10-09",
+ "cp2k": "2024.3 (cp2k/cp2k:2024.3_openmpi_generic_psmp), 8 threads",
+ "tblite": "0.7.0 (conda-forge), 8 threads",
+ "cells": {
+  "benzene, one C-H pushed out 0.2 A, 10 A cell": {
+   "atoms": 12,
+   "tblite_energy_eV": -431.7315109366173,
+   "cp2k_energy_eV": -431.7300293914885,
+   "energy_difference_meV_per_atom": -0.12346209407117688,
+   "tblite_fmax_eV_A": 6.58780668169064,
+   "cp2k_fmax_eV_A": 6.588017878942207,
+   "tblite_worst_atom": 0,
+   "cp2k_worst_atom": 0,
+   "largest_force_difference_eV_A": 0.0006205889899824558,
+   "rms_force_difference_eV_A": 0.00035136225782624096,
+   "cp2k_seconds": 2
+  },
+  "li_ion_carbon built without its optimisation stages, 30 A cell": {
+   "atoms": 472,
+   "tblite_energy_eV": -20027.373784980755,
+   "cp2k_energy_eV": -20027.196690028024,
+   "energy_difference_meV_per_atom": -0.3752011710399159,
+   "tblite_fmax_eV_A": 5.305484066148284,
+   "cp2k_fmax_eV_A": 5.304653271553407,
+   "tblite_worst_atom": 121,
+   "cp2k_worst_atom": 121,
+   "largest_force_difference_eV_A": 0.0024964538866364587,
+   "rms_force_difference_eV_A": 0.0006824190932577847,
+   "cp2k_seconds": 396,
+   "tblite_seconds": 19
+  }
+ },
+ "scaling": {
+  "about": "the worker's single point on the 472-atom cell and its 2x1x1 and 2x2x1 supercells, 8 threads, container limited to 4 GB: seconds, peak GB",
+  "GFN1-xTB (tblite 0.7.0)": {"472": [19, 0.54], "944": [109, 1.9], "1888": "killed: out of memory at 3.4 GB"},
+  "GFN2-xTB (tblite 0.7.0)": {"472": [28, 0.58], "944": [122, 2.1], "1888": "not run"},
+  "GFN-FF (xtb 6.7.1)": {"472": [14, 0.49], "944": [71, 1.4], "1888": "killed: out of memory at 3.3 GB"}
+ }
+}

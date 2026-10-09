@@ -13,6 +13,7 @@ from ambuild import campaign as ab_campaign
 from ambuild import conduction as ab_conduction
 from ambuild import ionmap as ab_ionmap
 from ambuild import sweep as ab_sweep
+from ambuild import xtb as ab_xtb
 from ambuild_web import db, queue
 from ambuild_web.submissions import TEMPLATE, _connect, _int, _owner, checkRecipe, recipeText
 
@@ -26,6 +27,7 @@ LABELS = {
 }
 LABELS.update({m: ab_ionmap.metricLabel(m) for m in ab_ionmap.METRICS})  # from ion_map stages (liminal)
 LABELS.update({m: ab_conduction.metricLabel(m) for m in ab_conduction.METRICS})  # from conduction stages (liminal)
+LABELS.update({m: ab_xtb.metricLabel(m) for m in ab_xtb.METRICS})  # from xtb stages and xTB fan-outs
 
 # The New campaign page's starting point: the Li-ion showcase (for li_ion_carbon, or any
 # recipe of the same shape: a seed stage, then a repeat of grow and zip)

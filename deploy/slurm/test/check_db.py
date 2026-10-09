@@ -1,13 +1,13 @@
 """Check the uploaded runs for run_test.sh:
 
-    check_db.py OK_RUN FAILED_RUN CANCELLED_RUN MULTITASK_RUN
+    check_db.py OK_RUN FAILED_RUN CANCELLED_RUN MULTITASK_RUN XTB_RUN
 """
 import os
 import sys
 
 import psycopg
 
-ok, failed, cancelled, multitask = sys.argv[1:5]
+ok, failed, cancelled, multitask, xtb = sys.argv[1:6]
 with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
     def one(sql, *args):
         return conn.execute(sql, args).fetchone()
@@ -42,4 +42,21 @@ with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         "WHERE run_id = %s", multitask)
     assert (status, ntasks) == ("finished", "2"), (status, ntasks)
     print("two-task run {0}: {1}, HOOMD launcher started 2 ranks".format(multitask, status))
+
+    # the xTB fan-out: a child run per pickle, each with its result, settings and files
+    children = conn.execute(
+        "SELECT r.run_id, r.status, r.run_json->'scheduler'->'variables'->>'SLURM_ARRAY_TASK_ID', e.data "
+        "FROM runs r JOIN events e ON e.run_id = r.run_id AND e.type = 'xtb_result' "
+        "WHERE r.parent_run_id = %s", (xtb,)).fetchall()
+    assert len(children) == 3, children
+    assert all(c[1] == "finished" and c[2] is not None for c in children), children
+    for _, _, _, data in children:
+        assert (data["returncode"], data["converged"], data["mode"]) == (0, True, "relax"), data
+        assert data["relax"]["max_steps"] == 7 and data["threads"] == 1, data
+        assert data["memory_estimate_mb"] > 150, data
+    kinds = {k for (k,) in conn.execute(
+        "SELECT DISTINCT f.kind FROM files f JOIN runs r ON r.run_id = f.run_id WHERE r.parent_run_id = %s", (xtb,))}
+    assert {"xtb", "xtb_relaxed", "xtb_structure", "xtb_topology"} <= kinds, kinds
+    print("xTB run {0}: {1} child runs, atoms {2}".format(
+        xtb, len(children), sorted(c[3]["atoms"] for c in children)))
 print("Slurm end-to-end test passed")
