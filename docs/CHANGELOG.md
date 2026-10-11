@@ -16,6 +16,7 @@ Slurm or K3s, HOOMD-blue across MPI tasks, benchmarks, and HOOMD-blue 4+ (see
 [architecture.md § Delivery plan](architecture.md#delivery-plan)).
 
 ### Added
+- **Trackball in the structure viewer** (`docs/web-gui.md`): a Trackball button takes the pointer, and the structure turns with the ball, no button held, until Esc. The wheel zooms and with Shift twists; `[` and `]` set the sensitivity. Dragging with a mouse is unchanged.
 - **xTB checks** (`docs/xtb-spec.md`): a recipe's `xtb` stage checks the built cell with a semi-empirical method (GFN-FF, GFN1-xTB or GFN2-xTB), as users have been doing by hand.
   - **Single point:** the largest and RMS force at the built geometry, the atoms under the largest forces, the energy and the HOMO–LUMO gap.
   - **Relaxation** (`mode: relax`): a capped fixed-cell relaxation; how far the atoms and the topology's bonds moved, and the relaxed cell as `relaxed.xyz`. GFN1 and GFN2 relax with ASE's LBFGS; GFN-FF with `xtb`'s own optimiser, the cell held with `--nocellopt` (left to itself `xtb` relaxes a periodic cell's lattice too).

@@ -178,6 +178,7 @@ def test_structures_api_lists_checkpoints_in_step_order(client, recorded):
 def test_run_page_has_the_viewer(client, recorded):
     html = client.get("/runs/" + recorded["a"]).text
     assert 'id="structure-viewer"' in html and "/static/3Dmol-min.js" in html and "/static/viewer.js" in html
+    assert re.search(r'<button type="button" id="viewer-trackball" hidden', html)  # shown by the script, if it can
     spec = json.loads(re.search(r'id="structure-data">(.*?)</script>', html, re.S).group(1))
     assert [f["step"] for f in spec["frames"]] == [1, 2, 3]
 

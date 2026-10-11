@@ -246,6 +246,10 @@ submitted) work back to the queue.
   fall back to their `writeXyz` output. Above 10,000 atoms the viewer draws lines.
   View options can go in the address (`?colour=fragment&style=sphere`). Measuring
   distances is not built yet.
+  **Trackball:** the viewer's Trackball button takes the pointer, and the structure then
+  turns with the ball (or the mouse) with no button held, until Esc. The wheel zooms, and
+  with Shift twists about the view's axis; `[` and `]` change the sensitivity, which the
+  browser remembers. Dragging with the mouse works as before.
 - **Poreblazer panel**: the 14 results with units; PSD and cumulative PSD plots; the
   settings used (grid, labelling, threads) and the Poreblazer version; results over the
   checkpoints of one build (how porosity develops as it grows).

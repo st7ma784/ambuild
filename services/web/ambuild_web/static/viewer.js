@@ -447,6 +447,73 @@
   });
   document.addEventListener("fullscreenchange", function () { viewer.resize(); viewer.render(); });
   window.addEventListener("resize", function () { viewer.resize(); viewer.render(); });
+  // Trackball: the button takes the pointer (Pointer Lock), and until Esc gives it back the
+  // structure turns with the ball, no button held: rolling it sideways turns the structure
+  // about the screen's vertical axis, rolling it up or down about the horizontal one. The
+  // wheel zooms as before, and with Shift twists about the view's axis; [ and ] change how
+  // far a roll turns it (remembered). A mouse does the same, less usefully.
+  var ballButton = root.querySelector("#viewer-trackball");
+  var surface = canvas.querySelector("canvas");
+  if (ballButton && surface && surface.requestPointerLock && window.matchMedia("(pointer: fine)").matches) {
+    var degrees = 0.25; // per count of movement
+    try { degrees = parseFloat(localStorage.getItem("ambuild-trackball")) || degrees; } catch (e) { /* no storage */ }
+    var pending = {x: 0, y: 0, twist: 0}, queued = false;
+    var locked = function () { return document.pointerLockElement === surface; };
+    // Turn the view by an angle (radians) about an axis of the screen (unit vector)
+    var turn = function (view, ax, ay, az, angle) {
+      var s = Math.sin(angle / 2), w = Math.cos(angle / 2);
+      var x = ax * s, y = ay * s, z = az * s;
+      var qx = view[4], qy = view[5], qz = view[6], qw = view[7];
+      view[4] = w * qx + qw * x + y * qz - z * qy;
+      view[5] = w * qy + qw * y + z * qx - x * qz;
+      view[6] = w * qz + qw * z + x * qy - y * qx;
+      view[7] = w * qw - x * qx - y * qy - z * qz;
+    };
+    var apply = function () {
+      queued = false;
+      var view = viewer.getView();
+      var roll = Math.sqrt(pending.x * pending.x + pending.y * pending.y);
+      if (roll) turn(view, pending.y / roll, pending.x / roll, 0, roll * degrees * Math.PI / 180);
+      if (pending.twist) turn(view, 0, 0, 1, pending.twist * Math.PI / 180);
+      pending = {x: 0, y: 0, twist: 0};
+      viewer.setView(view);
+    };
+    var queue = function () { if (!queued) { queued = true; window.requestAnimationFrame(apply); } };
+    var ballNote = function () {
+      status.textContent = "Trackball: roll to turn, wheel to zoom, Shift and wheel to twist, [ and ] for sensitivity (" +
+        degrees.toFixed(2) + "°), Esc to leave";
+    };
+    ballButton.hidden = false;
+    ballButton.addEventListener("click", function () {
+      var asked;
+      try { asked = surface.requestPointerLock({unadjustedMovement: true}); } catch (e) { asked = null; }
+      // no raw movement here (the system's pointer acceleration stays on): ask without it
+      if (asked && asked.catch) asked.catch(function () { surface.requestPointerLock(); });
+    });
+    document.addEventListener("pointerlockchange", function () {
+      if (locked()) { ballNote(); } else { draw(); }
+    });
+    document.addEventListener("mousemove", function (e) {
+      if (!locked()) return;
+      pending.x += e.movementX;
+      pending.y += e.movementY;
+      queue();
+    });
+    surface.addEventListener("wheel", function (e) {
+      if (!locked() || !e.shiftKey) return; // 3Dmol zooms
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      pending.twist += (e.deltaY || e.deltaX) > 0 ? 5 : -5;
+      queue();
+    }, {capture: true, passive: false});
+    document.addEventListener("keydown", function (e) {
+      if (!locked() || (e.key !== "[" && e.key !== "]")) return;
+      degrees = Math.min(2, Math.max(0.02, degrees * (e.key === "]" ? 1.25 : 0.8)));
+      try { localStorage.setItem("ambuild-trackball", String(degrees)); } catch (err) { /* no storage */ }
+      ballNote();
+    });
+  }
+
   root.querySelector("#viewer-screenshot").addEventListener("click", function () {
     var link = document.createElement("a");
     link.href = viewer.pngURI();
